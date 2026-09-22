@@ -33,6 +33,8 @@ import { requestV4ComposerDraftWorkspaceTransfer } from "@/v4/composer/composerD
 import { ChatEmptyWorkspacePreviewMenu } from "@/ChatEmptyState.js";
 import { DesktopTopOverlay } from "@/DesktopTopOverlay.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
+import { WebRemoteControlMobileShell } from "@/web-remote/mobile/WebRemoteControlMobileShell.js";
+import { useMobileWebRemoteViewport } from "@/web-remote/mobile/useMobileWebRemoteViewport.js";
 import { WorkspacePluginPreview } from "@/WorkspacePluginPreview.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { GitBranchSwitcher } from "@/GitBranchSwitcher.js";
@@ -217,6 +219,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   onOpenRemoteWorkspace,
   onCreateScratchWorkspace,
   allowOpenWorkspace = true,
+  webRemoteControlWorkspaceSwitcher,
+  initialWebRemoteControlMobileNavigationIntent,
+  initialWebRemoteControlWorkspaceList,
+  webRemoteControlTerminalTransportState,
   allowRemoteWorkspace = true,
   remoteWorkspaceSessions = EMPTY_REMOTE_WORKSPACE_SESSIONS,
   workspaceAbsPath,
@@ -873,6 +879,16 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       targetRemoteSessionId?: string,
       expectedUnreadAt?: number,
     ) => {
+      // 发布包在远控 switcher 存在时跳过本地 tab 补开，只回到 chat 并交给已有选择。
+      if (webRemoteControlWorkspaceSwitcher) {
+        showChatMainView();
+        if (typeof expectedUnreadAt === "number") {
+          handleSelectTask(targetWorkspacePath, taskId, targetWorkspaceIdentity, expectedUnreadAt);
+        } else {
+          handleSelectTask(targetWorkspacePath, taskId, targetWorkspaceIdentity);
+        }
+        return;
+      }
       {
         const workspaceResult = ensureTaskNavigationWorkspace({
           workspacePath: targetWorkspacePath,
@@ -922,7 +938,15 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         handleSelectTask(targetWorkspacePath, taskId, targetWorkspaceIdentity);
       }
     },
-    [handleSelectTask, intl, shellWorkbenchBinding, showChatMainView, tabStoreApi, workspaceTabs],
+    [
+      handleSelectTask,
+      intl,
+      shellWorkbenchBinding,
+      showChatMainView,
+      tabStoreApi,
+      webRemoteControlWorkspaceSwitcher,
+      workspaceTabs,
+    ],
   );
   // 中枢直接启动 accepted 后切到新会话（run 卡已在顶部）：复用运行历史那条导航，
   // target 恒带工作流所属项目坐标（不变式 7），remoteSessionId 决定连接 endpoint。
@@ -1506,6 +1530,156 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     () => [workspaceKey, isSidebarVisible],
     [workspaceKey, isSidebarVisible],
   );
+  const isMobileWebRemoteViewport = useMobileWebRemoteViewport(
+    webRemoteControlWorkspaceSwitcher != null,
+  );
+
+  if (webRemoteControlWorkspaceSwitcher && isMobileWebRemoteViewport) {
+    return (
+      <DesktopWindowFrame
+        title={`ZCode / ${getPathLeaf(workspaceAbsPath)}`}
+        showHeader
+        isDesktop={isDesktop}
+        isMacDesktop={isMacDesktop}
+        isWindowsDesktop={isWindowsDesktop}
+        headerTestId={TID_APP_HEADER}
+      >
+        <WebRemoteControlMobileShell
+          activeTaskId={activeTaskId}
+          activeWorkspaceIdentity={workspaceIdentity}
+          activeWorkspacePath={workspaceAbsPath}
+          initialNavigationIntent={initialWebRemoteControlMobileNavigationIntent}
+          initialWorkspaceList={initialWebRemoteControlWorkspaceList}
+          webRemoteControlTerminalTransportState={webRemoteControlTerminalTransportState}
+          isSidePaneOpen={isSidePaneOpen}
+          onCloseSidePane={isSidePaneOpen ? handleToggleSidePane : undefined}
+          onSelectTask={handleSelectTaskInChat}
+          onStartDraftInWorkspace={handleCreateProjectDraft}
+          switcher={webRemoteControlWorkspaceSwitcher}
+          renderChatHeader={() =>
+            shouldRenderWorkspaceHeader ? (
+              <ScopedErrorBoundary
+                scope="workspace-header"
+                resetKeys={workspaceOnlyResetKeys}
+                variant="compact"
+                className="border-b"
+              >
+                <WorkspaceHeader
+                  variant={activeTaskId === null ? "draft" : "task"}
+                  draftDropTargetController={
+                    activeTaskId === null ? draftHeaderDropTargetController : undefined
+                  }
+                  readOnlyReason={workspaceReadOnlyReason}
+                  workspaceAbsPath={workspaceAbsPath}
+                  remoteSessionId={workspaceRemoteSessionId}
+                  workspaceIdentity={workspaceIdentity}
+                  remoteTarget={workspaceRemoteTarget}
+                  localWorkspacePath={workspaceLocalPathForRemoteMcpSync}
+                  projectName={projectName}
+                  activeTaskTitle={activeTaskTitle}
+                  activeTaskChangeSummary={activeTaskChangeSummary}
+                  hasUpdateReady={hasUpdateStatusButton}
+                  activeTaskId={activeTaskId}
+                  user={user}
+                  activeTraceId={activeTraceId}
+                  activeSessionId={activeSessionId}
+                  activeTaskProvider={activeTaskProvider}
+                  resolvedActiveTaskMeta={resolvedActiveTaskMeta}
+                  sessionLogPath={taskSessionFile.path}
+                  nativeSessionLogProvider={taskNativeSessionLogFile.provider}
+                  nativeSessionLogPath={taskNativeSessionLogFile.path}
+                  nativeSessionLogExists={taskNativeSessionLogFile.exists}
+                  nativeSessionLogLoading={taskNativeSessionLogFile.loading}
+                  workspaceHeaderState={workspaceShellZCodeState}
+                  gitSummary={gitState.summary}
+                  gitDirtyFileCount={gitDirtyFileCount}
+                  isMacDesktop={isMacDesktop}
+                  isMacFullscreen={isMacFullscreen}
+                  isWindowsDesktop={isWindowsDesktop}
+                  windowsWindowControlsRightPaddingPx={windowsWindowControlsRightPaddingPx}
+                  isDesktop={isDesktop}
+                  simplifyForNarrowRemote
+                  isSidebarVisible={isSidebarVisible}
+                  isTerminalOpen={isTerminalOpen}
+                  isSidePaneOpen={isSidePaneOpen}
+                  onRefreshGit={handleRefreshGit}
+                  onToggleTerminal={handleToggleTerminal}
+                  onToggleBrowser={handleToggleBrowser}
+                  onToggleSidePane={handleToggleSidePane}
+                  toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
+                  onReloadSession={handleReloadSession}
+                  reloadSessionDisabled={workspaceSessionActionDisabled}
+                  reloadSessionPending={reloadSessionPending}
+                  onCreateTask={handleCreateTaskInChat}
+                  onOpenWorkspace={onOpenWorkspace}
+                  allowOpenWorkspace={allowOpenWorkspace}
+                />
+              </ScopedErrorBoundary>
+            ) : null
+          }
+          chatOverlay={workspaceMainView === "chat" ? renderChatFindDialog() : undefined}
+          chatContent={
+            <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+              <ScopedErrorBoundary
+                scope="workspace-chat"
+                resetKeys={workspaceDraftResetKeys}
+                variant="panel"
+                className="h-full"
+              >
+                <V4WorkspaceChatArea
+                  readOnly={Boolean(workspaceReadOnlyReason)}
+                  foregroundEnabled={isWorkspaceVisible}
+                  workspacePath={workspaceAbsPath}
+                  workspaceIdentity={workspaceIdentity}
+                  isDesktop={isDesktop === true}
+                  remoteSessionId={workspaceRemoteSessionId}
+                  sessionId={activeTaskId}
+                  activeSelectionSideChatSessionId={activeSelectionSideChatSessionId}
+                  provider={activeTaskProvider ?? undefined}
+                  onSessionCreated={handleV4SessionCreated}
+                  onSessionDeleted={handleV4SessionDeleted}
+                  draftComposerHeader={draftComposerHeader}
+                  onPrimaryDraftDropTargetControllerChange={setDraftHeaderDropTargetController}
+                  gitSummary={gitState.summary}
+                  gitDirtyFileCount={gitDirtyFileCount}
+                  activeTaskChangeSummary={activeTaskChangeSummary}
+                  gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
+                  gitWorktreeChangeSummary={gitWorktreeChangeSummary}
+                  summaryPanelVariantOverride={summaryPanelVariantOverride}
+                  onSummaryPanelVariantOverrideChange={onSummaryPanelVariantOverrideChange}
+                  onRefreshGit={handleRefreshGit}
+                  onOpenGitReview={handleOpenGitReview}
+                  onPaneActiveSessionChange={handlePaneActiveSessionChange}
+                  onOpenBrowserUrl={handleOpenBrowserUrl}
+                  onOpenAutomationsMain={handleOpenAutomations}
+                  onOpenCodeViewer={handleOpenCodeViewer}
+                  onOpenBackgroundBash={handleOpenBackgroundBash}
+                  onOpenSubagentSession={handleOpenSubagentSession}
+                  onOpenSubagentDirectory={handleOpenSubagentDirectory}
+                  onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
+                  onOpenSelectionSideChat={handleOpenSelectionSideChat}
+                  onOpenPlanDetail={handleOpenPlanDetail}
+                  onOpenWorkflowRun={handleOpenWorkflowRun}
+                  onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
+                  onOpenWorkflowRunDirectory={handleOpenWorkflowRunDirectory}
+                  onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
+                  onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
+                  onOpenFileLink={handleOpenMarkdownFileLink}
+                  conversationFindQuery={conversationFindQuery}
+                  conversationFindActiveIndex={conversationFindActiveIndex}
+                  conversationFindNavigationRequestId={conversationFindNavigationRequestId}
+                  onConversationFindMatchStateChange={onConversationFindMatchStateChange}
+                  searchResultHighlightRequest={activeSearchResultHighlightRequest}
+                  onSearchResultHighlightDone={onSearchResultHighlightDone}
+                />
+              </ScopedErrorBoundary>
+            </div>
+          }
+          sidePaneContent={sidePanePanel}
+        />
+      </DesktopWindowFrame>
+    );
+  }
 
   return (
     <DesktopWindowFrame

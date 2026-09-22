@@ -217,3 +217,14 @@ createRemoteWorkspaceServiceCollection
 - 失败文案按 `failure.reason` 映射。`session-conflict` 且 message 含 `kicked` 时用 kicked 文案。刷新配对前确认；停止后把本地状态收成 `idle`。
 - Bots 对话框是配置 UI 的唯一所有者。配置、运行状态和绑定码轮询都走现有 `IBotsService`。`listWorkspaceRefs` 接受当前 workspace，这样历史为空时列表仍包含正在配置的工作区。绑定码 TTL 使用 `BOT_BIND_CODE_TTL_MS`。飞书/Lark 与微信扫码注册沿用现有 begin/poll。Aliyun 验证码 runner 仍未还原。
 - 飞书与 Lark 共用发布包 styles 里内联的 PNG。Telegram、微信、钉钉、Discord、企业微信的 `new URL` 图标没有打进 AppImage，界面改用现有 `Bot` / `Webhook` 图标，不伪造哈希文件名。钉钉只出现在新建列表里，不进入 `BotProviderId`。
+
+### 手机远控任务首页
+
+发布包在 `WorkspaceShellLayout` 收到 `webRemoteControlWorkspaceSwitcher` 且视口匹配 `(max-width: 767px)` 时，用手机壳替换桌面分栏。壳只投影 switcher 给出的 workspace/task 列表，不另建已接受会话队列。
+
+- 列表、重连、切 workspace、新建草稿、`updateMobileViewState` 和 `markTaskRead` 都只调用注入的 switcher。Renderer 保存当前展示快照、展开的 workspace key，以及 `localStorage` 键 `zcode-web-remote-control-mobile-task-home-preferences` 里的整理/排序。页面 `home | chat` 走 `history.state.zcodeMobilePage`。
+- 没有初始列表时调用 `listWorkspaces()`。`onWorkspaceListUpdated` 整表替换快照。`refreshKey` 从 1 起再次拉取；回到首页会先加一。
+- 未归档任务参与计数。置顶和时间线服从用户的 `created | updated`，运行中或 `hasBackgroundWork` 的任务按创建时间置顶。工作区分组固定按 `updated` 排序，与发布包一致。远程且 `disconnected` 或缺 `remoteSessionId` 时禁用任务并显示重连。
+- 同一 workspace 打开任务时可选标记已读，再走现有 `onSelectTask` 和 `updateMobileViewState`。跨 workspace 把 `mobileNavigationIntent: "chat"` 交给 `switchWorkspace`。错误含 `远程工作区尚未连接` 或 `请先重连` 时回到首页。当前壳不会因切换卸载，成功后清掉切换遮罩。
+- 远控 switcher 存在时，选择任务跳过本地 tab 补开，只回到 chat 并调用已有 `handleSelectTask`。窄屏 header 复用 `simplifyForNarrowRemote`。侧栏面板复用现有 `AnimatedSidePanePanel`，不另造 `mobileOverlay` 分支。
+- Switcher 的构造不在 renderer 里，本层不实现第二套会话所有者。没有 switcher 时保持桌面壳。
