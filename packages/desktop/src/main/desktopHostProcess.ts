@@ -38,6 +38,10 @@ import { BroadcastHub } from "./broadcastHub.js";
 import type { TaskRealtimeBus } from "./taskRealtimeBus.js";
 import { createHostLogRelay } from "./hostLogRelay.js";
 import {
+  dispatchBotRemoteWorkspaceHostMessage,
+  type BotRemoteWorkspaceHostHandlers,
+} from "./botRemoteWorkspaceHostDispatch.js";
+import {
   registerHostAgentProcess,
   registerHostProcess,
   unregisterHostAgentProcess,
@@ -224,7 +228,7 @@ export function spawnHostProcess(
     }) => Promise<{ ok: boolean; [k: string]: unknown }>;
     /** Host 已完成附件授权后，由 Main 将本地视频 realpath 加入精确协议授权集合。 */
     authorizeLocalMediaPreviewPath?: (path: string) => Promise<string>;
-  },
+  } & Partial<BotRemoteWorkspaceHostHandlers>,
   options?: SpawnHostProcessOptions,
 ): ElectronUtilityProcess {
   const hostId = randomUUID();
@@ -542,6 +546,17 @@ export function spawnHostProcess(
         workspaceIdentity: result.data.workspaceIdentity,
         runningTaskCount: result.data.runningTaskCount,
       });
+      return;
+    }
+
+    if (
+      dispatchBotRemoteWorkspaceHostMessage({
+        message: result.data,
+        win,
+        child,
+        handlers: dependencies,
+      })
+    ) {
       return;
     }
   });

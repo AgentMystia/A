@@ -11,7 +11,7 @@
 - 二维码、v4 版本门槛和 relay WebSocket 地址在 `webRemoteControlEndpoint.ts`。`buildZCodeEndpointUrls` 同时给出 `remoteUrl` / `webRemoteCallbackUrl` / `relayWsUrl`；manager 实际拨号仍走 `resolveWebRemoteControlRelayWsUrl`，生产默认是 `wss://zcode.z.ai/ws`，测试域 `https://zcode.chatglm.site` 用 `wss://zcode.chatglm.site/ws`，`ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL` 优先。
 - 可变会话只属于 Desktop main 的 `createWebRemoteControlManager`。每条 workspace bridge 自己的 acknowledged relay 持有那条桥的重放缓冲；拆桥或降级时清掉，不另做进程级队列。Settings 只存 `webRemoteControlExternalRelayDevice.deviceSid` 和 `webRemoteControlLastEnabledContext`。`pass_hash` 只进凭据服务，键为 `web-remote-control:external-relay:pass_hash`。Renderer 只提交草稿和同步快照，不保存已接受的 relay 会话。
 - 手机链路的 host attachment 使用 `clientMode: "web-remote-replayable"`。桌面窗口自己的 host 端口仍是 `desktop-continuous`。两条链路共用窗口 Host，不另起进程。
-- Bot 远端 workspace 的 host 消息由 `validation.ts` 校验。Main 收到后仍然没有业务 handler，消息会被忽略。
+- Bot 远端 workspace 的 host 消息由 `validation.ts` 校验。Main 的 `spawnHostProcess` 是唯一回写面：重连、连接状态、runtime port。会话是否仍 attachable 只读 `createRemoteWorkspaceSessionManager` 的 route 表。重连 in-flight 是另一张 map，键为 `webContentsId + workspaceIdentity`，不与 `requestId` pending 表混用。
 
 ## 行为
 
@@ -114,6 +114,21 @@ createWindowRemoteConnectionHandle
   → 遥测：非 server，或 processResourceTelemetry===true
 abort / dispose
   → 有 disposeAndWait 则等待，否则 dispose()
+```
+
+- Bot 远端 workspace 查找只认 `attachmentState=attachable` 且同一 `webContents`。`isSameRemoteTarget`：ssh 比较小写 host、默认端口 22、trim 后的 username 和 `privateKeyPath ?? ""`；wsl 的空 distro 视为 `default`，user 只 trim；docker 比较 container 原文；server 只比较 `normalizeServerEndpoint(url)`，不比较 serverId、name、token。`hasRemoteWorkspaceSessionForTarget` 在传入 workspace 时用 `resolveWorkspaceKey`；空 key 不再按身份过滤。重连和 runtime 则要求 path 与 identity 字符串全等。已有 session 直接返回其 id。否则复用 in-flight promise，没有才 `createRemoteWorkspaceSession`。runtime 找不到 session 时抛 `未找到可供 Bot attachment 的远端 logical session`，找到后 `attachRemoteWorkspaceSessionHost`，`clientMode` 为 `web-remote-replayable`，`workspaceKey` 等于请求里的 `workspaceIdentity`，只把 `.port` 交回 Host。重连成功且窗口未销毁时，Main 向 renderer 发送 `zcode:bot-remote-workspace-reconnected`。未注入处理器时分别回 `未注入 Bot 远端 workspace 重连处理器。`、`未注入 Bot 远端 workspace 连接状态处理器。`、`未注入 Bot 远端 workspace runtime 处理器。`。
+
+```text
+Host bot-remote-workspace-*-request
+  → spawnHostProcess
+  → 无处理器：对应 result，ok=false，固定中文 error
+  → reconnect：已有 route 或 in-flight，否则 createRemoteWorkspaceSession
+       → 窗口仍在：BotRemoteWorkspaceReconnected
+       → bot-remote-workspace-reconnect-result
+  → status：hasRemoteWorkspaceSessionForTarget
+       → bot-remote-workspace-connection-status-result
+  → runtime：attach port 或抛缺少 logical session
+       → bot-remote-workspace-runtime-port（成功时 transfer port）
 ```
 
 ```text
