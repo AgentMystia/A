@@ -96,7 +96,7 @@ test("opening the task index leaves retired ACP IDs and user rows untouched", as
   }
 });
 
-test("missing sessions report the owner error even when a valid ACP snapshot exists", async () => {
+test("missing sessions restore a legacy snapshot without rewriting the file", async () => {
   const dir = await mkdtemp(join(tmpdir(), "zcode-acp-snapshot-"));
   setDataBaseDir(dir);
   const path = getLegacyTaskSessionSnapshotPath(meta.workspacePath, meta.taskId);
@@ -127,11 +127,11 @@ test("missing sessions report the owner error even when a valid ACP snapshot exi
     } as unknown as Options["taskIndexSyncer"],
   });
   try {
+    // 发布包 host 在 Session not found 时按 legacy snapshot 只读返回，不再把 owner error 抛出。
     for (const clientMode of ["desktop-continuous", "web-remote-replayable"] as const) {
-      await assert.rejects(
-        service.getTaskSnapshot({ ...meta, clientMode }),
-        (error) => error === ownerError,
-      );
+      const restored = await service.getTaskSnapshot({ ...meta, clientMode });
+      assert.equal(restored?.meta.taskId, meta.taskId);
+      assert.equal(restored?.messages.length, 0);
     }
     assert.equal(await readFile(path, "utf8"), content);
   } finally {

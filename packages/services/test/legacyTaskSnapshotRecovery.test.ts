@@ -55,6 +55,7 @@ test("published legacy task snapshot is read-only when the protocol session is m
     taskIndexSyncer: {
       onSessionTerminalEvent: disposable,
       onSessionReadyEvent: disposable,
+      emitWorkspaceTaskListChanged() {},
       disposeAll() {},
     } as unknown as Options["taskIndexSyncer"],
   });
@@ -96,12 +97,12 @@ test("published legacy task snapshot is read-only when the protocol session is m
     assert.equal(plainSnapshot?.meta.status, "completed");
     assert.equal(plainSnapshot?.messages[0]?.content, "from file");
     assert.equal(created.length, 0);
-    plainSnapshot &&
-      service.onDynamicTaskEvent({
-        taskId: plain.taskId,
-        workspacePath: plain.workspacePath,
-        workspaceIdentity: plain.workspaceIdentity,
-      })(() => {});
+    assert.ok(plainSnapshot);
+    service.onDynamicTaskEvent({
+      taskId: plain.taskId,
+      workspacePath: plain.workspacePath,
+      workspaceIdentity: plain.workspaceIdentity,
+    })(() => {});
     assert.deepEqual(upstreamSessions, []);
 
     const indexed = legacyMeta({ taskId: "indexed-legacy", title: "File Title" });
