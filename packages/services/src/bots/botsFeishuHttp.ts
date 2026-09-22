@@ -6,6 +6,7 @@ import type { BotCredentialLoader } from "./botsTypes.js";
 import {
   createFeishuMessageError,
   getFeishuBaseUrl,
+  getFeishuDomainProvider,
   resolveFeishuReceiveIdType,
 } from "./botsFeishuUrls.js";
 import { readTenantAccessToken } from "./botsFeishuToken.js";
@@ -265,6 +266,77 @@ export async function readFeishuAppDisplayName(
   } catch (error) {
     throw firstError ?? error;
   }
+}
+
+const FEISHU_USER_DISPLAY_NAME_TTL_MS = 10 * 60_000;
+const feishuUserDisplayNames = new Map<string, { name: string | null; expiresAt: number }>();
+
+export function resolveFeishuUserIdType(userId: string): "open_id" | "union_id" | "user_id" {
+  if (userId.startsWith("ou_")) return "open_id";
+  if (userId.startsWith("on_")) return "union_id";
+  return "user_id";
+}
+
+/** 发布包 host `resolveFeishuUserDisplayName`。 */
+export function resolveFeishuUserDisplayName(payload: Record<string, unknown>): string | null {
+  const data = isRecord(payload.data) ? payload.data : null;
+  const user = isRecord(data?.user) ? data.user : null;
+  const name = typeof user?.name === "string" ? user.name.trim() : "";
+  if (name) return name;
+  const enName = typeof user?.en_name === "string" ? user.en_name.trim() : "";
+  if (enName) return enName;
+  const nickname = typeof user?.nickname === "string" ? user.nickname.trim() : "";
+  return nickname || null;
+}
+
+async function fetchFeishuUserDisplayName(
+  bot: BotConfigEntry,
+  token: string,
+  userId: string,
+): Promise<string | null> {
+  const userIdType = resolveFeishuUserIdType(userId);
+  const result = await fetchBotProviderJson<Record<string, unknown>>(
+    `${getFeishuBaseUrl(bot)}/open-apis/contact/v3/users/${encodeURIComponent(userId)}?user_id_type=${userIdType}`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  if (!result.ok) {
+    throw new Error(`Feishu get user info failed user=${userId}: HTTP ${result.status}`);
+  }
+  const payload = result.payload ?? {};
+  if (payload.code !== 0) {
+    throw new Error(
+      (typeof payload.msg === "string" && payload.msg) ||
+        `Feishu get user info failed user=${userId}.`,
+    );
+  }
+  return resolveFeishuUserDisplayName(payload);
+}
+
+/** 发布包 host `readFeishuUserDisplayName`：成功和空名字都缓存，失败不缓存。 */
+export async function readFeishuUserDisplayName(
+  bot: BotConfigEntry,
+  deps: BotCredentialLoader,
+  providerUserId: string,
+): Promise<string | null> {
+  const userId = providerUserId.trim();
+  if (!userId) return null;
+  const cacheKey = `${getFeishuDomainProvider(bot)}:${bot.feishuAppId ?? ""}:${bot.credentialRef ?? ""}:${userId}`;
+  const cached = feishuUserDisplayNames.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.name;
+  }
+  const token = await readTenantAccessToken(bot, deps);
+  if (!token) return null;
+  const name = await fetchFeishuUserDisplayName(bot, token, userId);
+  feishuUserDisplayNames.set(cacheKey, {
+    name,
+    expiresAt: Date.now() + FEISHU_USER_DISPLAY_NAME_TTL_MS,
+  });
+  return name;
+}
+
+export function clearFeishuUserDisplayNameCache(): void {
+  feishuUserDisplayNames.clear();
 }
 
 export type { BotProviderOutbound };

@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildFeishuElicitationCardPayload } from "../src/bots/botsFeishuElicitationCard.js";
 import { buildFeishuStreamingCardPayload } from "../src/bots/botsFeishuCards.js";
-import { resolveFeishuAppDisplayName } from "../src/bots/botsFeishuHttp.js";
+import type { BotConfigEntry } from "@zcode/shared";
+import { DEFAULT_BOT_COMMAND_POLICY } from "@zcode/shared";
+import {
+  clearFeishuUserDisplayNameCache,
+  readFeishuUserDisplayName,
+  resolveFeishuAppDisplayName,
+  resolveFeishuUserDisplayName,
+  resolveFeishuUserIdType,
+} from "../src/bots/botsFeishuHttp.js";
 import {
   readFeishuAttachment,
   readFeishuCardAction,
@@ -128,6 +136,57 @@ test("published streaming tool panel and app display name fallback", () => {
     }),
     "机器人",
   );
+});
+
+function feishuBot(): BotConfigEntry {
+  return {
+    id: "bot-feishu",
+    name: "Feishu",
+    provider: "feishu",
+    enabled: true,
+    allowedWorkspaces: ["*"],
+    allowedCommands: DEFAULT_BOT_COMMAND_POLICY,
+    currentOptions: {},
+    replyMode: "assistant_changes",
+    feishuAppId: "cli_app",
+    credentialRef: "cred-1",
+  };
+}
+
+test("published feishu user display name uses id type, fallbacks, and a 10 minute cache", async () => {
+  assert.equal(resolveFeishuUserIdType("ou_abc"), "open_id");
+  assert.equal(resolveFeishuUserIdType("on_abc"), "union_id");
+  assert.equal(resolveFeishuUserIdType("user_abc"), "user_id");
+  assert.equal(
+    resolveFeishuUserDisplayName({ data: { user: { name: " ", en_name: " Ada ", nickname: "n" } } }),
+    "Ada",
+  );
+  clearFeishuUserDisplayNameCache();
+  const urls: string[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.includes("tenant_access_token")) {
+      return new Response(JSON.stringify({ code: 0, tenant_access_token: "tok" }), { status: 200 });
+    }
+    return new Response(
+      JSON.stringify({ code: 0, data: { user: { name: " 飞书用户 " } } }),
+      { status: 200 },
+    );
+  }) as typeof fetch;
+  try {
+    const bot = feishuBot();
+    const deps = { loadCredential: async () => "secret" };
+    assert.equal(await readFeishuUserDisplayName(bot, deps, "  "), null);
+    assert.equal(await readFeishuUserDisplayName(bot, deps, "ou_user"), "飞书用户");
+    assert.equal(await readFeishuUserDisplayName(bot, deps, "ou_user"), "飞书用户");
+    assert.equal(urls.filter((url) => url.includes("/contact/v3/users/")).length, 1);
+    assert.match(urls.find((url) => url.includes("/contact/v3/users/")) ?? "", /user_id_type=open_id/);
+  } finally {
+    globalThis.fetch = original;
+    clearFeishuUserDisplayNameCache();
+  }
 });
 
 test("published weixin direct attachment normalizes provider fields", () => {

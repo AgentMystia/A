@@ -15,6 +15,7 @@ import {
   deleteFeishuTypingReaction,
   downloadFeishuAttachment,
   readFeishuAppDisplayName,
+  readFeishuUserDisplayName,
   sendFeishuInteractiveCard,
   updateFeishuInteractiveMessage,
 } from "./botsFeishuHttp.js";
@@ -87,6 +88,9 @@ export function createFeishuBotProvider(deps: FeishuBotProviderDeps): BotProvide
     },
     resolveName(bot) {
       return readFeishuAppDisplayName(bot, deps);
+    },
+    resolveActorDisplayName(bot, actor) {
+      return readFeishuUserDisplayName(bot, deps, actor.providerUserId);
     },
     async send(bot, outbound) {
       const token = await readTenantAccessToken(bot, deps);
