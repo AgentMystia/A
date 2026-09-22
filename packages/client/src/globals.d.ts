@@ -32,6 +32,8 @@ import type {
   RemoteConnectionRuntimeLog,
   RemoteSessionClosedEvent,
   RemoteTarget,
+  WebRemoteControlStartRequest,
+  WebRemoteControlStatus,
   SSHConfigAliasOption,
   RendererTelemetryEventPayload,
   RendererActionTraceBatchV1,
@@ -72,6 +74,17 @@ declare global {
         workspacePath: string;
         workspaceIdentity?: string;
       }): Promise<BrowserGuestAttachResult>;
+      startWebRemoteControl?(
+        request: WebRemoteControlStartRequest,
+      ): Promise<WebRemoteControlStatus>;
+      refreshWebRemoteControlPairing?(
+        request: WebRemoteControlStartRequest,
+      ): Promise<WebRemoteControlStatus>;
+      stopWebRemoteControl?(): Promise<void>;
+      getWebRemoteControlStatus?(): Promise<WebRemoteControlStatus>;
+      onWebRemoteControlStatusChanged?(
+        handler: (status: WebRemoteControlStatus) => void,
+      ): () => void;
       /** 释放当前窗口里的远程 session */
       disposeRemoteSession(sessionId: string): Promise<void>;
       /** 检查本机 Docker daemon 是否可用 */

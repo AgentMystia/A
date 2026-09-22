@@ -207,3 +207,13 @@ createRemoteWorkspaceServiceCollection
 - 导航请求只有 `marketingNavigationStore` 一份。设置分区沿用 `setPendingSettingsSectionIntent` 与 `openSettingsTab`；设置页在当前分区已经落到目标且没有 `provider_id` 时确认。带 `provider_id` 的确认只在模型设置里完成，并且只接受现有 Coding Plan provider id。插件市场沿用 `requestPluginStoreOpen` 与当前 workspace tab；商店页在列表或对应详情出现后确认。升级沿用 `openCodingPlanUpgrade` 的观察回调。确认前若已有导航请求，拒绝为 `marketing_navigation_busy`。30 秒未确认是 `marketing_capability_timeout`。
 - 领取在验证码配置不可用时取消，并使用 `manualClaimPlan.claim.failure.captcha`。配置可用时发布包会打开 Aliyun 验证码；该 runner 尚未还原，因此同样取消并记警告，不伪造 verify param。成功后的权益刷新只调用现有 start-plan entitlement 与 `providerSettingsService.refresh`。
 - 侧栏 footer 挂 banner。会话从非 `completedSuccess` 进入 `completedSuccess` 时触发一次轮询。没有 marketing 服务或正在恢复登录时不创建控制器。
+
+### 手机远控弹窗与 Bots 配置
+
+发布包 renderer 在桌面侧栏 footer 挂 `web-remote-control` 入口，弹窗与 Bots 配置只提交平台调用和 `IBotsService` 请求，不另存 relay 会话。
+
+- 平台方法只在 `IPlatformService`：`startWebRemoteControl`、`refreshWebRemoteControlPairing`、`stopWebRemoteControl`、`getWebRemoteControlStatus`、`onWebRemoteControlStatusChanged`。Desktop preload 转到已有 main IPC。会话状态仍只由 `createWebRemoteControlManager` 写出。
+- 功能开关默认开启。footer 仅在桌面且已有 workspace 路径时挂紧凑入口。入口点击上报 `web_remote_control_entry_view`。弹窗打开时若当前 workspace 已有会话，或已有手机连接，则复用状态；`cancelled` 收成 `idle`。状态轮询 1 秒，二维码来自 `qrUrl`。
+- 失败文案按 `failure.reason` 映射。`session-conflict` 且 message 含 `kicked` 时用 kicked 文案。刷新配对前确认；停止后把本地状态收成 `idle`。
+- Bots 对话框是配置 UI 的唯一所有者。配置、运行状态和绑定码轮询都走现有 `IBotsService`。`listWorkspaceRefs` 接受当前 workspace，这样历史为空时列表仍包含正在配置的工作区。绑定码 TTL 使用 `BOT_BIND_CODE_TTL_MS`。飞书/Lark 与微信扫码注册沿用现有 begin/poll。Aliyun 验证码 runner 仍未还原。
+- 飞书与 Lark 共用发布包 styles 里内联的 PNG。Telegram、微信、钉钉、Discord、企业微信的 `new URL` 图标没有打进 AppImage，界面改用现有 `Bot` / `Webhook` 图标，不伪造哈希文件名。钉钉只出现在新建列表里，不进入 `BotProviderId`。

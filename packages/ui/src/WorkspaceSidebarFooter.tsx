@@ -41,6 +41,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { WorkspaceWebRemoteControlTrigger } from "@/web-remote/WorkspaceWebRemoteControlTrigger.js";
 import { useRewardsOpen } from "@/rewards/RewardsProvider.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
@@ -356,10 +357,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               onUpgradeClick={onUpgradeClick}
             />
             {openRewards ? (
-              <DropdownMenuItem
-                onSelect={() => openRewards()}
-                data-testid="rewards-menu-item"
-              >
+              <DropdownMenuItem onSelect={() => openRewards()} data-testid="rewards-menu-item">
                 <Gift className="size-4" />
                 {intl.formatMessage({ id: "rewards.menuTitle" })}
                 <Badge
@@ -391,6 +389,15 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="flex shrink-0 items-center gap-1.5">
+          {isDesktop && workspacePath ? (
+            <WorkspaceWebRemoteControlTrigger
+              compact
+              workspacePath={workspacePath}
+              workspaceIdentity={workspaceIdentity}
+              remoteSessionId={workspaceRemoteSessionId}
+              initialTaskId={activeTaskId ?? undefined}
+            />
+          ) : null}
           <ControlHintTooltip title={settingsButtonLabel}>
             <Button
               type="button"

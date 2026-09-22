@@ -24,6 +24,8 @@ export interface WebRemoteControlFailure {
 export interface WebRemoteControlMobileViewState {
   activeWorkspaceKey?: string;
   activeTaskId?: string;
+  /** 发布包状态相等比较会读这个时间，避免轮询把相同快照写成新对象。 */
+  updatedAt?: number;
 }
 
 export interface WebRemoteControlStatus {

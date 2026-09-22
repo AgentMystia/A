@@ -287,7 +287,8 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
       };
     },
     getConfig: () => repo.readConfig(),
-    listWorkspaceRefs: () => workspaceRefs.list(),
+    // 发布包对话框把当前 workspace 传进来。历史列表为空时，缓存实现仍会把它放进结果。
+    listWorkspaceRefs: (current) => workspaceRefs.list(current),
     async getUserConfigOptions(request) {
       return listUserConfigOptions(request);
     },

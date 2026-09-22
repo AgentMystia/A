@@ -600,6 +600,24 @@ export interface IPlatformService {
     context: BindRemoteWorkspaceSessionContextRequest,
   ): Promise<void>;
 
+  /** 开启当前窗口的手机远控。会话状态仍只由 main manager 持有。 */
+  startWebRemoteControl?(
+    request: import("./webRemoteControl.js").WebRemoteControlStartRequest,
+  ): Promise<import("./webRemoteControl.js").WebRemoteControlStatus>;
+
+  /** 作废当前配对并重新开启。调用前 UI 必须先确认。 */
+  refreshWebRemoteControlPairing?(
+    request: import("./webRemoteControl.js").WebRemoteControlStartRequest,
+  ): Promise<import("./webRemoteControl.js").WebRemoteControlStatus>;
+
+  stopWebRemoteControl?(): Promise<void>;
+
+  getWebRemoteControlStatus?(): Promise<import("./webRemoteControl.js").WebRemoteControlStatus>;
+
+  onWebRemoteControlStatusChanged?(
+    handler: (status: import("./webRemoteControl.js").WebRemoteControlStatus) => void,
+  ): () => void;
+
   /** 释放当前窗口里已创建的远程 session */
   disposeRemoteSession(sessionId: string): Promise<void>;
 

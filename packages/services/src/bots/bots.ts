@@ -25,9 +25,11 @@ export interface IBotsService {
   syncAppRuntimePreferences(preferences: unknown): Promise<void>;
   getStatus(): Promise<BotsServiceStatus>;
   getConfig(): Promise<BotsConfig>;
-  listWorkspaceRefs(): Promise<BotWorkspaceRef[]>;
+  listWorkspaceRefs(current?: BotWorkspaceRef): Promise<BotWorkspaceRef[]>;
   getUserConfigOptions(request?: { workspacePath?: string }): Promise<BotCurrentOptions[]>;
-  beginFeishuRegistration(request?: { domain?: "feishu" | "lark" }): Promise<FeishuRegistrationBegin>;
+  beginFeishuRegistration(request?: {
+    domain?: "feishu" | "lark";
+  }): Promise<FeishuRegistrationBegin>;
   pollFeishuRegistration(request: {
     deviceCode: string;
     domain?: "feishu" | "lark";

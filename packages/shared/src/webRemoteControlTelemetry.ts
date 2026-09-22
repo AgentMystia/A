@@ -25,6 +25,16 @@ function event(
   };
 }
 
+export function buildWebRemoteControlEntryViewTelemetry(input: {
+  workspaceKind: string;
+  remoteKind?: string;
+}): TelemetryEventPayload {
+  return event("web_remote_control_entry_view", "view", {
+    workspace_kind: input.workspaceKind,
+    remote_kind: input.remoteKind ?? "",
+  });
+}
+
 export function buildWebRemoteControlStartResultTelemetry(input: {
   result: WebRemoteControlTelemetryResult;
   errorCategory?: string;

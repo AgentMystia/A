@@ -70,6 +70,8 @@ import type {
   PrintPageToPdfResult,
   SSHConfigAliasOption,
   RemoteConnectionRuntimeLog,
+  WebRemoteControlStartRequest,
+  WebRemoteControlStatus,
   WindowControlsOverlayMetrics,
   WindowControlsOverlayReadyPayload,
   CreateTempTextAttachmentRequest,
@@ -268,6 +270,22 @@ contextBridge.exposeInMainWorld("zcode", {
     workspaceIdentity?: string;
   }): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.BindRemoteWorkspaceSessionContext, context),
+  startWebRemoteControl: (request: WebRemoteControlStartRequest): Promise<WebRemoteControlStatus> =>
+    ipcRenderer.invoke(PlatformChannels.StartWebRemoteControl, request),
+  refreshWebRemoteControlPairing: (
+    request: WebRemoteControlStartRequest,
+  ): Promise<WebRemoteControlStatus> =>
+    ipcRenderer.invoke(PlatformChannels.ResetWebRemoteControlPairing, request),
+  stopWebRemoteControl: (): Promise<void> =>
+    ipcRenderer.invoke(PlatformChannels.StopWebRemoteControl),
+  getWebRemoteControlStatus: (): Promise<WebRemoteControlStatus> =>
+    ipcRenderer.invoke(PlatformChannels.GetWebRemoteControlStatus),
+  onWebRemoteControlStatusChanged: (handler: (status: WebRemoteControlStatus) => void) => {
+    const listener = (_event: unknown, status: WebRemoteControlStatus) => handler(status);
+    ipcRenderer.on(PlatformChannels.WebRemoteControlStatusChanged, listener);
+    return () =>
+      ipcRenderer.removeListener(PlatformChannels.WebRemoteControlStatusChanged, listener);
+  },
   disposeRemoteSession: (sessionId: string): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.DisposeRemoteSession, sessionId),
   isDockerAvailable: (): Promise<boolean> => ipcRenderer.invoke(PlatformChannels.IsDockerAvailable),
