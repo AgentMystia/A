@@ -246,5 +246,5 @@ createRemoteWorkspaceServiceCollection
 - 发布包 host 固定返回 `provider: "glm"`、`path: workspacePath`、`exists: false`。请求里的 provider 与 workspaceIdentity 不参与探测，也不补一套未出现在发布包里的 CLI 配置文件查找。
 - 有 `remoteSessionId` 时查询走 base task service，否则走当前 workspace 的 task service。workspaceIdentity 已标记远程但会话 id 还没解析出来时不发请求。过期 generation 丢弃。
 - `exists === false` 时打开父目录。盘符根目录保持 `X:\\`。优先用上次选择的已安装编辑器，失败再交给现有 `openInFileManager`。手机远控隐藏该菜单项。
-- 个人市场 id `claude-plugins-official` 的分组标题使用 `settings.plugins.marketplace.claudeCodePlugins`。它不是官方市场，也不恢复已下线的 pluginNames 精选名单。列表分组 memo 无条件格式化这条文案。
+- 个人市场 id `claude-plugins-official` 的分组标题使用 `settings.plugins.marketplace.claudeCodePlugins`。它不是官方市场，也不恢复已下线的 pluginNames 精选名单。列表分组 memo 和市场源对话框都无条件格式化这条文案。该 id 排在官方市场之后，不能移除，刷新失败也不展示。
 - `CLAUDE_UNKNOWN_COMMAND` 在「没有可用模型」之后、provider business 文案之前解析。消息匹配 `Claude Code 未知命令 <command>（参数：<args>）。` 时分别使用 `zcode.error.CLAUDE_UNKNOWN_COMMAND` 与 `_WITH_ARGS`。解析失败则显示原始 message，不再走后续本地化。
