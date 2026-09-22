@@ -186,3 +186,11 @@ createRemoteWorkspaceServiceCollection
 - 服务频道字符串仍与发布包一致。
 - marketing / output-style / cloud-content / bots repo / 手动领取的 schema 与发布包 zod 字面量一致。
 - 本规格仍不表示生产包 SHA-256 已匹配；renderer 仍未从混淆产物唯一还原。
+
+### 发布包权限 broker 与 PiP 客户端
+
+发布包 host 把两套互不替代的 socket 客户端打进了不同 chunk。Helper 安装、原生 addon 和 frame 谓词在本仓库仍是 fail-closed 占位，不从混淆产物另写一套安装器。
+
+- 简单交换只属于 `packages/zcode-cua/broker.js` 的 `brokerExchange`。`callBrokerMethod` / `probeHelperHealth` 走它：先发 `id:0` 的空 `authenticate`，再发 `id:1` 的业务方法。鉴权被拒是 `CuaHelperError`，`code` 为 `auth_failed`。`probeHelperHealth` 在截止时间前按 `broker_info` 轮询，超时 `code` 为 `health_timeout`。
+- `PermissionBrokerClient` 只属于 `permissionBrokerClient.js`。每条 RPC 新建连接，鉴权帧带 `clientApiVersion:2` 与 `authenticateParams`，业务 id 从 1 递增。默认 peer 检查拒绝 world-writable socket；Windows 管道必须落在 `\\.\pipe\zcode-cua-helper-`。`hold_key` / `hold_key_to_app` 的等待时间是 `max(timeout, min(duration,30)*1000+5000)`。
+- PiP 客户端只属于 `pip-session-node.js`。它排队调用 `PermissionBrokerClient`，角色 `presentation`，协议 `2` / `zcode-cua-pip-session-v2`。事件 schema 与发布包 strict object 一致：`focus-changed`、`turn-started`、`turn-ended`、`session-closed`。握手不一致时记 `version_mismatch` 并不再发送。`broker_unavailable` 在 `reconnectAttempts` 内重试，其它错误立即抛出。诊断回调只发第一次。
