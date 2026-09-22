@@ -1,0 +1,144 @@
+import { WEB_REMOTE_CONTROL_RPC_LIMITS } from "@zcode/shared";
+
+export const ACKNOWLEDGED_RELAY_DEFAULTS = {
+  saturationHighWaterMarkBytes: 1024 * 1024,
+  saturationLowWaterMarkBytes: 256 * 1024,
+  replayBufferMaxBytes: 8 * 1024 * 1024,
+  replayBufferGraceMs: 45_000,
+  assemblyTimeoutMs: WEB_REMOTE_CONTROL_RPC_LIMITS.assemblyTimeoutMs,
+} as const;
+
+export interface AcknowledgedRelayBatch<T> {
+  messageSeq: number;
+  frames: readonly T[];
+  outerBytes: number;
+  queuedAt: number;
+  nextFrameIndex: number;
+}
+
+export class AcknowledgedRelayBatchQueue<
+  T extends { messageSeq: number; outerBytes: number; nextFrameIndex: number },
+> {
+  private storage: Array<T | undefined> = [];
+  private headIndex = 0;
+  private nextUnsentIndex = 0;
+
+  get oldest(): T | undefined {
+    return this.storage[this.headIndex];
+  }
+
+  get nextUnsent(): T | undefined {
+    return this.storage[this.nextUnsentIndex];
+  }
+
+  append(batch: T): void {
+    this.storage.push(batch);
+  }
+
+  advanceUnsent(): void {
+    if (this.nextUnsentIndex < this.storage.length) this.nextUnsentIndex += 1;
+  }
+
+  resetReplay(): void {
+    for (let index = this.headIndex; index < this.storage.length; index += 1) {
+      const batch = this.storage[index];
+      if (batch) batch.nextFrameIndex = 0;
+    }
+    this.nextUnsentIndex = this.headIndex;
+  }
+
+  releaseThrough(messageSeq: number): { releasedBytes: number; releasedCount: number } {
+    let releasedBytes = 0;
+    let releasedCount = 0;
+    while (this.headIndex < this.storage.length) {
+      const batch = this.storage[this.headIndex];
+      if (!batch || batch.messageSeq > messageSeq) break;
+      releasedBytes += batch.outerBytes;
+      releasedCount += 1;
+      this.storage[this.headIndex] = undefined;
+      this.headIndex += 1;
+    }
+    this.nextUnsentIndex = Math.max(this.nextUnsentIndex, this.headIndex);
+    this.compactReleasedPrefix();
+    return { releasedBytes, releasedCount };
+  }
+
+  clear(): void {
+    this.storage = [];
+    this.headIndex = 0;
+    this.nextUnsentIndex = 0;
+  }
+
+  private compactReleasedPrefix(): void {
+    if (this.headIndex < 1024 || this.headIndex * 2 < this.storage.length) return;
+    const released = this.headIndex;
+    this.storage = this.storage.slice(released);
+    this.nextUnsentIndex = Math.max(0, this.nextUnsentIndex - released);
+    this.headIndex = 0;
+  }
+}
+
+function requirePositive(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive safe integer`);
+  }
+  return value;
+}
+
+function requireNonnegative(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${name} must be a nonnegative safe integer`);
+  }
+  return value;
+}
+
+export function resolveAcknowledgedRelayLimits(input: {
+  saturationHighWaterMarkBytes?: number;
+  saturationLowWaterMarkBytes?: number;
+  replayBufferMaxBytes?: number;
+  replayBufferGraceMs?: number;
+  assemblyTimeoutMs?: number;
+}): {
+  highWaterMarkBytes: number;
+  lowWaterMarkBytes: number;
+  replayBufferMaxBytes: number;
+  replayBufferGraceMs: number;
+  assemblyTimeoutMs: number;
+} {
+  const highWaterMarkBytes = requirePositive(
+    input.saturationHighWaterMarkBytes ?? ACKNOWLEDGED_RELAY_DEFAULTS.saturationHighWaterMarkBytes,
+    "saturationHighWaterMarkBytes",
+  );
+  const lowWaterMarkBytes = requireNonnegative(
+    input.saturationLowWaterMarkBytes ?? ACKNOWLEDGED_RELAY_DEFAULTS.saturationLowWaterMarkBytes,
+    "saturationLowWaterMarkBytes",
+  );
+  if (lowWaterMarkBytes > highWaterMarkBytes) {
+    throw new Error("saturationLowWaterMarkBytes must not exceed high watermark");
+  }
+  return {
+    highWaterMarkBytes,
+    lowWaterMarkBytes,
+    replayBufferMaxBytes: Math.min(
+      requirePositive(
+        input.replayBufferMaxBytes ?? ACKNOWLEDGED_RELAY_DEFAULTS.replayBufferMaxBytes,
+        "replayBufferMaxBytes",
+      ),
+      ACKNOWLEDGED_RELAY_DEFAULTS.replayBufferMaxBytes,
+    ),
+    replayBufferGraceMs: Math.min(
+      requirePositive(
+        input.replayBufferGraceMs ?? ACKNOWLEDGED_RELAY_DEFAULTS.replayBufferGraceMs,
+        "replayBufferGraceMs",
+      ),
+      ACKNOWLEDGED_RELAY_DEFAULTS.replayBufferGraceMs,
+    ),
+    assemblyTimeoutMs: Math.min(
+      requirePositive(
+        input.assemblyTimeoutMs ?? ACKNOWLEDGED_RELAY_DEFAULTS.assemblyTimeoutMs,
+        "assemblyTimeoutMs",
+      ),
+      ACKNOWLEDGED_RELAY_DEFAULTS.assemblyTimeoutMs,
+    ),
+  };
+}

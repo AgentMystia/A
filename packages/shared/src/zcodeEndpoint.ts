@@ -1,4 +1,5 @@
 import type { ZCodeEnv } from "./env.js";
+import { isWebRemoteControlV4AppVersion } from "./webRemoteControlEndpoint.js";
 
 export const DEFAULT_ZCODE_ENDPOINT_ORIGIN = "https://zcode.z.ai";
 export const DEFAULT_BIGMODEL_API_ORIGIN = "https://bigmodel.cn";
@@ -34,7 +35,10 @@ export function readProductEndpointEnv(): Record<string, string | undefined> {
 export interface ZCodeEndpointUrls {
   origin: string;
   apiBaseUrl: string;
+  remoteUrl: string;
+  webRemoteCallbackUrl: string;
   webShareCallbackUrl: string;
+  relayWsUrl: string;
   zcodePlanOpenAiBaseUrl: string;
   zcodePlanAnthropicBaseUrl: string;
   zcodePlanBillingCurrentUrl: string;
@@ -257,12 +261,21 @@ export function resolveRuntimeProductEndpointConfig(
   };
 }
 
-export function buildZCodeEndpointUrls(origin: string): ZCodeEndpointUrls {
+export function buildZCodeEndpointUrls(
+  origin: string,
+  options: { appVersion?: string } = {},
+): ZCodeEndpointUrls {
   const normalizedOrigin = normalizeZCodeEndpointOrigin(origin);
+  const parsed = new URL(normalizedOrigin);
+  const relayProtocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+  const remoteGeneration = isWebRemoteControlV4AppVersion(options.appVersion) ? "v4" : "v3";
   return {
     origin: normalizedOrigin,
     apiBaseUrl: `${normalizedOrigin}/api/v1`,
+    remoteUrl: `${normalizedOrigin}/remote/${remoteGeneration}`,
+    webRemoteCallbackUrl: `${normalizedOrigin}/web-remote/callback`,
     webShareCallbackUrl: `${normalizedOrigin}/cn/share/callback`,
+    relayWsUrl: `${relayProtocol}//${parsed.host}/ws`,
     zcodePlanOpenAiBaseUrl: `${normalizedOrigin}/api/v1/zcode-plan`,
     zcodePlanAnthropicBaseUrl: `${normalizedOrigin}/api/v1/zcode-plan/anthropic`,
     zcodePlanBillingCurrentUrl: `${normalizedOrigin}/api/v1/zcode-plan/billing/current`,

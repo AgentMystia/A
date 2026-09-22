@@ -128,6 +128,7 @@ export function createRemoteWorkspaceSessionManager(options: {
     disconnectReason: RemoteDisconnectReason;
     durationMs: number;
   }) => void;
+  onRemoteSessionConnectionClosed?: (remoteSessionId: string) => void;
   monotonicNowMs?: () => number;
   providerProvisioningCoordinator?: ProviderProvisioningEnvironmentCoordinator;
 }) {
@@ -525,6 +526,7 @@ export function createRemoteWorkspaceSessionManager(options: {
       "session-connection-closed",
       new Error(`远程 workspace 已关闭，sessionId=${event.remoteSessionId}`),
     );
+    options.onRemoteSessionConnectionClosed?.(event.remoteSessionId);
     const win = BrowserWindow.getAllWindows().find(
       (candidate) => candidate.webContents.id === webContentsId,
     );

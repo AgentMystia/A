@@ -472,6 +472,14 @@ const appSettingsObjectSchema = z.object({
   skippedElectronUpdateVersions: skippedElectronUpdateVersionsSchema,
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
   zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
+  webRemoteControlExternalRelayDevice: z.object({ deviceSid: nonEmptyStringSchema }).optional(),
+  webRemoteControlLastEnabledContext: z
+    .object({
+      workspacePath: nonEmptyStringSchema,
+      workspaceIdentity: z.string().optional(),
+      initialTaskId: z.string().optional(),
+    })
+    .optional(),
 });
 
 export const appSettingsSchema = z.preprocess(
@@ -559,4 +567,12 @@ export const appSettingsPatchSchema = z.object({
     .optional(),
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
   zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
+  webRemoteControlExternalRelayDevice: z.object({ deviceSid: nonEmptyStringSchema }).optional(),
+  webRemoteControlLastEnabledContext: z
+    .object({
+      workspacePath: nonEmptyStringSchema,
+      workspaceIdentity: z.string().optional(),
+      initialTaskId: z.string().optional(),
+    })
+    .optional(),
 });

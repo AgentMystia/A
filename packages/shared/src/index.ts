@@ -118,6 +118,13 @@ export interface ICredentialStore {
 export * from "./test-ids.js";
 export * from "./test-ids-workflow.js";
 export * from "./webRemoteControl.js";
+export * from "./webRemoteControlEndpoint.js";
+export * from "./webRemoteControlTelemetry.js";
+export * from "./webRemoteControlRpcLimits.js";
+export * from "./webRemoteControlRpcSchema.js";
+export * from "./webRemoteControlRpcCodec.js";
+export * from "./webRemoteControlRpcAssembler.js";
+export * from "./webRemoteControlPayload.js";
 export * from "./channels.js";
 export * from "./storage.js";
 export * from "./oauth.js";

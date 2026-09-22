@@ -3,10 +3,17 @@ import type { SessionWorkflowActivity } from "./zcode-protocol-v4/sessions-index
 import type { WorkspacePurpose } from "./workspacePurpose.js";
 
 /**
- * 发布包 main 的 `buildRuntimeStatus` 使用 idle / running / active。
- * renderer 在 start 与 refresh 返回 `cancelled` 时把界面收成 idle，所以协议保留这个字。
+ * Manager 会写出 starting / running / connecting / active / error。
+ * renderer 在 start 与 refresh 返回 cancelled 时把界面收成 idle，所以协议保留这个字。
  */
-export type WebRemoteControlPhase = "idle" | "running" | "active" | "cancelled";
+export type WebRemoteControlPhase =
+  | "idle"
+  | "starting"
+  | "running"
+  | "connecting"
+  | "active"
+  | "error"
+  | "cancelled";
 
 export interface WebRemoteControlFailure {
   reason: string;
@@ -42,6 +49,20 @@ export interface WebRemoteControlStartRequest {
   workspaceIdentity?: string;
   remoteSessionId?: string;
   initialTaskId?: string;
+  /** 发布包会收下 theme，但二维码查询参数不包含它。 */
+  theme?: string;
+}
+
+/** Settings 里的上次开启上下文。passHash 不在这里。 */
+export interface WebRemoteControlLastEnabledContext {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  initialTaskId?: string;
+}
+
+/** Settings 只保存 deviceSid。passHash 在凭据服务。 */
+export interface WebRemoteControlExternalRelayDevice {
+  deviceSid: string;
 }
 
 export interface WebRemoteControlWorkspaceSnapshot {
@@ -67,11 +88,12 @@ export interface WebRemoteControlTaskSnapshot {
   updatedAt: number;
   provider?: string;
   unreadAt?: number;
-  displayStatus: string;
-  hasBackgroundWork?: true;
+  /** 发布包 task schema 允许缺省，签名计算时按 idle。 */
+  displayStatus?: "idle" | "running" | "completed" | "error";
+  hasBackgroundWork?: boolean;
   workflowActivity?: SessionWorkflowActivity;
-  pinned?: true;
-  archived?: true;
+  pinned?: boolean;
+  archived?: boolean;
 }
 
 export interface WebRemoteControlReconnectWorkspaceRequest {

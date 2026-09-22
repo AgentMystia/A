@@ -109,3 +109,28 @@ export const logger = {
   /** renderer 日志通过 IPC 传入后调用此方法写入同一文件 */
   fromRenderer: (level: LogLevel, args: unknown[]) => write(level, "renderer", ...args),
 };
+
+function writeDedicatedRelayLine(level: Exclude<LogLevel, "debug">, ...args: unknown[]): void {
+  const now = new Date();
+  const source = "web-remote-control-relay";
+  const message = args
+    .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
+    .join(" ");
+  const line = `[${formatTimestamp(now)}] [${level}] [pid:${process.pid}] [${source}] ${message}\n`;
+  const directory = join(getLogDir(), "web-remote-control");
+  const filePath = join(directory, `${source}-${formatDate(now)}.log`);
+  try {
+    mkdirSync(directory, { recursive: true });
+    maybeThrowInjectedFsFault({ operation: "appendFile", path: filePath });
+    appendFileSync(filePath, line);
+  } catch {
+    // 专用 relay 日志失败不能反向影响配对。
+  }
+}
+
+/** 发布包把 relay 报文写到 logs/web-remote-control/，不进主日志。 */
+export const webRemoteControlRelayLogger = {
+  info: (...args: unknown[]) => writeDedicatedRelayLine("info", ...args),
+  warn: (...args: unknown[]) => writeDedicatedRelayLine("warn", ...args),
+  error: (...args: unknown[]) => writeDedicatedRelayLine("error", ...args),
+};
