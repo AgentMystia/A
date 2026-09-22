@@ -238,3 +238,13 @@ createRemoteWorkspaceServiceCollection
 - 手机视口上打开任务会收起导航。跨 workspace 时写入 `sessionStorage` 键 `zcode:web-remote-control:collapse-navigation-once`，下次壳初始化读到后删除并直接收起。桌面宽度不写这个键。
 - 侧栏面板在窄屏用 `--web-remote-navigation-height`。收起时高度为 0 并隐藏。竖向分隔条在窄屏隐藏。Switcher 存在时禁用分屏入口，并把 automations / plugin-store 收成 chat。
 - 模式文案表只给现有 `ConfigSelect` 查 `mode.label.*` / `mode.description.*`。不把 claude、codex、gemini、opencode 加进 `ZCodeProvider`。
+
+### 任务菜单里的 provider 配置与错误文案
+
+发布包任务菜单在复制 session id 之后提供「前往配置」。配置路径只由 `IZCodeTaskService.getWorkspaceProviderConfigFile` 回答；菜单和 hook 不另存一份已接受路径。
+
+- 发布包 host 固定返回 `provider: "glm"`、`path: workspacePath`、`exists: false`。请求里的 provider 与 workspaceIdentity 不参与探测，也不补一套未出现在发布包里的 CLI 配置文件查找。
+- 有 `remoteSessionId` 时查询走 base task service，否则走当前 workspace 的 task service。workspaceIdentity 已标记远程但会话 id 还没解析出来时不发请求。过期 generation 丢弃。
+- `exists === false` 时打开父目录。盘符根目录保持 `X:\\`。优先用上次选择的已安装编辑器，失败再交给现有 `openInFileManager`。手机远控隐藏该菜单项。
+- 个人市场 id `claude-plugins-official` 的分组标题使用 `settings.plugins.marketplace.claudeCodePlugins`。它不是官方市场，也不恢复已下线的 pluginNames 精选名单。列表分组 memo 无条件格式化这条文案。
+- `CLAUDE_UNKNOWN_COMMAND` 在「没有可用模型」之后、provider business 文案之前解析。消息匹配 `Claude Code 未知命令 <command>（参数：<args>）。` 时分别使用 `zcode.error.CLAUDE_UNKNOWN_COMMAND` 与 `_WITH_ARGS`。解析失败则显示原始 message，不再走后续本地化。

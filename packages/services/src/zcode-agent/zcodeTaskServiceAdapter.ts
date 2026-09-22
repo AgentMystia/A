@@ -120,6 +120,7 @@ import type {
   ZCodeTaskReadyOutcome,
   ZCodeTaskTerminalOutcome,
 } from "../session/zcodeTaskService.js";
+import { readWorkspaceProviderConfigFile } from "../session/workspaceProviderConfigFile.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   AUTOMATION_MUTATION_TOOL_NAMES,
@@ -2911,6 +2912,11 @@ export function createZCodeTaskServiceAdapter(
       const snapshot = await resumeSnapshot(target);
       await syncTaskIndexSnapshot(snapshot);
       return settingsToConfigOptions(snapshot.settings);
+    },
+
+    async getWorkspaceProviderConfigFile(params) {
+      // 发布包 host 不读取磁盘。固定 exists=false，菜单据此打开 workspace 的父目录。
+      return readWorkspaceProviderConfigFile({ workspacePath: params.workspacePath });
     },
 
     async getTaskNativeSessionLogFile() {

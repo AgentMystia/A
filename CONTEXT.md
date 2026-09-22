@@ -19,7 +19,7 @@ _Avoid_: 预装插件、bundled plugin（口语可用，文档统一"内置"）
 _Avoid_: 网络插件、在线插件
 
 **Personal Source（个人来源）**:
-用户自行添加的一切插件来源：git/GitHub/URL/本地目录市场、inline 插件。
+用户自行添加的一切插件来源：git/GitHub/URL/本地目录市场、inline 插件。其中 id 为 `claude-plugins-official` 的市场分组标题固定为 “Claude Code Plugins”；它不是 Official Marketplace，也不恢复已下线的 pluginNames 精选名单。
 _Avoid_: 无
 
 **Catalog Auto-Refresh（目录自动刷新）**:

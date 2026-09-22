@@ -168,9 +168,11 @@ export function WorkspaceHeaderTitleSection({
   const {
     taskSessionFile,
     taskNativeSessionLogFile,
+    providerConfigFile,
     fileManagerLabel,
     handleCopyText,
     handleOpenTaskPathInFileManager,
+    handleOpenProviderConfig,
   } = useTaskListItemContextActions({
     workspacePath: workspaceAbsPath,
     remoteSessionId,
@@ -525,6 +527,7 @@ export function WorkspaceHeaderTitleSection({
                 taskSessionFile={taskSessionFile}
                 activeSessionId={activeSessionId}
                 taskNativeSessionLogFile={taskNativeSessionLogFile}
+                providerConfigFile={providerConfigFile}
                 disableTaskTargetActions={disableTaskTargetActions || taskMenuMembershipLoading}
                 disableTaskActions={Boolean(readOnlyReason)}
                 disabledReason={readOnlyReason}
@@ -674,6 +677,9 @@ export function WorkspaceHeaderTitleSection({
                 }}
                 onOpenTaskPathInFileManager={() => {
                   void handleOpenTaskPathInFileManager();
+                }}
+                onOpenProviderConfig={() => {
+                  void handleOpenProviderConfig();
                 }}
                 onCopyWorkspacePath={() => {
                   void handleCopyText(

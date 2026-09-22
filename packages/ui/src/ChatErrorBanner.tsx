@@ -33,6 +33,7 @@ import {
   isSuspiciousEmptyModelResultMessage,
   resolveOffPeakTicketExpiredBusinessCode,
 } from "@/lib/providerBusinessError.js";
+import { resolveClaudeUnknownCommandMessage } from "@/lib/claudeUnknownCommand.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
 
 const HISTORICAL_MODEL_UNAVAILABLE_MESSAGES = [
@@ -74,6 +75,14 @@ export function resolveChatErrorBannerDisplayMessage(
 ): string {
   if (isModelConfigMissingError(error)) {
     return intl.formatMessage({ id: "chat.error.noAvailableModel" });
+  }
+
+  const claudeUnknownCommandMessage = resolveClaudeUnknownCommandMessage(
+    error,
+    (descriptor, values) => intl.formatMessage(descriptor, values),
+  );
+  if (claudeUnknownCommandMessage !== null) {
+    return claudeUnknownCommandMessage;
   }
 
   const providerBusinessCode =

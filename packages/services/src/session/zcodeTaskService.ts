@@ -579,6 +579,20 @@ export interface IZCodeTaskService {
     mode?: ZCodeTaskMode;
   }): Promise<ZCodeConfigOption[]>;
 
+  /**
+   * 发布包任务菜单「前往配置」使用的路径。
+   * 实现固定返回 workspacePath 且 exists 为 false，不探测 CLI 配置文件。
+   */
+  getWorkspaceProviderConfigFile(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    provider: ZCodeProvider;
+  }): Promise<{
+    provider: ZCodeProvider;
+    path: string;
+    exists: boolean;
+  }>;
+
   /** 获取 ZCode Agent 当前结构化日志文件路径。 */
   getTaskNativeSessionLogFile(params: {
     taskId: string;

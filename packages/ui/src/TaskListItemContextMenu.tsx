@@ -12,6 +12,7 @@ export function TaskListItemContextMenu({
   taskSessionFile,
   activeSessionId,
   taskNativeSessionLogFile,
+  providerConfigFile,
   onTogglePinTask,
   onStartRenameTask,
   onArchiveTask,
@@ -24,6 +25,7 @@ export function TaskListItemContextMenu({
   onCopyTaskPath,
   onCopyTaskLogPath,
   onCopySessionId,
+  onOpenProviderConfig,
   onViewModelTrajectory,
   disableTaskActions = false,
   disabledReason,
@@ -40,6 +42,8 @@ export function TaskListItemContextMenu({
     path: string | null;
     exists: boolean;
   };
+  providerConfigFile: { loading: boolean; path: string | null };
+  onOpenProviderConfig: () => void;
   onTogglePinTask: () => void;
   onStartRenameTask: () => void;
   onArchiveTask: () => void;
@@ -67,6 +71,7 @@ export function TaskListItemContextMenu({
         taskSessionFile={taskSessionFile}
         activeSessionId={activeSessionId}
         taskNativeSessionLogFile={taskNativeSessionLogFile}
+        providerConfigFile={providerConfigFile}
         Item={ContextMenuItem}
         Separator={ContextMenuSeparator}
         onTogglePinTask={onTogglePinTask}
@@ -81,6 +86,7 @@ export function TaskListItemContextMenu({
         onCopyTaskPath={onCopyTaskPath}
         onCopyTaskLogPath={onCopyTaskLogPath}
         onCopySessionId={onCopySessionId}
+        onOpenProviderConfig={onOpenProviderConfig}
         onViewModelTrajectory={onViewModelTrajectory}
         disableTaskActions={disableTaskActions}
         disabledReason={disabledReason}
