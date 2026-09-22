@@ -6,14 +6,14 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { pdfJsCMapsPlugin } from "../ui/vite/pdfJsCMapsPlugin.js";
 import { thirdPartyNoticesVitePlugin } from "../../scripts/third-party-notices.mjs";
-// Vite 配置在 Node 加载期执行，不能导入 @zcode/shared 根入口。
-// 根入口包含 NodeNext 风格的源码 re-export，Node 会按真实文件查找 .js 并在 bootstrap 阶段失败。
+// Vite 8 把裸包名外置后，Node 直接加载 zcodeEndpoint.ts，无法把 `.js` 说明符改写到 `.ts`。
+// 相对路径进入配置包，由 Rolldown 完成改写。根入口同样不能在配置加载期导入。
 import {
   resolveRuntimeZCodeEndpointOrigin,
   pickProductEndpointEnv,
   resolveZaiOAuthClientId,
   resolveZaiOAuthOrigin,
-} from "@zcode/shared/zcodeEndpoint";
+} from "../shared/src/zcodeEndpoint.js";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = resolve(HERE, "../..");

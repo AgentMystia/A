@@ -4,7 +4,11 @@ import { dirname, extname, isAbsolute, resolve } from "node:path";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { resolveZCodeEndpointOrigin, pickProductEndpointEnv } from "@zcode/shared/zcodeEndpoint";
+// Vite 8 打包配置时把裸包名外置，再交给 Node 直接加载 TypeScript。
+// Node 不会把 nodenext 的 `.js` 说明符改写到同名 `.ts`，因此
+// `@zcode/shared/zcodeEndpoint` 在加载配置时找不到 `webRemoteControlEndpoint.js`。
+// 相对路径进入 Rolldown 配置包，由它完成这次改写。运行时代码仍从包入口导入。
+import { resolveZCodeEndpointOrigin, pickProductEndpointEnv } from "../shared/src/zcodeEndpoint.js";
 import { pdfJsCMapsPlugin } from "../ui/vite/pdfJsCMapsPlugin.js";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
 import { resolveDesktopProductFlavor } from "./scripts/desktop-product-identity.mjs";

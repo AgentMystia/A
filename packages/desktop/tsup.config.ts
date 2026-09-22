@@ -1,4 +1,6 @@
-import { pickProductEndpointEnv } from "@zcode/shared/zcodeEndpoint";
+// bundle-require 会把裸包名外置，Node 再加载 zcodeEndpoint.ts 时无法把
+// `./webRemoteControlEndpoint.js` 解析到同名 `.ts`。相对路径留在配置包内，由 esbuild 改写。
+import { pickProductEndpointEnv } from "../shared/src/zcodeEndpoint.js";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -130,6 +132,10 @@ const desktopNodeRuntimeExternals = [
   "node-forge",
   // ZIP 解包器内部依赖 CommonJS require("fs")，不能内联到 ESM main/host 产物。
   "yauzl",
+  // 发布包保留运行时动态 import。这两个包不在当前工作区里；
+  // 不标成 external 时 esbuild 会在打包期因为解析失败而中断。
+  "sharp",
+  "@larksuiteoapi/node-sdk",
 ];
 
 function createDevReadyMarkerHook(target: "main" | "host" | "preload"): string {
@@ -189,6 +195,7 @@ export default defineConfig([
     entry: {
       "preload/embeddedBrowserJavaScriptDialog": "src/preload/embeddedBrowserJavaScriptDialog.ts",
       "preload/codingPlanWebview": "src/preload/codingPlanWebview.ts",
+      "preload/rewardsWebview": "src/preload/rewardsWebview.ts",
       "preload/browserVideoRecorder": "src/preload/browserVideoRecorder.ts",
       "preload/index": "src/preload/index.ts",
       "preload/resourceManager": "src/preload/resourceManager.ts",

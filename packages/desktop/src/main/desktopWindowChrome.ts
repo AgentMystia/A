@@ -15,6 +15,7 @@ import {
   desktopMenuMessageIds,
   getDesktopMenuMessage,
   isTrustedCodingPlanWebviewOrigin,
+  isTrustedRewardsUrl,
   resolveZaiBusinessBaseUrl,
   PlatformChannels,
 } from "@zcode/shared";
@@ -56,6 +57,7 @@ const embeddedBrowserJavaScriptDialogPreloadPath = join(
 );
 // Coding Plan 官网页专用 preload：挂 window.zcodeBridge 供官网回传购买完成信号。
 const codingPlanWebviewPreloadPath = join(import.meta.dirname, "../preload/codingPlanWebview.cjs");
+const rewardsWebviewPreloadPath = join(import.meta.dirname, "../preload/rewardsWebview.cjs");
 
 /**
  * 判断 webview 是否加载 Coding Plan 官网购买页（/coding-plan?...&embedded=app）。
@@ -342,10 +344,18 @@ function shouldOpenEmbeddedBrowserRequestExternally(input: {
   );
 }
 
+function rewardsWebviewTrustOptions(): { dev: boolean; e2e: boolean } {
+  return {
+    dev: !app.isPackaged,
+    e2e: process.env.VITE_ZCODE_E2E_STORE_BRIDGE === "1",
+  };
+}
+
 function attachEmbeddedBrowserWindowOpenHandler(options: {
   hostWebContents: WebContents;
   guestWebContents: WebContents;
   isCodingPlanGuest: boolean;
+  isRewardsGuest: boolean;
   resolveBrowserViewOwner?: (webContentsId: number) =>
     | {
         workspaceKey: string;
@@ -448,6 +458,18 @@ function attachEmbeddedBrowserWindowOpenHandler(options: {
   });
 
   options.guestWebContents.on("will-navigate", (event, url) => {
+    // 奖励页 preload 会留在后续导航里。离开可信奖励页时必须停在 guest 里，
+    // 并把 http(s) 交给系统浏览器，避免第三方页面继承 zcodeBridge。
+    if (options.isRewardsGuest) {
+      if (isTrustedRewardsUrl(url, rewardsWebviewTrustOptions())) return;
+      event.preventDefault();
+      if (isAllowedEmbeddedBrowserNewWindowUrl(url)) {
+        void shell.openExternal(url).catch(() => {
+          options.logger.warn("[rewards] external navigation failed");
+        });
+      }
+      return;
+    }
     const guestUrl =
       typeof options.guestWebContents.getURL === "function"
         ? options.guestWebContents.getURL()
@@ -614,6 +636,7 @@ export function createBrowserWindow(options: {
   win.on("unmaximize", () => syncDesktopWindowChromeState(win));
   attachWindowsWindowRepaint(win);
   const pendingWebviewCodingPlanGuestFlags: boolean[] = [];
+  const pendingWebviewRewardsGuestFlags: boolean[] = [];
 
   win.webContents.once("did-finish-load", () => {
     // 生产包使用 loadFile(file://...) 导航时，Chromium 可能在页面加载完成后重放
@@ -647,9 +670,19 @@ export function createBrowserWindow(options: {
     // 改用专用 preload（codingPlanWebview.ts），其余 webview 保持原生 Dialog 桥。
     const targetUrl = params.src ?? "about:blank";
     const isCodingPlanWebview = isCodingPlanEmbeddedWebviewSrc(targetUrl);
-    webPreferences.preload = isCodingPlanWebview
-      ? codingPlanWebviewPreloadPath
-      : embeddedBrowserJavaScriptDialogPreloadPath;
+    const isRewardsWebview = isTrustedRewardsUrl(targetUrl, rewardsWebviewTrustOptions());
+    webPreferences.preload = isRewardsWebview
+      ? rewardsWebviewPreloadPath
+      : isCodingPlanWebview
+        ? codingPlanWebviewPreloadPath
+        : embeddedBrowserJavaScriptDialogPreloadPath;
+    // 未打包时奖励 preload 才承认 localhost。打包态不追加这个参数。
+    if (isRewardsWebview && !app.isPackaged) {
+      webPreferences.additionalArguments = [
+        ...(webPreferences.additionalArguments ?? []),
+        "--zcode-rewards-dev",
+      ];
+    }
     webPreferences.contextIsolation = true;
     webPreferences.nodeIntegration = false;
     webPreferences.nodeIntegrationInSubFrames = true;
@@ -677,6 +710,7 @@ export function createBrowserWindow(options: {
     }
 
     pendingWebviewCodingPlanGuestFlags.push(isCodingPlanWebview);
+    pendingWebviewRewardsGuestFlags.push(isRewardsWebview);
   });
 
   win.webContents.on("did-attach-webview", (_event, guestWebContents) => {
@@ -685,8 +719,9 @@ export function createBrowserWindow(options: {
       hostWebContents: win.webContents,
       resolveBrowserViewOwner: options.resolveBrowserViewOwner,
       // PayPal/relay 的 30x 重定向不保证逐跳触发 will-navigate。
-      // Coding Plan guest 身份必须按初始 src 粘住，不能由当前 URL 解防护。
+      // Coding Plan 与奖励 guest 身份必须按初始 src 粘住，不能由当前 URL 解防护。
       isCodingPlanGuest: pendingWebviewCodingPlanGuestFlags.shift() ?? false,
+      isRewardsGuest: pendingWebviewRewardsGuestFlags.shift() ?? false,
       logger: options.logger,
     });
   });

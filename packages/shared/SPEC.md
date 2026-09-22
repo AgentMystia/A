@@ -29,6 +29,9 @@
 - 频道字符串与发布包 `main/chunk-YSD25WTT.js` 一致。
 - RPC 小消息可以编码后再按序重组回原字节。
 - 本规格不表示生产包 SHA-256 已经与 `66fabd76d12be24cc3b83060be66e09cad10745edd9f2d17e6d67eeea3de3832` 一致。Renderer 组件仍未从混淆产物唯一还原。
+- Desktop `vite.config.ts`、`tsup.config.ts` 与 Web `vite.config.ts` 在配置加载期用相对路径内联 `packages/shared/src/zcodeEndpoint.ts`。端点规则仍只属于该模块。裸包名 `@zcode/shared/zcodeEndpoint` 会被配置打包器外置，Node 再加载源码时无法把 `.js` 说明符解析到 `.ts`。
+- Desktop tsup 把 `sharp` 与 `@larksuiteoapi/node-sdk` 标为 external。发布包产物里这两处仍是动态 `import`，不内联进 main/host。
+- 奖励页 URL、分区 `persist:zcode-rewards` 和上下文注入脚本只在 `rewardsWebview.ts`。可信地址是 `https://zcode.z.ai` 或 `https://zcode.chatglm.site` 的 `/(cn|en)/rewards`，且 `embedded=app`；带用户名或密码的 URL 不可信。未打包进程允许 `http://localhost:3000`，E2E 允许 loopback。测试环境默认 origin 是 `https://zcode.chatglm.site`，否则 `https://zcode.z.ai`。`VITE_REWARDS_WEBVIEW_ORIGIN` 只有在按该规则拼出的地址仍可信时才采用其 origin。Desktop 奖励 guest 使用 `preload/rewardsWebview.cjs`，未打包时追加 `--zcode-rewards-dev`。离开可信奖励页时阻止导航，http(s) 交给系统浏览器。页面桥 `window.zcodeBridge` 只在可信页挂上，并先清掉 `oauth:zai:access_token`、`oauth:bigmodel:access_token`、`zcodejwttoken`。
 
 ## 从 Host keepNames 恢复的服务
 
