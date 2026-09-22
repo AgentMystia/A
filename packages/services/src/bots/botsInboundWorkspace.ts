@@ -3,14 +3,11 @@ import { copy, getActorContextKey } from "./botsInboundText.js";
 import { formatWorkspaceOptionLabel } from "./botsHostHelpers.js";
 import {
   createSelectionReply,
-  createStatusReply,
   resolvePendingWorkspaceSelectionEntry,
   writeDraftContext,
 } from "./botsInboundDraft.js";
-import {
-  createCurrentWorkspaceRef,
-  type BotInboundTaskRuntime,
-} from "./botsInboundRuntime.js";
+import { createStatusReply } from "./botsStatusText.js";
+import { createCurrentWorkspaceRef, type BotInboundTaskRuntime } from "./botsInboundRuntime.js";
 import { filterAllowedWorkspaces, resolveWorkspaceByValue } from "./botsNormalize.js";
 import { isContextActiveTaskRunning } from "./botsTaskStream.js";
 import { buildInitializedDraft, normalizeBotWorkspaceConfig } from "./botsInboundCommands.js";
@@ -53,7 +50,10 @@ export async function handleWorkspaceList(
       }),
       currentId: authorized.context.workspaceId,
       action: "workspace.set",
-      options: listed.map((item) => ({ id: item.id, label: formatWorkspaceOptionLabel(item, authorized.locale) })),
+      options: listed.map((item) => ({
+        id: item.id,
+        label: formatWorkspaceOptionLabel(item, authorized.locale),
+      })),
     },
     authorized.locale,
   );

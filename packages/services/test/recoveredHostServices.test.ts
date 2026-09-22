@@ -271,3 +271,172 @@ test("published bot task channels and config keepNames", async () => {
     "plan",
   );
 });
+
+test("published assistant reply blocks flush on tool events and clear live progress", async () => {
+  const { createAssistantReplyBlocks, formatBotAssistantReplyBlocks } =
+    await import("../src/bots/botsReplyBlocks.js");
+  const { updateLiveStatusProgress, formatTaskRunningDuration, readTaskWorkedDurationMs } =
+    await import("../src/bots/botsStatusProgress.js");
+  const { extractBotAssistantResponseMessages, formatBotToolCallSummaryLine } =
+    await import("../src/bots/botsReplyFormat.js");
+  const { handlePublishedTaskStreamEvent } = await import("../src/bots/botsTaskStreamEvents.js");
+  const { createPublishedTaskStreamSession } = await import("../src/bots/botsStreamingCardSync.js");
+
+  assert.deepEqual(extractBotAssistantResponseMessages("a\r\nb", false), {
+    messages: [],
+    rest: "a\nb",
+  });
+  assert.equal(formatTaskRunningDuration(0), "0s");
+  assert.equal(formatTaskRunningDuration(90_061_000), "1d 1h 1m 1s");
+  assert.equal(
+    readTaskWorkedDurationMs({ messages: [] }, { status: "completed", createdAt: 1, updatedAt: 6 }),
+    5,
+  );
+  const parts = [
+    { type: "content" as const, content: "old" },
+    { type: "tool-call" as const, toolId: "tool-1" },
+    { type: "content" as const, content: "new" },
+  ];
+  const toolCalls = new Map([
+    [
+      "tool-1",
+      {
+        toolId: "tool-1",
+        title: "List",
+        kind: "bash",
+        status: "completed",
+        input: { command: "ls" },
+      },
+    ],
+  ]);
+  assert.deepEqual(createAssistantReplyBlocks(parts, toolCalls, "summary_changes", null), [
+    { type: "content", content: "new" },
+  ]);
+  const toolBlocks = createAssistantReplyBlocks(
+    parts,
+    toolCalls,
+    "assistant_toolcalls_changes",
+    null,
+  );
+  assert.equal(
+    toolBlocks.some((block) => block.type === "tool-call"),
+    true,
+  );
+  assert.match(
+    formatBotAssistantReplyBlocks(toolBlocks, { locale: "zh-CN" }).join("\n"),
+    /工具调用/,
+  );
+  assert.equal(
+    formatBotToolCallSummaryLine(
+      { toolId: "t", title: "List", kind: "bash", status: "completed" },
+      { locale: "en-US" },
+    ),
+    "- Completed \u00b7 List",
+  );
+
+  const progress = new Map();
+  updateLiveStatusProgress(progress, {
+    type: "agent_message_chunk",
+    taskId: "task-1",
+    traceId: "trace-1",
+    content: " hello ",
+  } as never);
+  updateLiveStatusProgress(progress, {
+    type: "agent_message_chunk",
+    taskId: "task-1",
+    traceId: "trace-1",
+    content: "world",
+  } as never);
+  assert.equal(progress.get("task-1")?.text, "helloworld");
+
+  const sent: string[] = [];
+  const runtime = {
+    liveStatusProgress: progress,
+    streamingCardAborts: new Set(),
+    runningTasks: new Set(["task-1"]),
+    streamSubs: new Map([["key", { dispose() {} }]]),
+    stopTyping() {},
+    transientCards: new Map(),
+    providers: {},
+    logger: { warn() {}, info() {}, debug() {} },
+    async readMessageLocale() {
+      return "en-US" as const;
+    },
+    async sendOutbound(_bot: unknown, outbound: { text: string }) {
+      sent.push(outbound.text);
+    },
+    async persistContext(context: unknown) {
+      return context;
+    },
+    replies() {
+      return [];
+    },
+  };
+  const session = createPublishedTaskStreamSession();
+  const bot = webhookBot("bot-1");
+  const actor = inbound("bot-1", "hello").actor;
+  const context = {
+    botId: "bot-1",
+    workspacePath: "/tmp/ws",
+    mode: "task" as const,
+    activeTaskId: "task-1",
+    updatedAt: 1,
+  };
+  const taskService = {
+    async getTaskSnapshot() {
+      return { messages: [], fileChanges: [] };
+    },
+  };
+  const chunk = {
+    type: "agent_message_chunk" as const,
+    taskId: "task-1",
+    traceId: "trace-1",
+    content: "Hello",
+  };
+  await handlePublishedTaskStreamEvent(
+    runtime as never,
+    bot,
+    actor,
+    context,
+    "key",
+    session,
+    taskService as never,
+    chunk as never,
+    false,
+  );
+  assert.deepEqual(sent, []);
+  await handlePublishedTaskStreamEvent(
+    runtime as never,
+    bot,
+    actor,
+    context,
+    "key",
+    session,
+    taskService as never,
+    {
+      type: "tool_call",
+      taskId: "task-1",
+      traceId: "trace-1",
+      toolId: "tool-1",
+      kind: "bash",
+      title: "List",
+      input: {},
+      raw: {},
+    } as never,
+    false,
+  );
+  assert.deepEqual(sent, ["Hello"]);
+  await handlePublishedTaskStreamEvent(
+    runtime as never,
+    bot,
+    actor,
+    context,
+    "key",
+    session,
+    taskService as never,
+    { type: "task_complete", taskId: "task-1", traceId: "trace-1" } as never,
+    false,
+  );
+  assert.equal(progress.has("task-1"), false);
+  assert.deepEqual(sent, ["Hello"]);
+});

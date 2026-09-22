@@ -8,7 +8,12 @@ import type {
   ZCodeTaskMeta,
 } from "@zcode/shared";
 import { copy } from "./botsInboundText.js";
-import { readContextActiveTaskMeta, writeDraftContext, buildActiveTaskDraftOptions, createStatusReply } from "./botsInboundDraft.js";
+import {
+  readContextActiveTaskMeta,
+  writeDraftContext,
+  buildActiveTaskDraftOptions,
+} from "./botsInboundDraft.js";
+import { createStatusReply } from "./botsStatusText.js";
 import {
   resolveZCodeTaskServiceForContext,
   type BotInboundTaskRuntime,
@@ -26,11 +31,17 @@ export async function requireActiveTask(
   | { ok: true; taskId: string; task: ZCodeTaskMeta; configOptions: ZCodeConfigOption[] }
 > {
   if (!authorized.context.activeTaskId) {
-    return { ok: false, reply: runtime.replies(message.actor, copy(authorized.locale, "noActiveTask")) };
+    return {
+      ok: false,
+      reply: runtime.replies(message.actor, copy(authorized.locale, "noActiveTask")),
+    };
   }
   const task = await readContextActiveTaskMeta(runtime, authorized.context);
   if (!task) {
-    return { ok: false, reply: runtime.replies(message.actor, copy(authorized.locale, "noActiveTask")) };
+    return {
+      ok: false,
+      reply: runtime.replies(message.actor, copy(authorized.locale, "noActiveTask")),
+    };
   }
   const configOptions = await (
     await resolveZCodeTaskServiceForContext(runtime, authorized.context)
@@ -49,7 +60,10 @@ export async function normalizeBotWorkspaceConfig(
   const workspaces = await runtime.listWorkspaceRefs(current);
   const allowed = normalizeConfiguredAllowedWorkspaces(bot.allowedWorkspaces, workspaces);
   const nextBot = { ...bot, allowedWorkspaces: allowed };
-  const nextConfig = { ...config, bots: config.bots.map((item) => (item.id === bot.id ? nextBot : item)) };
+  const nextConfig = {
+    ...config,
+    bots: config.bots.map((item) => (item.id === bot.id ? nextBot : item)),
+  };
   if (nextBot.allowedWorkspaces.join("\n") !== bot.allowedWorkspaces.join("\n")) {
     await runtime.repo.writeConfig(nextConfig);
   }

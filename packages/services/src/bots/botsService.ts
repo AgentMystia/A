@@ -3,7 +3,6 @@ import {
   type BotInboundMessage,
   type BotOutboundMessage,
   type BotProviderCallbackResult,
-  type BotProviderId,
   type BotRuntimeStatus,
   type BotsConfig,
   type BotWorkspaceRef,
@@ -15,7 +14,6 @@ import type { IBroadcastService } from "../broadcast/broadcast.js";
 import type { IModelSelectionService } from "../model-provider/providerFacadeServices.js";
 import type { IZCodeTaskService } from "../session/zcodeTaskService.js";
 import { createProviderCallbackProcessor } from "./botsCallback.js";
-import { createFeishuBotProvider } from "./botsFeishu.js";
 import { beginFeishuAppRegistration, pollFeishuAppRegistration } from "./botsFeishuRegistration.js";
 import { createFeishuChannelRuntime } from "./botsFeishuRuntime.js";
 import {
@@ -24,8 +22,13 @@ import {
   type BotBindCodeRecord,
 } from "./botsInbound.js";
 import { dispatchInboundMessage } from "./botsInboundDispatch.js";
-import { createStatusReply } from "./botsInboundDraft.js";
-import type { BotContextTaskEntry, BotInboundTaskRuntime } from "./botsInboundRuntime.js";
+import { createBotProviderMap } from "./botsProviderRegistry.js";
+import { createStatusReply } from "./botsStatusText.js";
+import type {
+  BotContextTaskEntry,
+  BotInboundTaskRuntime,
+  LiveStatusProgress,
+} from "./botsInboundRuntime.js";
 import {
   resolveModelSelectionServiceForContext,
   resolveZCodeTaskServiceForContext,
@@ -36,12 +39,9 @@ import { createInboundQueue, sendOutbound } from "./botsOutbound.js";
 import { createBotPollingState } from "./botsPollingState.js";
 import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 import { BotsRepo } from "./botsRepo.js";
-import { createTelegramBotProvider } from "./botsTelegram.js";
 import { createTelegramChannelRuntime } from "./botsTelegramRuntime.js";
 import type { IBotsService } from "./bots.js";
-import type { BotProvider, BotRuntimeStatusSink, BotSelection } from "./botsTypes.js";
-import { createWebhookBotProvider } from "./botsWebhook.js";
-import { createWeixinBotProvider } from "./botsWeixin.js";
+import type { BotRuntimeStatusSink, BotSelection } from "./botsTypes.js";
 import { beginWeixinRegistration, pollWeixinRegistration } from "./botsWeixinRegistration.js";
 import { createWeixinChannelRuntime } from "./botsWeixinRuntime.js";
 import { createTypingController, watchAutomationRun } from "./botsTaskStream.js";
@@ -99,35 +99,11 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     getRuntimeStatus: (botId) => runtimeStatus.get(botId),
     setRuntimeStatus,
   };
-  const providers: Record<BotProviderId, BotProvider | null> = {
-    telegram: createTelegramBotProvider({ loadCredential }),
-    webhook: createWebhookBotProvider({ loadCredential }),
-    feishu: createFeishuBotProvider({
-      loadCredential,
-      onDeliveryResult: (bot, error) =>
-        setRuntimeStatus({
-          botId: bot.id,
-          provider: bot.provider,
-          status: runtimeStatus.get(bot.id)?.status ?? (bot.enabled ? "idle" : "disabled"),
-          deliveryError: error,
-        }),
-    }),
-    lark: createFeishuBotProvider({
-      loadCredential,
-      onDeliveryResult: (bot, error) =>
-        setRuntimeStatus({
-          botId: bot.id,
-          provider: bot.provider,
-          status: runtimeStatus.get(bot.id)?.status ?? (bot.enabled ? "idle" : "disabled"),
-          deliveryError: error,
-        }),
-    }),
-    weixin: createWeixinBotProvider({ loadCredential }),
-    discord: null,
-    wecom: null,
-  };
+  const providers = createBotProviderMap({ loadCredential, runtimeStatus, setRuntimeStatus });
   const typing = createTypingController(providers);
   const transientCards = new Map<string, TransientInteractionCardEntry>();
+  const liveStatusProgress = new Map<string, LiveStatusProgress>();
+  const streamingCardAborts = new Set<AbortController>();
 
   async function ensureBotStorageMigrated(): Promise<void> {
     migrated ??= Promise.all([repo.readConfig(), repo.readState()])
@@ -208,6 +184,8 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     stopInboundTyping: (bot, actor) => typing.stopInboundTyping(bot, actor),
     providers,
     transientCards,
+    liveStatusProgress,
+    streamingCardAborts,
     resolveZCodeTaskServiceForContext: (context) =>
       resolveZCodeTaskServiceForContext(runtime, context),
     resolveModelSelectionServiceForContext: (context) =>
@@ -366,6 +344,10 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
       }
       options.remoteWorkspaceService?.dispose();
       typing.dispose();
+      for (const controller of streamingCardAborts) {
+        controller.abort(new Error("Bot service disposed."));
+      }
+      streamingCardAborts.clear();
       for (const sub of streamSubs.values()) {
         sub.dispose();
       }
@@ -378,6 +360,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
       reconnectCooldown.clear();
       reconnectDelivery.clear();
       transientCards.clear();
+      liveStatusProgress.clear();
       disposing = Promise.allSettled([
         telegramRuntime.dispose(),
         weixinRuntime.dispose(),

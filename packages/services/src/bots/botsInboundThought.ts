@@ -11,11 +11,11 @@ import {
 import { createBotTraceId, resolveOptionByValue } from "./botsHostHelpers.js";
 import {
   createSelectionReply,
-  createStatusReply,
   ensureDraftOptions,
   resolvePendingSelectionOption,
   writeDraftOptions,
 } from "./botsInboundDraft.js";
+import { createStatusReply } from "./botsStatusText.js";
 import {
   createTaskServiceResolver,
   resolveZCodeTaskServiceForContext,
@@ -119,7 +119,8 @@ export async function handleThoughtLevelSet(
     if (!selected || !listed.some((item) => item.id === selected.id)) {
       return runtime.replies(message.actor, copy(authorized.locale, "thoughtLevelMissing"));
     }
-    const selection = (draft.modelSelection ? view?.effectiveSelection : view?.preferredSelection) ?? undefined;
+    const selection =
+      (draft.modelSelection ? view?.effectiveSelection : view?.preferredSelection) ?? undefined;
     const next = await writeDraftOptions(runtime, authorized.context, {
       ...draft,
       modelSelection: selection
@@ -139,7 +140,9 @@ export async function handleThoughtLevelSet(
   const selected =
     resolvePendingSelectionOption(runtime, message.actor, "thoughtLevel.set", value) ??
     resolveOptionByValue(listed, value);
-  const option = active.configOptions.find((item) => item.category === "thought_level" || item.id === "thought_level");
+  const option = active.configOptions.find(
+    (item) => item.category === "thought_level" || item.id === "thought_level",
+  );
   if (!selected || !option?.id) {
     return runtime.replies(message.actor, copy(authorized.locale, "thoughtLevelMissing"));
   }

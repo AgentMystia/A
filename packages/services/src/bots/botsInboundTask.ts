@@ -1,11 +1,8 @@
 import type { BotInboundMessage, BotOutboundMessage, BotRuntimeState } from "@zcode/shared";
 import { copy, getActorContextKey } from "./botsInboundText.js";
 import { resolveOptionByValue } from "./botsHostHelpers.js";
-import {
-  createSelectionReply,
-  createStatusReply,
-  resolvePendingTaskSelectionEntry,
-} from "./botsInboundDraft.js";
+import { createSelectionReply, resolvePendingTaskSelectionEntry } from "./botsInboundDraft.js";
+import { createStatusReply } from "./botsStatusText.js";
 import {
   createCurrentWorkspaceRef,
   resolveZCodeTaskServiceForContext,
@@ -53,7 +50,10 @@ async function listContextTaskSelectionEntries(
   ).flat();
   const unique = new Map<string, BotContextTaskEntry>();
   for (const entry of listed) {
-    unique.set(`${getWorkspaceKey(entry.workspacePath, entry.workspaceIdentity)}:${entry.task.taskId}`, entry);
+    unique.set(
+      `${getWorkspaceKey(entry.workspacePath, entry.workspaceIdentity)}:${entry.task.taskId}`,
+      entry,
+    );
   }
   return [...unique.values()];
 }
@@ -87,7 +87,11 @@ async function resolveTaskSelectionEntry(
     })
     .catch(() => null);
   return snapshot
-    ? { task: snapshot.meta, workspacePath: context.workspacePath, workspaceIdentity: context.workspaceIdentity }
+    ? {
+        task: snapshot.meta,
+        workspacePath: context.workspacePath,
+        workspaceIdentity: context.workspaceIdentity,
+      }
     : null;
 }
 
@@ -102,7 +106,9 @@ export async function handleTaskList(
   if (await isContextActiveTaskRunning(runtime, authorized.context)) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
   }
-  const entries = (await listContextTaskSelectionEntries(runtime, authorized.context, authorized.user)).slice(0, 10);
+  const entries = (
+    await listContextTaskSelectionEntries(runtime, authorized.context, authorized.user)
+  ).slice(0, 10);
   const tasks = entries.map((item) => item.task);
   const current = authorized.context.activeTaskId
     ? tasks.find((item) => item.taskId === authorized.context.activeTaskId)
@@ -147,11 +153,20 @@ export async function handleTaskSet(
   if (!authorized.ok) {
     return authorized.reply;
   }
-  const entry = await resolveTaskSelectionEntry(runtime, message, authorized.context, authorized.user, value);
+  const entry = await resolveTaskSelectionEntry(
+    runtime,
+    message,
+    authorized.context,
+    authorized.user,
+    value,
+  );
   if (!entry) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskMissing"));
   }
-  if (authorized.context.activeTaskId !== entry.task.taskId && (await isContextActiveTaskRunning(runtime, authorized.context))) {
+  if (
+    authorized.context.activeTaskId !== entry.task.taskId &&
+    (await isContextActiveTaskRunning(runtime, authorized.context))
+  ) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
   }
   const next = await runtime.persistContext({

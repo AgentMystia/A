@@ -57,6 +57,20 @@ export const BOT_ELICITATION_FORM_PREFIX = "__form__:";
 export const BOT_ELICITATION_BROADCAST_TIMEOUT_MS = 1_000;
 /** 发布包 host 变量 `yH`：callback acknowledge 的 abort 时限，bundle 未给 keepName。 */
 export const BOT_CALLBACK_ACK_TIMEOUT_MS = 3_000;
+/** 发布包 host `hy` / `lI` / `Lde` / `Fde` / `QZ` / `vI`。 */
+export const BOT_REPLY_TEXT_LIMIT = 3_500;
+export const BOT_REPLY_FILE_LIMIT = 10;
+export const BOT_TRUNCATE_TEXT_LIMIT = 160;
+export const BOT_TRUNCATE_MIDDLE_LIMIT = 96;
+export const BOT_LIVE_STATUS_TEXT_LIMIT = 1_000;
+export const BOT_STATUS_PROGRESS_TEXT_LIMIT = 180;
+/** 发布包 host `kle` / `Ple` / `Cle` / `ble`：飞书流式卡片同步时限，bundle 未给 keepName。 */
+export const FEISHU_STREAMING_CARD_SYNC_MIN_INTERVAL_MS = 1_000;
+export const FEISHU_STREAMING_CARD_REQUEST_TIMEOUT_MS = 15_000;
+export const FEISHU_STREAMING_CARD_RETRY_BASE_MS = 1_000;
+export const FEISHU_STREAMING_CARD_FAILURE_LIMIT = 3;
+export const BOT_DIFF_ADDED = "🟢";
+export const BOT_DIFF_REMOVED = "🔴";
 export const WEBHOOK_SECRET_HEADER = "x-zcode-bot-secret";
 export const WEBHOOK_TEST_TYPE = "zcode.bot.test";
 export const WEBHOOK_MESSAGE_TYPE = "zcode.bot.message";

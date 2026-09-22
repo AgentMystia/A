@@ -32,6 +32,7 @@ import type { BotProvider } from "./botsTypes.js";
 import { broadcastTaskListChange } from "./botsBroadcast.js";
 import { formatUserFacingBotError, isSessionExpiredError } from "./botsErrors.js";
 import { handlePublishedTaskStreamEvent } from "./botsTaskStreamEvents.js";
+import { createPublishedTaskStreamSession } from "./botsStreamingCardSync.js";
 
 export function createTypingController(providers: Record<string, BotProvider | null>): {
   startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
@@ -195,16 +196,29 @@ export async function watchTaskStream(
     return;
   }
   const taskService = await resolveZCodeTaskServiceForContext(runtime, context);
-  const subscribe = taskService.onDynamicTaskEvent({
-    workspacePath: context.workspacePath,
-    workspaceIdentity: context.workspaceIdentity,
-    taskId: context.activeTaskId,
-    // 发布包 deliveryKind 为 bot-channel-continuous，当前接口映射到 continuous。
-    deliveryKind: "continuous",
-  });
+  const session = createPublishedTaskStreamSession();
+  // 发布包 deliveryKind 为 bot-channel-continuous，当前接口映射到 continuous。
+  const subscribe = taskService.onDynamicTaskEvent
+    ? taskService.onDynamicTaskEvent({
+        workspacePath: context.workspacePath,
+        workspaceIdentity: context.workspaceIdentity,
+        taskId: context.activeTaskId,
+        deliveryKind: "continuous",
+      })
+    : taskService.onDynamicStreamEvent(context.activeTaskId);
   let chain = Promise.resolve();
   const handle = (event: ZCodeStreamEvent, broadcast: boolean): Promise<void> =>
-    handlePublishedTaskStreamEvent(runtime, bot, actor, context, key, event, broadcast);
+    handlePublishedTaskStreamEvent(
+      runtime,
+      bot,
+      actor,
+      context,
+      key,
+      session,
+      taskService,
+      event,
+      broadcast,
+    );
   const sub = subscribe((event: ZCodeStreamEvent) => {
     chain = chain
       .then(() => handle(event, true))

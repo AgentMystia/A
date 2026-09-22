@@ -1,4 +1,9 @@
-import type { BotInboundMessage, BotOutboundMessage, ZCodeConfigOption, ZCodeTaskMeta } from "@zcode/shared";
+import type {
+  BotInboundMessage,
+  BotOutboundMessage,
+  ZCodeConfigOption,
+  ZCodeTaskMeta,
+} from "@zcode/shared";
 import { decodeCustomModelValue } from "@zcode/shared";
 import { copy } from "./botsInboundText.js";
 import {
@@ -19,12 +24,12 @@ import {
 import { createBotTraceId, resolveOptionByValue } from "./botsHostHelpers.js";
 import {
   createSelectionReply,
-  createStatusReply,
   ensureDraftOptions,
   resolveDraftOptionsForDisplay,
   resolvePendingSelectionOption,
   writeDraftOptions,
 } from "./botsInboundDraft.js";
+import { createStatusReply } from "./botsStatusText.js";
 import {
   createTaskServiceResolver,
   resolveZCodeTaskServiceForContext,
@@ -180,7 +185,10 @@ export async function handleModelSet(
     const draft = await ensureDraftOptions(runtime, authorized.context);
     const option =
       resolvePendingSelectionOption(runtime, message.actor, "model.set", value) ??
-      resolveOptionByValue(await listAllModelOptionsForActiveTask(resolver, authorized.context), value);
+      resolveOptionByValue(
+        await listAllModelOptionsForActiveTask(resolver, authorized.context),
+        value,
+      );
     if (!option) {
       return runtime.replies(message.actor, copy(authorized.locale, "modelMissing"));
     }
@@ -190,7 +198,10 @@ export async function handleModelSet(
     if (!completed) {
       return runtime.replies(message.actor, copy(authorized.locale, "modelMissing"));
     }
-    const next = await writeDraftOptions(runtime, authorized.context, { ...draft, modelSelection: completed });
+    const next = await writeDraftOptions(runtime, authorized.context, {
+      ...draft,
+      modelSelection: completed,
+    });
     return createStatusReply(runtime, message.actor, next, authorized.locale);
   }
   const active = await requireActiveTask(runtime, message, authorized);

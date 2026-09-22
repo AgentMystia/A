@@ -43,15 +43,16 @@ export interface BotProvider {
   parseCallback(payload: unknown): BotInboundMessage[];
   createStreamingReplyCard?(
     bot: BotConfigEntry,
-    message: BotProviderOutbound,
+    message: BotStreamingReplyCardState,
     signal?: AbortSignal,
   ): Promise<{ providerMessageId: string } | null>;
   updateStreamingReplyCard?(
     bot: BotConfigEntry,
     handle: { providerMessageId: string },
-    message: BotProviderOutbound,
+    message: BotStreamingReplyCardState,
     signal?: AbortSignal,
   ): Promise<void>;
+  splitStreamingReplyCardStates?(state: BotStreamingReplyCardState): BotStreamingReplyCardState[];
   createTransientInteractionCard?(
     bot: BotConfigEntry,
     message: BotProviderOutbound,
@@ -72,6 +73,17 @@ export interface BotRuntimeStatusSink {
   setRuntimeStatus(
     status: Partial<BotRuntimeStatus> & { botId: string; provider: BotProviderId },
   ): void;
+}
+
+/** 发布包 host 传给 create/updateStreamingReplyCard 的卡片状态。 */
+export interface BotStreamingReplyCardState {
+  providerUserId: string;
+  locale?: "zh-CN" | "en-US";
+  status: "running" | "completed" | "error" | "sealed";
+  blocks: Array<
+    | { type: "message"; text: string }
+    | { type: "tools"; title?: string; summaries: string[]; expanded?: boolean }
+  >;
 }
 
 export interface BotSelectionOption {

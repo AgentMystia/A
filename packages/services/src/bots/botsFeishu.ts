@@ -1,4 +1,4 @@
-import type { BotConfigEntry, BotProviderOutbound } from "@zcode/shared";
+import type { BotConfigEntry } from "@zcode/shared";
 import { fetchBotProviderJson } from "./botsHttp.js";
 import { isRecord } from "./botsJson.js";
 import type { BotCredentialLoader, BotProvider } from "./botsTypes.js";
@@ -6,8 +6,8 @@ import {
   buildFeishuElicitationCardPayload,
   buildFeishuInteractiveCardPayload,
   buildFeishuStreamingCardPayload,
+  splitFeishuStreamingCardStates,
   splitFeishuText,
-  toStreamingCardState,
 } from "./botsFeishuCards.js";
 import {
   addFeishuTypingReaction,
@@ -58,14 +58,20 @@ export function createFeishuBotProvider(deps: FeishuBotProviderDeps): BotProvide
     receiveId: string,
     card: unknown,
     signal?: AbortSignal,
-  ) => trackDelivery(bot, signal, () => sendFeishuInteractiveCard(bot, token, receiveId, card, signal));
+  ) =>
+    trackDelivery(bot, signal, () =>
+      sendFeishuInteractiveCard(bot, token, receiveId, card, signal),
+    );
   const updateCard = (
     bot: BotConfigEntry,
     token: string,
     handle: { providerMessageId: string },
     card: unknown,
     signal?: AbortSignal,
-  ) => trackDelivery(bot, signal, () => updateFeishuInteractiveMessage(bot, token, handle, card, signal));
+  ) =>
+    trackDelivery(bot, signal, () =>
+      updateFeishuInteractiveMessage(bot, token, handle, card, signal),
+    );
 
   return {
     async test(bot) {
@@ -92,15 +98,22 @@ export function createFeishuBotProvider(deps: FeishuBotProviderDeps): BotProvide
           bot,
           token,
           outbound.providerUserId,
-          outbound.elicitation ? buildFeishuElicitationCardPayload(outbound) : buildFeishuInteractiveCardPayload(outbound),
+          outbound.elicitation
+            ? buildFeishuElicitationCardPayload(outbound)
+            : buildFeishuInteractiveCardPayload(outbound),
         );
         return;
       }
       for (const chunk of splitFeishuText(outbound.text)) {
-        await sendCard(bot, token, outbound.providerUserId, buildFeishuInteractiveCardPayload({ ...outbound, text: chunk, selection: undefined }));
+        await sendCard(
+          bot,
+          token,
+          outbound.providerUserId,
+          buildFeishuInteractiveCardPayload({ ...outbound, text: chunk, selection: undefined }),
+        );
       }
     },
-    async createStreamingReplyCard(bot, outbound, signal) {
+    async createStreamingReplyCard(bot, state, signal) {
       const token = await readTenantAccessToken(bot, deps, signal);
       if (!token) {
         return null;
@@ -108,17 +121,23 @@ export function createFeishuBotProvider(deps: FeishuBotProviderDeps): BotProvide
       const messageId = await sendCard(
         bot,
         token,
-        outbound.providerUserId,
-        buildFeishuStreamingCardPayload(toStreamingCardState(outbound)),
+        state.providerUserId,
+        buildFeishuStreamingCardPayload(state),
         signal,
       );
       return messageId ? { providerMessageId: messageId } : null;
     },
-    async updateStreamingReplyCard(bot, handle, outbound, signal) {
+    async updateStreamingReplyCard(bot, handle, state, signal) {
       const token = await readTenantAccessToken(bot, deps, signal);
       if (token) {
-        await updateCard(bot, token, handle, buildFeishuStreamingCardPayload(toStreamingCardState(outbound)), signal);
+        await updateCard(bot, token, handle, buildFeishuStreamingCardPayload(state), signal);
       }
+    },
+    splitStreamingReplyCardStates(state) {
+      return splitFeishuStreamingCardStates(state).map((item) => ({
+        ...item,
+        providerUserId: state.providerUserId,
+      }));
     },
     async createTransientInteractionCard(bot, outbound) {
       const token = await readTenantAccessToken(bot, deps);
@@ -129,7 +148,9 @@ export function createFeishuBotProvider(deps: FeishuBotProviderDeps): BotProvide
         bot,
         token,
         outbound.providerUserId,
-        outbound.elicitation ? buildFeishuElicitationCardPayload(outbound) : buildFeishuInteractiveCardPayload(outbound),
+        outbound.elicitation
+          ? buildFeishuElicitationCardPayload(outbound)
+          : buildFeishuInteractiveCardPayload(outbound),
       );
       return messageId ? { providerMessageId: messageId } : null;
     },
@@ -140,7 +161,9 @@ export function createFeishuBotProvider(deps: FeishuBotProviderDeps): BotProvide
           bot,
           token,
           handle,
-          outbound.elicitation ? buildFeishuElicitationCardPayload(outbound) : buildFeishuInteractiveCardPayload(outbound),
+          outbound.elicitation
+            ? buildFeishuElicitationCardPayload(outbound)
+            : buildFeishuInteractiveCardPayload(outbound),
         );
       }
     },
@@ -198,7 +221,10 @@ export function createFeishuBotProvider(deps: FeishuBotProviderDeps): BotProvide
       }
       const payloadJson = result.payload ?? {};
       if (payloadJson.code !== 0) {
-        throw new Error((typeof payloadJson.msg === "string" ? payloadJson.msg : "") || "Feishu update interactive card failed.");
+        throw new Error(
+          (typeof payloadJson.msg === "string" ? payloadJson.msg : "") ||
+            "Feishu update interactive card failed.",
+        );
       }
       return outbound?.elicitation ? { handled: true } : undefined;
     },

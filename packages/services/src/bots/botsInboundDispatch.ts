@@ -3,9 +3,9 @@ import { copy, getActorContextKey } from "./botsInboundText.js";
 import {
   clearPendingSelection,
   createSelectionReply,
-  createStatusReply,
   resolvePendingSelectionCommand,
 } from "./botsInboundDraft.js";
+import { createStatusReply } from "./botsStatusText.js";
 import { handleNewCommand } from "./botsInboundCommands.js";
 import { handleModelList, handleModelProviderSet, handleModelSet } from "./botsInboundModel.js";
 import {
@@ -24,8 +24,15 @@ import {
 import { handleBotMessage } from "./botsInboundMessage.js";
 import type { BotInboundTaskRuntime } from "./botsInboundRuntime.js";
 import { parseBotCommand } from "./botsParseCommand.js";
-import { formatReplyGranularityLabel, listReplyGranularityOptions, parseReplyGranularity } from "./botsReply.js";
-import { buildBotElicitationContent, readStructuredElicitationResponse } from "./botsElicitationParse.js";
+import {
+  formatReplyGranularityLabel,
+  listReplyGranularityOptions,
+  parseReplyGranularity,
+} from "./botsReply.js";
+import {
+  buildBotElicitationContent,
+  readStructuredElicitationResponse,
+} from "./botsElicitationParse.js";
 import type { createInboundHandlers } from "./botsInbound.js";
 
 export async function dispatchInboundMessage(
@@ -37,14 +44,20 @@ export async function dispatchInboundMessage(
     const parsed = readStructuredElicitationResponse(message.elicitationResponse);
     return parsed
       ? handleStructuredElicitationResponse(runtime, message, parsed)
-      : runtime.replies(message.actor, copy(await runtime.readMessageLocale(), "elicitationExpired"));
+      : runtime.replies(
+          message.actor,
+          copy(await runtime.readMessageLocale(), "elicitationExpired"),
+        );
   }
   const parsed = parseBotCommand(message.text);
   const rewritten =
     parsed.type === "message"
       ? (resolvePendingSelectionCommand(runtime, message.actor, parsed.text) ?? parsed)
-      : parsed.type === "selection.cancel" && message.actor.provider !== "weixin" && message.text.trim() === "0"
-        ? (clearPendingSelection(runtime, message.actor), { type: "message" as const, text: message.text })
+      : parsed.type === "selection.cancel" &&
+          message.actor.provider !== "weixin" &&
+          message.text.trim() === "0"
+        ? (clearPendingSelection(runtime, message.actor),
+          { type: "message" as const, text: message.text })
         : parsed;
   const activated = await inbound.handleWeixinFirstActivation(
     message,
@@ -94,15 +107,24 @@ export async function dispatchInboundMessage(
     case "reply.list": {
       const authorized = await runtime.withAuthorizedContext(message, "reply");
       return authorized.ok
-        ? createSelectionReply(runtime, message.actor, {
-            id: `reply-${Date.now()}`,
-            title: copy(authorized.locale, "replySelectTitle", {
-              mode: formatReplyGranularityLabel(authorized.locale, authorized.bot.provider, authorized.bot.replyMode),
-            }),
-            currentId: authorized.bot.replyMode,
-            action: "reply.set",
-            options: listReplyGranularityOptions(authorized.locale, authorized.bot.provider),
-          }, authorized.locale)
+        ? createSelectionReply(
+            runtime,
+            message.actor,
+            {
+              id: `reply-${Date.now()}`,
+              title: copy(authorized.locale, "replySelectTitle", {
+                mode: formatReplyGranularityLabel(
+                  authorized.locale,
+                  authorized.bot.provider,
+                  authorized.bot.replyMode,
+                ),
+              }),
+              currentId: authorized.bot.replyMode,
+              action: "reply.set",
+              options: listReplyGranularityOptions(authorized.locale, authorized.bot.provider),
+            },
+            authorized.locale,
+          )
         : authorized.reply;
     }
     case "reply.set": {
@@ -110,7 +132,11 @@ export async function dispatchInboundMessage(
       if (!authorized.ok) {
         return authorized.reply;
       }
-      const next = parseReplyGranularity(rewritten.value, authorized.locale, authorized.bot.provider);
+      const next = parseReplyGranularity(
+        rewritten.value,
+        authorized.locale,
+        authorized.bot.provider,
+      );
       if (!next) {
         return runtime.replies(message.actor, copy(authorized.locale, "replyMissing"));
       }
@@ -139,7 +165,14 @@ export async function dispatchInboundMessage(
       if (message.actor.provider !== "weixin") {
         return runtime.replies(message.actor, copy(authorized.locale, "elicitationExpired"));
       }
-      return submitPendingElicitation(runtime, authorized, message.actor, pending, "accept", buildBotElicitationContent(pending));
+      return submitPendingElicitation(
+        runtime,
+        authorized,
+        message.actor,
+        pending,
+        "accept",
+        buildBotElicitationContent(pending),
+      );
     }
     case "approve":
       return handlePermissionApprove(runtime, message, rewritten.requestId, rewritten.optionId);
@@ -173,7 +206,13 @@ async function handleSelectionCancel(
   if (!runtime.pendingSelections.has(key)) {
     const authorized = await runtime.withAuthorizedContext(message, "message");
     if (authorized.ok && authorized.context.pendingElicitation) {
-      return submitPendingElicitation(runtime, authorized, message.actor, authorized.context.pendingElicitation, "cancel");
+      return submitPendingElicitation(
+        runtime,
+        authorized,
+        message.actor,
+        authorized.context.pendingElicitation,
+        "cancel",
+      );
     }
     return runtime.replies(message.actor, copy(locale, "unknownCommand", { command: "0" }));
   }

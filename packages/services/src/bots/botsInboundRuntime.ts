@@ -63,6 +63,15 @@ export interface BotInboundTaskRuntime extends BotTaskServiceResolver {
   stopInboundTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
   providers: Record<string, BotProvider | null>;
   transientCards: Map<string, TransientInteractionCardEntry>;
+  /** 发布包 host `p`：status 进展的唯一所有者。 */
+  liveStatusProgress: Map<string, LiveStatusProgress>;
+  /** 发布包 host `a`：dispose 时中止进行中的流式卡片请求。 */
+  streamingCardAborts: Set<AbortController>;
+}
+
+export interface LiveStatusProgress {
+  kind: "message" | "thought" | "tool";
+  text: string;
 }
 
 export async function resolveZCodeTaskServiceForContext(

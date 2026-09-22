@@ -42,7 +42,9 @@ function formatSelectionCommand(selection: BotSelection, optionId: string): stri
     return optionId;
   }
   if (selection.action === "elicitation.respond") {
-    return selection.token ? `/elicitation ${selection.token} ${optionId}` : `/elicitation ${optionId}`;
+    return selection.token
+      ? `/elicitation ${selection.token} ${optionId}`
+      : `/elicitation ${optionId}`;
   }
   if (selection.action === "model.provider.set") {
     return `/model provider ${optionId}`;
@@ -63,13 +65,19 @@ function buildFeishuButtonElement(input: {
     tag: "button",
     text: { tag: "plain_text", content: input.text },
     type: input.type,
-    behaviors: [{ type: "callback", value: { command: input.command, zcodeCardText: input.originalText } }],
+    behaviors: [
+      { type: "callback", value: { command: input.command, zcodeCardText: input.originalText } },
+    ],
   };
 }
 
-export function buildFeishuInteractiveCardPayload(outbound: BotProviderOutbound): Record<string, unknown> {
+export function buildFeishuInteractiveCardPayload(
+  outbound: BotProviderOutbound,
+): Record<string, unknown> {
   const selection = outbound.selection as BotSelection | undefined;
-  const elements: unknown[] = [{ tag: "markdown", content: formatFeishuCardMarkdownContent(outbound.text) }];
+  const elements: unknown[] = [
+    { tag: "markdown", content: formatFeishuCardMarkdownContent(outbound.text) },
+  ];
   if (selection) {
     elements.push(
       ...selection.options.map((option, index) =>
@@ -84,7 +92,8 @@ export function buildFeishuInteractiveCardPayload(outbound: BotProviderOutbound)
         ? []
         : [
             buildFeishuButtonElement({
-              text: selection.cancelLabel ?? formatBotMessage(outbound.locale, "selectionCancelOption"),
+              text:
+                selection.cancelLabel ?? formatBotMessage(outbound.locale, "selectionCancelOption"),
               type: "default",
               command: "/cancel",
               originalText: outbound.text,
@@ -96,6 +105,7 @@ export function buildFeishuInteractiveCardPayload(outbound: BotProviderOutbound)
 }
 
 export interface FeishuStreamingCardState {
+  providerUserId?: string;
   locale?: BotProviderOutbound["locale"];
   status: "running" | "completed" | "error" | "sealed";
   blocks: Array<
@@ -129,7 +139,9 @@ function countTaggedElements(value: unknown): number {
   );
 }
 
-export function buildFeishuStreamingCardPayload(state: FeishuStreamingCardState): Record<string, unknown> {
+export function buildFeishuStreamingCardPayload(
+  state: FeishuStreamingCardState,
+): Record<string, unknown> {
   const elements: unknown[] = [];
   for (const block of state.blocks) {
     if (block.type === "message") {
@@ -152,25 +164,36 @@ export function buildFeishuStreamingCardPayload(state: FeishuStreamingCardState)
           content: `🛠️ ${block.title?.trim() || formatBotMessage(state.locale, "streamingToolSummaries")} (${summaries.length})`,
         },
       },
-      elements: [{ tag: "markdown", content: formatFeishuCardMarkdownContent(summaries.join("\n")) }],
+      elements: [
+        { tag: "markdown", content: formatFeishuCardMarkdownContent(summaries.join("\n")) },
+      ],
     });
   }
   if (elements.length === 0) {
     elements.push({ tag: "markdown", content: " " });
   }
   if (state.status !== "sealed") {
-    elements.push({ tag: "markdown", content: formatFeishuCardMarkdownContent(`_${formatFeishuStreamingStatus(state)}_`) });
+    elements.push({
+      tag: "markdown",
+      content: formatFeishuCardMarkdownContent(`_${formatFeishuStreamingStatus(state)}_`),
+    });
   }
   return { schema: "2.0", config: { wide_screen_mode: true }, body: { elements } };
 }
 
-export function splitFeishuStreamingCardStates(state: FeishuStreamingCardState): FeishuStreamingCardState[] {
+export function splitFeishuStreamingCardStates(
+  state: FeishuStreamingCardState,
+): FeishuStreamingCardState[] {
   const groups: FeishuStreamingCardState["blocks"][] = [];
   let current: FeishuStreamingCardState["blocks"] = [];
   for (const block of state.blocks) {
     const next = [...current, block];
     const candidate: FeishuStreamingCardState = { ...state, blocks: next, status: "running" };
-    if (current.length > 0 && countTaggedElements(buildFeishuStreamingCardPayload(candidate)) > FEISHU_STREAMING_CARD_TAG_LIMIT) {
+    if (
+      current.length > 0 &&
+      countTaggedElements(buildFeishuStreamingCardPayload(candidate)) >
+        FEISHU_STREAMING_CARD_TAG_LIMIT
+    ) {
       groups.push(current);
       current = [block];
     } else {
@@ -185,14 +208,10 @@ export function splitFeishuStreamingCardStates(state: FeishuStreamingCardState):
   }));
 }
 
-export function buildFeishuElicitationCardPayload(outbound: BotProviderOutbound): Record<string, unknown> {
-  return outbound.elicitation ? buildFeishuInteractiveCardPayload(outbound) : buildFeishuInteractiveCardPayload(outbound);
-}
-
-export function toStreamingCardState(outbound: BotProviderOutbound): FeishuStreamingCardState {
-  return {
-    locale: outbound.locale,
-    status: "running",
-    blocks: [{ type: "message", text: outbound.text }],
-  };
+export function buildFeishuElicitationCardPayload(
+  outbound: BotProviderOutbound,
+): Record<string, unknown> {
+  return outbound.elicitation
+    ? buildFeishuInteractiveCardPayload(outbound)
+    : buildFeishuInteractiveCardPayload(outbound);
 }
