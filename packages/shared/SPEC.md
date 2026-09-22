@@ -205,8 +205,26 @@ createRemoteWorkspaceServiceCollection
 - 活动展示的唯一所有者是 `createMarketingTouchController`。它保存 banner、待展示 popup、对话框、pending 和错误。Hero URL 与 zip 租约仍只经过 `resolveMarketingHero`。轮询器只负责按可见性和退避调用 `refresh`，不保存投放内容。
 - 生产环境轮询间隔 10 分钟，其它环境 30 秒。查询失败后的退避是 `min(600000, 30000 * 2^min(fails-1, 5))`。查询连续失败超过 10 分钟且没有进行中的动作时清掉 banner。可见性隐藏、已有对话框、领取错误或页面上已有 dialog / alertdialog / 升级面时，不新开 popup。
 - 导航请求只有 `marketingNavigationStore` 一份。设置分区沿用 `setPendingSettingsSectionIntent` 与 `openSettingsTab`；设置页在当前分区已经落到目标且没有 `provider_id` 时确认。带 `provider_id` 的确认只在模型设置里完成，并且只接受现有 Coding Plan provider id。插件市场沿用 `requestPluginStoreOpen` 与当前 workspace tab；商店页在列表或对应详情出现后确认。升级沿用 `openCodingPlanUpgrade` 的观察回调。确认前若已有导航请求，拒绝为 `marketing_navigation_busy`。30 秒未确认是 `marketing_capability_timeout`。
-- 领取在验证码配置不可用时取消，并使用 `manualClaimPlan.claim.failure.captcha`。配置可用时发布包会打开 Aliyun 验证码；该 runner 尚未还原，因此同样取消并记警告，不伪造 verify param。成功后的权益刷新只调用现有 start-plan entitlement 与 `providerSettingsService.refresh`。
+- 领取在验证码配置不可用时取消，并使用 `manualClaimPlan.claim.failure.captcha`。配置可用时走下面的 Aliyun runner，source 是 `send_preflight`，不另造 verify param。成功后的权益刷新只调用现有 start-plan entitlement 与 `providerSettingsService.refresh`。预热失败由 runner 吞掉；banner 只在调用本身被拒绝时记 `[marketing-touch] captcha prewarm failed; click will retry`。
 - 侧栏 footer 挂 banner。会话从非 `completedSuccess` 进入 `completedSuccess` 时触发一次轮询。没有 marketing 服务或正在恢复登录时不创建控制器。
+
+### Aliyun 验证码 runner
+
+发布包 styles 里的 Aliyun 验证码只有一份运行时，所有者是 `captchaRuntime`。配置缓存、脚本、SDK 控制器、进行中的验证和 certifyId 都在这里。营销领取和 Start Plan 的 provider runtime headers 调用它，不另建客户端。Main 的 `[captcha-network]` 分类仍只属于 `captchaNetworkDiagnostics`。
+
+- 脚本是 `https://o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js`。`window.initAliyunCaptcha` 已存在则直接复用。配置缓存 TTL 60 秒，失败不写入，同时只有一个 in-flight。`enabled === false` 或缺 `region`、`prefix`、`sceneId` 视为不可用。语言读 `zcode-locale-preference`：`zh-CN` 为 `cn`，`en-US` 为 `en`，`system` 或空值再看 `navigator.language`。
+- 隐藏宿主挂在 Root，不随欢迎页或启动壳切换卸载。DOM id 是 `zcode-aliyun-captcha-container`、`zcode-aliyun-captcha-element`、`zcode-aliyun-captcha-button`。默认 logo 是发布包内联的 PNG data URL。
+- 同一时刻只允许一轮验证。队列按调用顺序放行。默认先无痕，8 秒无响应且允许交互时点击隐藏按钮。交互超时 120 秒，实例等待 10 秒。脚本加载后至少等 2 秒再触发。`F008` 且正文含 `重复提交` 或 `只允许提交一次` 时重置控制器。`T006` 或 `success && verifyResult` 视为通过。无痕超时若已经在等 SDK 的延迟成功，则不取消这一轮。
+- 验证结果只写入 `X-Aliyun-Captcha-Verify-Param` 与可选的 `X-Aliyun-Captcha-Verify-Region`。ARMS 事件名 `aliyun_captcha_verification`，group `captcha`。reporter 由 Root 设为 platform，失败记 `[captcha] ARMS 自定义事件上报失败`。
+- 每个 workspace key 在 rpc 就绪后订阅一次 `onDynamicWorkspaceProviderRuntimeHeadersRequest` 和 `Cancelled`。进行中的请求按 identity、sessionId、requestId 合并。只有 `access.type === "zhipu-account"` 且 `mode === "start-plan"` 才跑验证码；其它请求应答 `headersApplied: false`。取消用 `AbortError`，消息是 `Captcha request cancelled`。reason 为 `captcha-retry` 时 source 是 `captcha_retry`，否则是 `send_preflight`。
+
+```text
+Root 挂载隐藏宿主 + 每个 workspace 订阅
+  → getCaptchaConfig（60s 缓存）
+  → 不可用：领取取消 / headersApplied false
+  → Start Plan 或领取：加载脚本 → initAliyunCaptcha → 无痕或交互
+  → respondProviderRuntimeHeaders 只带两枚验证码头
+```
 
 ### 手机远控弹窗与 Bots 配置
 
@@ -215,7 +233,7 @@ createRemoteWorkspaceServiceCollection
 - 平台方法只在 `IPlatformService`：`startWebRemoteControl`、`refreshWebRemoteControlPairing`、`stopWebRemoteControl`、`getWebRemoteControlStatus`、`onWebRemoteControlStatusChanged`。Desktop preload 转到已有 main IPC。会话状态仍只由 `createWebRemoteControlManager` 写出。
 - 功能开关默认开启。footer 仅在桌面且已有 workspace 路径时挂紧凑入口。入口点击上报 `web_remote_control_entry_view`。弹窗打开时若当前 workspace 已有会话，或已有手机连接，则复用状态；`cancelled` 收成 `idle`。状态轮询 1 秒，二维码来自 `qrUrl`。
 - 失败文案按 `failure.reason` 映射。`session-conflict` 且 message 含 `kicked` 时用 kicked 文案。刷新配对前确认；停止后把本地状态收成 `idle`。
-- Bots 对话框是配置 UI 的唯一所有者。配置、运行状态和绑定码轮询都走现有 `IBotsService`。`listWorkspaceRefs` 接受当前 workspace，这样历史为空时列表仍包含正在配置的工作区。绑定码 TTL 使用 `BOT_BIND_CODE_TTL_MS`。飞书/Lark 与微信扫码注册沿用现有 begin/poll。Aliyun 验证码 runner 仍未还原。
+- Bots 对话框是配置 UI 的唯一所有者。配置、运行状态和绑定码轮询都走现有 `IBotsService`。`listWorkspaceRefs` 接受当前 workspace，这样历史为空时列表仍包含正在配置的工作区。绑定码 TTL 使用 `BOT_BIND_CODE_TTL_MS`。飞书/Lark 与微信扫码注册沿用现有 begin/poll。Bots 不调用验证码。
 - 飞书与 Lark 共用发布包 styles 里内联的 PNG。Telegram、微信、钉钉、Discord、企业微信的 `new URL` 图标没有打进 AppImage，界面改用现有 `Bot` / `Webhook` 图标，不伪造哈希文件名。钉钉只出现在新建列表里，不进入 `BotProviderId`。
 
 ### 手机远控任务首页

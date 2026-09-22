@@ -19,6 +19,9 @@ import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { SSHDialog } from "@/SSHDialog.js";
 import { SettingsPage } from "@/SettingsPage.js";
+import { AliyunCaptchaHost } from "@/captcha/AliyunCaptchaHost.js";
+import { CaptchaRuntimeHeadersSubscriptions } from "@/captcha/CaptchaRuntimeHeadersSubscriptions.js";
+import { setCaptchaArmsReporter } from "@/captcha/captchaArms.js";
 import { CodingPlanUpgradeDialogProvider } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { WelcomeScreen, type LoginCompleteReason } from "@/WelcomeScreen.js";
 import { setDefaultFileDisplayBasePath } from "@/lib/fileDisplay.js";
@@ -131,6 +134,8 @@ export function Root(props: RootProps) {
                       enabled={props.assistantCodeCommentCardsEnabled}
                     >
                       <CodingPlanUpgradeDialogProvider>
+                        <AliyunCaptchaHost />
+                        <CaptchaRuntimeHeadersSubscriptions />
                         <RootInner {...props} />
                       </CodingPlanUpgradeDialogProvider>
                     </AssistantCodeCommentFeatureProvider>
@@ -166,6 +171,8 @@ function RootInner({
 }: RootProps) {
   useEffect(() => {
     setMcpStorePlatform(platform);
+    // 验证码 ARMS 与发布包一样绑定当前 platform，不按桌面端收窄。
+    setCaptchaArmsReporter(platform);
     // 对话 UI perf 只属于 desktop-continuous；Web/mobile 即使能看到权威状态也不装 reporter。
     setUiPerfArmsReporter(isDesktop ? platform : null);
     setSessionOpenArmsReporter(isDesktop ? platform : null);
@@ -173,6 +180,7 @@ function RootInner({
     setSendFunnelArmsReporter(isDesktop ? platform : null);
     return () => {
       setMcpStorePlatform(null);
+      setCaptchaArmsReporter(null);
       setUiPerfArmsReporter(null);
       setSessionOpenArmsReporter(null);
       setSendFunnelArmsReporter(null);

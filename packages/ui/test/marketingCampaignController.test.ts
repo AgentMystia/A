@@ -212,7 +212,7 @@ test("navigation times out when the destination never acknowledges", async () =>
   }
 });
 
-test("usable captcha config does not invent a verify param", async () => {
+test("captcha config cache is shared and a usable config reaches the runner", async () => {
   resetMarketingCaptchaConfigCacheForTests();
   assert.equal(isCaptchaConfigUnusable(null), true);
   assert.equal(
@@ -232,6 +232,21 @@ test("usable captcha config does not invent a verify param", async () => {
   });
   assert.equal(first, second);
   const signal = new AbortController().signal;
-  assert.equal(await verifyManualClaimCaptcha(service, signal), undefined);
+  await assert.rejects(
+    verifyManualClaimCaptcha(service, signal),
+    /Captcha requires browser environment/,
+  );
+  resetMarketingCaptchaConfigCacheForTests();
+  assert.equal(
+    await verifyManualClaimCaptcha(
+      {
+        async getCaptchaConfig() {
+          return { enabled: false, region: "cn", prefix: "p", sceneId: "s" };
+        },
+      },
+      signal,
+    ),
+    undefined,
+  );
   resetMarketingCaptchaConfigCacheForTests();
 });
