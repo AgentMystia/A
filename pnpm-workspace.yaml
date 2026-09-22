@@ -3,11 +3,9 @@ packages:
   - apps/zcode-cli
   - apps/zcode-cli/packages/*
   - apps/zcode-cli/tools/*
-  # 从 AppImage 恢复的官方插件只有打包快照（无独立 src 工程），不加入 workspace 安装图。
-  - "!apps/zcode-cli/packages/android-emulator-plugin"
+  # 仍是文档/脚本快照、没有可 typecheck 的 src 工程，先不进入安装图。
   - "!apps/zcode-cli/packages/documents-plugin"
   - "!apps/zcode-cli/packages/image-search-plugin"
-  - "!apps/zcode-cli/packages/ios-simulator-plugin"
   - "!apps/zcode-cli/packages/pdf-plugin"
   - "!apps/zcode-cli/packages/plugin-creator-plugin"
   - "!apps/zcode-cli/packages/presentations-plugin"
