@@ -120,7 +120,8 @@ function buildConnectionKey(target: RemoteTarget, remoteSessionId: string): stri
     case "wsl":
       return `wsl:${normalizeWslSegment(target.distro)}\0${normalizeWslSegment(target.user)}`;
     case "docker":
-      // Docker 保持现有 dedicated logical session 生命周期，不按 target 复用。
+    case "server":
+      // Docker 与 server 都按本次 remoteSessionId 独占 logical session，不按 target 复用。
       return `${target.kind}:dedicated:${remoteSessionId}`;
   }
 }

@@ -1,4 +1,8 @@
-import type { RemoteAssetInstallMode, RemoteTarget } from "@zcode/shared";
+import type {
+  RemoteAssetInstallMode,
+  RemoteConnectionWizardKind,
+  RemoteTarget,
+} from "@zcode/shared";
 import { isValidWslUser, normalizeRemoteResourcePackageSelection } from "@zcode/shared";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
 import type { RemoteWizardStep } from "@/RemoteConnectionWizardChrome.js";
@@ -8,7 +12,7 @@ type WizardIntlLike = {
 };
 
 interface RemoteConnectionFormSnapshot {
-  kind: RemoteTarget["kind"];
+  kind: RemoteConnectionWizardKind;
   host: string;
   port: string;
   username: string;
@@ -27,7 +31,7 @@ interface RemoteConnectionFormSnapshot {
 export function getRemoteWizardStepCopy(
   intl: WizardIntlLike,
   step: RemoteWizardStep,
-  kind: RemoteTarget["kind"],
+  kind: RemoteConnectionWizardKind,
 ) {
   switch (step) {
     case "kind":

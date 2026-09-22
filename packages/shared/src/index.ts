@@ -38,13 +38,15 @@ export type {
 } from "./remoteResourcePackages.js";
 export type {
   DockerConnectOptions,
+  RemoteConnectionWizardKind,
   RemoteTarget,
+  ServerConnectOptions,
   SSHConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
 export { stripRemoteTargetSecrets } from "./remoteTarget.js";
 export { buildSshRemoteHostKey } from "./remoteSshHostKey.js";
-export { buildRemoteEnvironmentKey } from "./remoteEnvironmentKey.js";
+export { buildRemoteEnvironmentKey, normalizeServerEndpoint } from "./remoteEnvironmentKey.js";
 export type {
   ShortcutChannel,
   ShortcutCommandEntry,

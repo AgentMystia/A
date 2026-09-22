@@ -3,6 +3,7 @@ import { useState } from "react";
 import type {
   DockerContainerInfo,
   RemoteAssetInstallMode,
+  RemoteConnectionWizardKind,
   RemoteTarget,
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
@@ -37,7 +38,7 @@ import {
 } from "@/settings/RemoteSyncActions.js";
 export { RemoteConnectionConnectingStep } from "@/remote-connection/RemoteConnectionConnectingStep.js";
 
-function getKindIcon(kind: RemoteTarget["kind"]) {
+function getKindIcon(kind: RemoteConnectionWizardKind) {
   switch (kind) {
     case "ssh":
       return ServerIcon;
@@ -55,9 +56,9 @@ export function RemoteConnectionKindStep({
   onCancel,
   onNext,
 }: {
-  kind: RemoteTarget["kind"];
-  availableKinds: RemoteTarget["kind"][];
-  onKindChange: (value: RemoteTarget["kind"]) => void;
+  kind: RemoteConnectionWizardKind;
+  availableKinds: RemoteConnectionWizardKind[];
+  onKindChange: (value: RemoteConnectionWizardKind) => void;
   onCancel: () => void;
   onNext: () => void;
 }) {
@@ -177,7 +178,7 @@ export function RemoteConnectionSettingsStep({
   onClearSelectedSshConfigAlias,
   onConnect,
 }: {
-  kind: RemoteTarget["kind"];
+  kind: RemoteConnectionWizardKind;
   host: string;
   port: string;
   username: string;

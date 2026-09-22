@@ -1,7 +1,7 @@
 import { redactFeedbackText } from "@zcode/shared";
 import { useCallback, useEffect, useRef } from "react";
 import { AlertTriangleIcon, LoaderIcon } from "lucide-react";
-import { TID_SSH_ERROR, type RemoteTarget } from "@zcode/shared";
+import { TID_SSH_ERROR, type RemoteConnectionWizardKind } from "@zcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
@@ -20,7 +20,7 @@ export function RemoteConnectionConnectingStep({
   onBack,
   onRetry,
 }: {
-  kind: RemoteTarget["kind"];
+  kind: RemoteConnectionWizardKind;
   logs: RemoteConnectionLogEntry[];
   errorMessage: string;
   loading: boolean;

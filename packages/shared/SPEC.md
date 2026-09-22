@@ -100,6 +100,7 @@ cancel / invalidateWorkspaceClient
 
 - Coding Plan 远端错误先把 HTML/WAF 收成 `coding_plan_system_busy`。原文包含 `请完成安全验证` 或匹配 `/security verification/i` 时返回 `coding_plan_security_verification_required`，不再把验证文案原样抛出。
 - `parentToolUseIdFromToolPayload` 先读 `parentToolUseId`、再读 `parentToolCallId`。两者都没有时读 `_meta.claudeCode.parentToolUseId`。空字符串不当作 id。
+- server 远程身份只有 `buildRemoteWorkspaceIdentity` / `parseRemoteWorkspaceIdentity` 这一份。`resolveServerIdentityId` 依次取去掉空白后的 `serverId`、`name`、URL host，最后才是原始 url。`normalizeServerIdForIdentity` 把非 `a-z0-9._-` 收成 `-`，结果为空时抛 `serverId must contain at least one identity-safe character`。身份是 `remote:server:${slug}:${/path}`，path 经同一份归一。环境键是 `server:${serverId.trim() || normalizeServerEndpoint(url)}`，不带 workspace path，也不做 slug。遥测键只使用归一后的 url。token 不进 snapshot 和 open-in-editor；凭据键是 `remote-workspace:${workspaceKey}:server-token`。连接向导仍只有 ssh、wsl、docker。server 的 logical session 与 docker 一样是 `server:dedicated:${remoteSessionId}`，不按 target 复用。进程 backend 不接受 server。
 
 ```text
 createLocalServices

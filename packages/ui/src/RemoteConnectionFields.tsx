@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DockerContainerInfo,
   RemoteAssetInstallMode,
-  RemoteTarget,
+  RemoteConnectionWizardKind,
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
   WSLDistro,
@@ -98,7 +98,7 @@ export function RemoteConnectionFields({
   setDockerContainer,
   setManualDockerContainer,
 }: {
-  kind: RemoteTarget["kind"];
+  kind: RemoteConnectionWizardKind;
   host: string;
   port: string;
   username: string;

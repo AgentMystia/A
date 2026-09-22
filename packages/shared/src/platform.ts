@@ -2,6 +2,7 @@
 import type {
   DockerConnectOptions,
   RemoteTarget,
+  ServerConnectOptions,
   SSHConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
@@ -228,7 +229,8 @@ export interface ApplicationIconRequest {
 export type OpenInEditorRemoteTarget =
   | Pick<SSHConnectOptions, "kind" | "host" | "port" | "username" | "sshConfigAlias">
   | Pick<WSLConnectOptions, "kind" | "distro" | "user">
-  | Pick<DockerConnectOptions, "kind" | "container">;
+  | Pick<DockerConnectOptions, "kind" | "container">
+  | Pick<ServerConnectOptions, "kind" | "url" | "name" | "serverId" | "workspacePath">;
 
 export interface OpenInEditorOptions {
   remoteTarget?: OpenInEditorRemoteTarget;
@@ -300,6 +302,18 @@ export function createOpenInEditorRemoteTarget(target: RemoteTarget): OpenInEdit
         kind: "docker",
         container: target.container,
       };
+    case "server": {
+      const name = target.name?.trim();
+      const serverId = target.serverId?.trim();
+      const workspacePath = target.workspacePath?.trim();
+      return {
+        kind: "server",
+        url: target.url,
+        ...(name ? { name } : {}),
+        ...(serverId ? { serverId } : {}),
+        ...(workspacePath ? { workspacePath } : {}),
+      };
+    }
   }
 }
 

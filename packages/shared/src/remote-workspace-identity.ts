@@ -5,6 +5,7 @@
 //   remote:ssh:<host>:<port>:<username>:<posixPath>
 //   remote:wsl:<distro>[:<user>]:<posixPath>
 //   remote:docker:<container>:<posixPath>
+//   remote:server:<serverId>:<posixPath>
 // path 段经 normalizeWorkspacePathForIdentity 归一（分隔符 → "/"，去收尾斜杠，
 // 空 → "/"），因此恒以 "/" 开头；authority 各段不含 "/"（host 小写、port 数字、
 // docker 容器名/wsl 发行版名的合法字符集均不含 ":" 与 "/"）。
@@ -12,7 +13,7 @@
 // identity）需要还原出真实 workspacePath 作为会话 workingDirectory。
 import type { RemoteTarget } from "./remoteTarget.js";
 
-export type RemoteWorkspaceIdentityKind = "ssh" | "wsl" | "docker";
+export type RemoteWorkspaceIdentityKind = "ssh" | "wsl" | "docker" | "server";
 
 export interface ParsedRemoteWorkspaceIdentity {
   kind: RemoteWorkspaceIdentityKind;
@@ -27,16 +28,56 @@ const AUTHORITY_SEGMENTS: Record<RemoteWorkspaceIdentityKind, number> = {
   ssh: 3,
   wsl: 1,
   docker: 1,
+  server: 1,
 };
 
 function isRemoteWorkspaceIdentityKind(value: string): value is RemoteWorkspaceIdentityKind {
-  return value === "ssh" || value === "wsl" || value === "docker";
+  return value === "ssh" || value === "wsl" || value === "docker" || value === "server";
 }
 
 function normalizeWorkspacePathForIdentity(workspacePath: string): string {
   const normalized = workspacePath.replace(/\\/g, "/").replace(/\/+/g, "/");
   const trimmed = normalized.replace(/^\/+|\/+$/g, "");
   return `/${trimmed}`;
+}
+
+/** server 身份段：serverId、name、URL host，最后才是原始 url。 */
+export function resolveServerIdentityId(target: {
+  serverId?: string;
+  name?: string;
+  url: string;
+}): string {
+  const explicit = target.serverId?.trim() || target.name?.trim();
+  if (explicit) {
+    return explicit;
+  }
+  try {
+    return new URL(target.url.trim()).host;
+  } catch {
+    return target.url.trim();
+  }
+}
+
+/** 身份段只保留小写安全字符。空结果不能进入 remote:server 键。 */
+export function normalizeServerIdForIdentity(serverId: string): string {
+  const normalized = serverId
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!normalized) {
+    throw new Error("serverId must contain at least one identity-safe character");
+  }
+  return normalized;
+}
+
+export function buildServerRemoteWorkspaceIdentity(input: {
+  serverId: string;
+  workspacePath: string;
+}): string {
+  const serverId = normalizeServerIdForIdentity(input.serverId);
+  const workspacePath = normalizeWorkspacePathForIdentity(input.workspacePath);
+  return `${REMOTE_IDENTITY_PREFIX}server:${serverId}:${workspacePath}`;
 }
 
 /**
@@ -57,6 +98,11 @@ export function buildRemoteWorkspaceIdentity(workspacePath: string, target: Remo
     }
     case "docker":
       return `remote:docker:${target.container}:${normalizedPath}`;
+    case "server":
+      return buildServerRemoteWorkspaceIdentity({
+        serverId: resolveServerIdentityId(target),
+        workspacePath: normalizedPath,
+      });
   }
 }
 

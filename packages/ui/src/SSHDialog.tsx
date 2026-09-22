@@ -1,6 +1,11 @@
 /* eslint-disable max-lines -- 远程连接向导的状态编排暂集中在同一组件，后续有独立拆分计划。 */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { createUuid, type RemoteTarget, type RemoteWorkspaceSessionEntry } from "@zcode/shared";
+import {
+  createUuid,
+  type RemoteConnectionWizardKind,
+  type RemoteTarget,
+  type RemoteWorkspaceSessionEntry,
+} from "@zcode/shared";
 import {
   TID_SSH_CONNECT_TRIGGER,
   TID_SSH_DIALOG,
@@ -60,7 +65,7 @@ interface RemoteConnectionDialogProps {
   remoteWorkspaceSessions?: RemoteWorkspaceSessionEntry[];
   onFlowActiveChange?: (active: boolean) => void;
   onFlowRequestIdChange?: (requestId: string | null) => void;
-  preferredKind?: RemoteTarget["kind"];
+  preferredKind?: RemoteConnectionWizardKind;
   preferredWslDistro?: string;
 }
 
