@@ -83,6 +83,18 @@ renderer hook → ProxyChannel → Host 单例
 - 机器人运行锁的删除按发布包重试 `EPERM` / `EBUSY` / `ENOTEMPTY`，间隔 100ms、250ms、500ms。rename 冲突还包括 `ENOTEMPTY`、`EISDIR`、`EPERM`。草稿 mode 只认 `category=mode` 的 select；别名能解析时 `resolveSupportedDraftMode` 仍返回调用方原始 modeId。
 - `resumeSnapshotOrLegacy` 是 task adapter 唯一的 session 缺失恢复路径。先 `resumeSession`；只有 `Session not found` / `Session is not active` 才读 legacy snapshot。路径只取第一份已存在文件：`{taskId}.json`，否则 `{taskId}.deleted.json`。读失败或 schema 非法只打日志并返回 `null`，不改试下一份。`readLegacyTaskSnapshot` 合并 index meta 后把 task key 写入 adapter 内唯一的 legacy 集合；`migrationSource=claudeCode` 时尝试 `createSession(importedHistory)`，失败则继续只读。`resumeTask` 的 legacy 结果只 `syncTaskMeta` 并广播 `task_status_changed`。`getTaskSnapshot` 的 legacy 结果直接裁剪消息，index 已有 meta 时不再重写。该集合命中后 `onDynamicTaskEvent` 只订本地 emitter。两边都没有 mode 时按发布包写入 `"default"`；当前 mode 枚举不含该值，index 重读 `meta_json` 会告警并回退到 mode 列。
 - `getBillingDiscount` 与 `getCaptchaConfig` 只读同一份 `client/configs` 快照。折扣在 `code` 有值且不为 0 时抛 `msg` 去空白后的文本，空文本用 `ZCode client config request failed`；`codingPlanBillingDiscount` 键不存在返回 `undefined`，键存在则原样返回。验证码不检查 `code`，缺失为 `null`。Renderer 活动文案只有一张模块级缓存，TTL 1 小时，失败不写入，同时只有一个 in-flight。当前 locale 的 `badgeBody` 非空才算活动生效。升级按钮、当前套餐标题、Start Plan 余额和会话额度条都读这一份缓存。
+- Main 在 `app.whenReady` 给 `session.defaultSession.webRequest` 安装一份验证码网络诊断，所有者是这次安装闭包里的开始时间 map。过滤只覆盖 `https://*.alicdn.com/*` 与 `https://*.aliyuncs.com/*`。`onBeforeRequest` 一律 `callback({})`，不取消请求。`classifyCaptchaNetworkResource` 未命中则不记日志。命中后日志前缀是 `[captcha-network]`，只带 kind、host 和归一路径。map 超过 5 分钟的条目删除，达到 128 条时删最旧一条。完成或失败先删掉该请求的开始时间；没有分类不再记。`errorCode` 只保留 `/^net::ERR_[A-Z_]+$/`。这不是验证码控件。
+
+```text
+app.whenReady
+  → installCaptchaNetworkDiagnostics(defaultSession.webRequest)
+       onBeforeRequest：callback({}) → 分类失败则返回
+       → 记录开始时间 → info resource.start
+       onCompleted / onErrorOccurred：删除开始时间
+       → 分类失败则返回
+       → info resource.completed 或 resource.failed
+```
+
 - `interaction/requestProviderRuntimeHeaders` 的 pending 只属于 `createZCodeAgentService`。有账号服务且 `accountAccess.mode` 不是 `start-plan` 时自动应答。Start Plan、缺 access 或缺服务时保留 pending，发出 `providerRuntimeHeaders.request`，并只通知已经存在的 workspace emitter。`onDynamicWorkspaceProviderRuntimeHeadersRequest` 创建该 emitter 并重放本 workspace 的 pending；session 订阅同样重放。`respondProviderRuntimeHeaders` 只合并 `X-Aliyun-Captcha-Verify-Param` 与 `X-Aliyun-Captcha-Verify-Region`。取消删除 pending，日志是 `验证码请求已取消`，只在 cancelled emitter 已存在时通知。Task adapter 忽略该事件。
 
 ```text
