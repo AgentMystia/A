@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- host process 服务注册和启动装配需要集中维护，拆散后会更难追踪依赖注入顺序 */
 // Node.js service implementations — NOT safe to import in browser code
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -218,6 +218,12 @@ export { createSubagentsService } from "./subagents/subagentsService.js";
 export { createCommandsService } from "./commands/commandsService.js";
 export { createHooksService } from "./hooks/hooksService.js";
 export { createMemoryService } from "./memory/memoryService.js";
+export { createOutputStyleService } from "./output-style/outputStyleService.js";
+export { createMarketingTouchService } from "./marketing-touch/marketingTouchService.js";
+export { createMarketingAssetRegistry } from "./marketing-touch/marketingAssetRegistry.js";
+export { createCloudContentService } from "./cloud-content/cloudContentService.js";
+export { createBotsService } from "./bots/botsService.js";
+export { createBotRemoteWorkspaceService } from "./bots/botsRemoteWorkspace.js";
 export { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
 export { createFeedbackDiagnosticArchive } from "./feedback/feedbackLogArchive.js";
 export { createFeedbackService } from "./feedback/feedbackService.js";
@@ -323,6 +329,10 @@ import { ISubagentsService } from "./subagents/subagents.js";
 import { ICommandsService } from "./commands/commands.js";
 import { IHooksService } from "./hooks/hooks.js";
 import { IMemoryService } from "./memory/memory.js";
+import { IOutputStyleService } from "./output-style/outputStyle.js";
+import { IMarketingTouchService } from "./marketing-touch/marketingTouch.js";
+import { ICloudContentService } from "./cloud-content/cloudContent.js";
+import { IBotsService } from "./bots/bots.js";
 import { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import { IFeedbackService } from "./feedback/feedback.js";
 import { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
@@ -408,6 +418,15 @@ import { createSubagentsService } from "./subagents/subagentsService.js";
 import { createCommandsService } from "./commands/commandsService.js";
 import { createHooksService } from "./hooks/hooksService.js";
 import { createMemoryService } from "./memory/memoryService.js";
+import { createOutputStyleService } from "./output-style/outputStyleService.js";
+import { createMarketingTouchService } from "./marketing-touch/marketingTouchService.js";
+import { createMarketingAssetRegistry } from "./marketing-touch/marketingAssetRegistry.js";
+import { createCloudContentService } from "./cloud-content/cloudContentService.js";
+import { createBotsService } from "./bots/botsService.js";
+import {
+  createBotRemoteWorkspaceService,
+  type BotHostParentPort,
+} from "./bots/botsRemoteWorkspace.js";
 import { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
 import {
   createFeedbackService,
@@ -2416,6 +2435,41 @@ export function createLocalServices(options: {
         client: conversationShareClient,
         artifactSource: createLocalConversationShareArtifactSource(),
       });
+  // 发布包 host：marketing/cloud-content 只挂本机 Host；远端 attached 不注册、也不建 C2。
+  // bots 在远端 attached 上仍要暴露频道，但不跑 startup polling。
+  const allowLoopback = ZCODE_ENV === "test" || process.env.NODE_ENV === "development";
+  const outputStyleService = createOutputStyleService();
+  const botRemoteWorkspaceService = isDesktopAttachedRemote
+    ? undefined
+    : createBotRemoteWorkspaceService({
+        parentPort: (options.parentPort ?? null) as BotHostParentPort | null,
+        settingService,
+        credentialService,
+      });
+  const botsService = createBotsService({
+    runStartupBackgroundTasks: !isDesktopAttachedRemote,
+    credentialService,
+    settingService,
+    remoteWorkspaceService: botRemoteWorkspaceService,
+  });
+  const marketingAssets = isDesktopAttachedRemote
+    ? undefined
+    : createMarketingAssetRegistry({ allowLoopback });
+  const marketingTouchService = marketingAssets
+    ? createMarketingTouchService({
+        apiClient,
+        getToken: async () => (await credentialService.load("zcodejwttoken"))?.trim() || null,
+        getDeviceMid: () => options.agentRuntimeContext?.getDeviceMid?.(),
+        appVersion: ZCODE_VERSION,
+        onSnapshot: (snapshot) => marketingAssets.accept(snapshot),
+      })
+    : undefined;
+  const cloudContentService = marketingAssets
+    ? createCloudContentService({
+        publishedAssets: marketingAssets,
+        cacheRoot: join(resolveAppConfigDir(), "cache", "content-bundles", randomUUID()),
+      })
+    : undefined;
   // 注册链上的懒工厂（如 OffPeak）会各自创建 tasks-index sqlite repo；先收集到本数组，
   // services 集合建好后在 return 前统一登记进 sharedSqliteRepos 侧表
   const sqliteReposToClose: Array<{ close(): void }> = [];
@@ -2560,6 +2614,8 @@ export function createLocalServices(options: {
       }),
     )
     .register(IMemoryService, createMemoryService())
+    .register(IOutputStyleService, outputStyleService)
+    .register(IBotsService, botsService)
     .register(ISettingsSyncService, createSettingsSyncService({ settingService }))
     .register(
       IFeedbackService,
@@ -2571,6 +2627,13 @@ export function createLocalServices(options: {
       }),
     )
     .register(IPromptAttachmentTransferService, createLocalPromptAttachmentTransferService());
+
+  if (marketingTouchService) {
+    services.register(IMarketingTouchService, marketingTouchService);
+  }
+  if (cloudContentService) {
+    services.register(ICloudContentService, cloudContentService);
+  }
 
   // 即使初始配置关闭也必须登记 lifecycle disposer：terminal fence 需要早于任意延迟 setting/acquire
   // 恢复，不能把"当前还没有 Helper"误当成"不需要生命周期所有者"。dispose 时串行 stop host。
@@ -2719,11 +2782,15 @@ export function disposeServiceResources(services: ServiceCollection): void {
     services.getOptional(IZCodeSessionService),
     services.getOptional(IFileWatcherService),
     services.getOptional(IOffPeakTaskService),
+    services.getOptional(IBotsService),
+    services.getOptional(ICloudContentService),
   ].filter((service) => service !== undefined);
 
   for (const service of disposableServices) {
     if (hasDisposeAll(service)) {
       service.disposeAll();
+    } else if (hasDisposeAllAndWait(service)) {
+      void service.disposeAllAndWait();
     }
   }
 
@@ -2752,6 +2819,8 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
     services.getOptional(IZCodeSessionService),
     services.getOptional(IFileWatcherService),
     services.getOptional(IOffPeakTaskService),
+    services.getOptional(IBotsService),
+    services.getOptional(ICloudContentService),
   ].filter((service) => service !== undefined);
 
   for (const service of disposableServices) {

@@ -3,14 +3,27 @@ import {
   type ProjectMemoryFileSummary,
   type ProjectMemoryWorkspaceSummary,
 } from "./memory.js";
-import { lstat, readdir, realpath } from "node:fs/promises";
+import { lstat, mkdir, readdir, realpath, readFile, writeFile } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
+import { homedir } from "node:os";
 import { readProjectMemoryFileFromStableHandle } from "#src/memory/projectMemoryStableRead.js";
 import { getZCodeDataRootDir } from "#src/paths.js";
+import { createServiceLogger } from "../logger/serviceLogger.js";
 
 const PROJECT_MEMORY_INDEX_FILE_NAME = "MEMORY.md";
 const PROJECT_MEMORY_DIRECTORY_NAME = "memory";
 const PROJECT_KEY_SUFFIX_PATTERN = /^(.*)-[a-f0-9]{16}$/i;
+const memoryLog = createServiceLogger("memory");
+
+function getUserMemoryDir(): string {
+  const profile = process.env.USERPROFILE?.trim();
+  const home = profile && profile.length > 0 ? profile : homedir();
+  return join(home, ".claude", "memory");
+}
+
+function getMemoryFileName(_agentId?: string): string {
+  return "MEMORY.md";
+}
 
 function isNotFoundError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
@@ -110,6 +123,62 @@ function compareProjectMemoryFiles(
 }
 
 export function createMemoryService(): IMemoryService {
+  async function loadMemory(params: { agentId?: string }): Promise<{
+    memory: { content: string; enabled: boolean } | null;
+  }> {
+    try {
+      const fileName = getMemoryFileName(params.agentId);
+      const directory = getUserMemoryDir();
+      const filePath = join(directory, fileName);
+      try {
+        return { memory: { content: (await readFile(filePath, "utf-8")) || "", enabled: true } };
+      } catch {
+        return { memory: null };
+      }
+    } catch (error) {
+      memoryLog.error(undefined, "Failed to load memory:", error);
+      return { memory: null };
+    }
+  }
+
+  async function saveMemory(params: {
+    agentId?: string;
+    config: { content: string };
+  }): Promise<void> {
+    try {
+      const directory = getUserMemoryDir();
+      await mkdir(directory, { recursive: true });
+      await writeFile(join(directory, getMemoryFileName(params.agentId)), params.config.content, "utf-8");
+    } catch (error) {
+      memoryLog.error(undefined, "Failed to save memory:", error);
+      throw error;
+    }
+  }
+
+  async function clearMemory(params: { agentId?: string }): Promise<void> {
+    try {
+      const filePath = join(getUserMemoryDir(), getMemoryFileName(params.agentId));
+      try {
+        await writeFile(filePath, "", "utf-8");
+      } catch {
+        // 发布包在文件不存在时忽略。
+      }
+    } catch (error) {
+      memoryLog.error(undefined, "Failed to clear memory:", error);
+      throw error;
+    }
+  }
+
+  async function getUserMemoryDirectory(): Promise<{ path: string }> {
+    const directory = getUserMemoryDir();
+    try {
+      await mkdir(directory, { recursive: true });
+    } catch {
+      // 发布包忽略 mkdir 失败，仍返回约定路径。
+    }
+    return { path: directory };
+  }
+
   async function listProjectMemories(): Promise<ProjectMemoryWorkspaceSummary[]> {
     let projectsRoot: string;
     let projectEntries;
@@ -232,6 +301,10 @@ export function createMemoryService(): IMemoryService {
   }
 
   return {
+    loadMemory,
+    saveMemory,
+    clearMemory,
+    getUserMemoryDirectory,
     listProjectMemories,
     readProjectMemoryFile,
   };

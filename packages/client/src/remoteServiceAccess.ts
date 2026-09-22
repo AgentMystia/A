@@ -35,6 +35,10 @@ import {
   ICommandsService,
   IHooksService,
   IMemoryService,
+  IOutputStyleService,
+  IBotsService,
+  IMarketingTouchService,
+  ICloudContentService,
   ISettingsSyncService,
   IFeedbackService,
   IPromptAttachmentTransferService,
@@ -87,6 +91,10 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly commandsService: ICommandsService;
   readonly hooksService: IHooksService;
   readonly memoryService: IMemoryService;
+  readonly outputStyleService: IOutputStyleService;
+  readonly botsService: IBotsService;
+  readonly marketingTouchService: IMarketingTouchService;
+  readonly cloudContentService: ICloudContentService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
@@ -204,6 +212,18 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.memoryService = ProxyChannel.toService<IMemoryService>(
       channelClient.getChannel(IMemoryService.channelName),
+    );
+    this.outputStyleService = ProxyChannel.toService<IOutputStyleService>(
+      channelClient.getChannel(IOutputStyleService.channelName),
+    );
+    this.botsService = ProxyChannel.toService<IBotsService>(
+      channelClient.getChannel(IBotsService.channelName),
+    );
+    this.marketingTouchService = ProxyChannel.toService<IMarketingTouchService>(
+      channelClient.getChannel(IMarketingTouchService.channelName),
+    );
+    this.cloudContentService = ProxyChannel.toService<ICloudContentService>(
+      channelClient.getChannel(ICloudContentService.channelName),
     );
     this.settingsSyncService = ProxyChannel.toService<ISettingsSyncService>(
       channelClient.getChannel(ISettingsSyncService.channelName),

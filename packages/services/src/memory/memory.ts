@@ -30,6 +30,14 @@ export interface IMemoryService {
     workspaceId: string;
     fileName: string;
   }): Promise<{ content: string; updatedAt: number }>;
+
+  /** 用户 ~/.claude/memory/MEMORY.md。agentId 被忽略，文件名固定。 */
+  loadMemory(params: { agentId?: string }): Promise<{
+    memory: { content: string; enabled: boolean } | null;
+  }>;
+  saveMemory(params: { agentId?: string; config: { content: string } }): Promise<void>;
+  clearMemory(params: { agentId?: string }): Promise<void>;
+  getUserMemoryDirectory(): Promise<{ path: string }>;
 }
 
 export const IMemoryService = createServiceDescriptor<IMemoryService>(ServiceChannels.Memory);

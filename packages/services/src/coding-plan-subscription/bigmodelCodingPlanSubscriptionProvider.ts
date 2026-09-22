@@ -50,6 +50,10 @@ import type {
   StartPlanPreviewConfig,
   ZCodeModelContextBudgetStrategy,
   DynamicWorkflowClientConfig,
+  readServerTimeMilliseconds,
+  type ManualClaimPlanPreviews,
+  type ManualClaimRequest,
+  type ManualClaimResult,
 } from "@zcode/shared";
 import type { ModelSelectionView } from "@zcode/provider";
 import type { OffPeakClientConfig } from "./codingPlanSubscription.js";
@@ -212,6 +216,165 @@ export class BigModelCodingPlanSubscriptionProvider {
   async getStartPlanPreview(): Promise<StartPlanPreviewConfig | null> {
     const payload = await this.getClientConfigs();
     return unwrapClientConfigStartPlanPreview(payload);
+  }
+
+  async getManualClaimPlanPreviews(): Promise<ManualClaimPlanPreviews> {
+    const token = (await this.credentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim();
+    const url = new URL(buildRuntimeZCodeApiUrl(process.env, "/api/v1/zcode-plan/billing/preview"));
+    url.searchParams.set("app_version", ZCODE_VERSION);
+    url.searchParams.set("platform", resolveClientPlatformKey());
+    const payload = await readApiJson<{
+      code?: number;
+      msg?: string;
+      data?: {
+        server_time?: number;
+        plans?: Array<{
+          plan_id?: string;
+          name?: string;
+          description?: string;
+          priority?: number;
+          entitlements?: Array<{
+            entitlement_id?: string;
+            show_name?: string;
+            meter?: string;
+            unit_type?: string;
+            capabilities?: unknown[];
+            grant_units?: number;
+            period?: string;
+            priority?: number;
+            effective_at?: number;
+          }>;
+        }>;
+      } | null;
+    }>(this.apiClient, url, {
+      method: "GET",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+    });
+    if (payload.code !== undefined && payload.code !== 0) {
+      throw new Error(payload.msg?.trim() || "manual_claim_preview_failed");
+    }
+    if (!payload.data) {
+      throw new Error(payload.msg?.trim() || "manual_claim_preview_missing_data");
+    }
+    const serverTime = readServerTimeMilliseconds(payload.data.server_time);
+    return {
+      ...(serverTime === undefined ? {} : { serverTime }),
+      plans: (payload.data.plans ?? []).flatMap((plan) => {
+        const planId = plan.plan_id?.trim() ?? "";
+        return planId
+          ? [
+              {
+                planId,
+                name: plan.name?.trim() || planId,
+                description: plan.description?.trim() ?? "",
+                priority: Number.isFinite(plan.priority) ? (plan.priority ?? 0) : 0,
+                entitlements: (plan.entitlements ?? []).flatMap((item) => {
+                  const entitlementId = item.entitlement_id?.trim() ?? "";
+                  return entitlementId
+                    ? [
+                        {
+                          entitlementId,
+                          showName: item.show_name?.trim() ?? "",
+                          meter: item.meter?.trim() ?? "",
+                          unitType: item.unit_type?.trim() ?? "",
+                          capabilities: item.capabilities ?? [],
+                          grantUnits: Number.isFinite(item.grant_units) ? (item.grant_units ?? 0) : 0,
+                          period: item.period?.trim() ?? "",
+                          priority: Number.isFinite(item.priority) ? (item.priority ?? 0) : 0,
+                          ...(Number.isFinite(item.effective_at) ? { effectiveAt: item.effective_at } : {}),
+                        },
+                      ]
+                    : [];
+                }),
+              },
+            ]
+          : [];
+      }),
+    };
+  }
+
+  async claimManualPlan(request: ManualClaimRequest): Promise<ManualClaimResult> {
+    const token = (await this.credentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim();
+    if (!token) {
+      return { success: false, code: 401, message: "" };
+    }
+    const payload = await readApiJson<{
+      code?: number | string;
+      msg?: string;
+      data?: {
+        server_time?: number;
+        message?: string;
+        plan?: {
+          user_plan_id?: string;
+          plan_id?: string;
+          status?: string;
+          starts_at?: number;
+          ends_at?: number;
+          entitlements?: Array<{
+            entitlement_id?: string;
+            show_name?: string;
+            effective_at?: number;
+          }>;
+        };
+      } | null;
+    }>(this.apiClient, new URL(buildRuntimeZCodeApiUrl(process.env, "/api/v1/zcode-plan/billing/claim")), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "X-Aliyun-Captcha-Verify-Param": request.captchaVerifyParam,
+        ...(request.captchaRegion ? { "X-Aliyun-Captcha-Verify-Region": request.captchaRegion } : {}),
+        "X-ZCode-App-Version": ZCODE_VERSION,
+        "X-Platform": resolveClientPlatformKey(),
+      },
+      body: JSON.stringify({ plan_id: request.planId }),
+      timeoutMs: REQUEST_TIMEOUT_MS,
+    });
+    const rawCode = payload.code;
+    const code =
+      typeof rawCode === "number"
+        ? rawCode
+        : typeof rawCode === "string" && /^\d+$/u.test(rawCode)
+          ? Number(rawCode)
+          : -1;
+    const serverTime = readServerTimeMilliseconds(payload.data?.server_time);
+    if (code !== 0 || !payload.data?.plan) {
+      const failureEndsAt = payload.data?.plan?.ends_at;
+      return {
+        success: false,
+        code,
+        message: typeof payload.data?.message === "string" ? payload.data.message : "",
+        ...(serverTime === undefined ? {} : { serverTime }),
+        ...(Number.isFinite(failureEndsAt) ? { failureEndsAt } : {}),
+      };
+    }
+    const plan = payload.data.plan;
+    return {
+      success: true,
+      code,
+      message: payload.msg?.trim() ?? "",
+      ...(serverTime === undefined ? {} : { serverTime }),
+      plan: {
+        userPlanId: plan.user_plan_id?.trim() ?? "",
+        planId: plan.plan_id?.trim() || request.planId,
+        status: plan.status?.trim() ?? "",
+        ...(Number.isFinite(plan.starts_at) ? { startsAt: plan.starts_at } : {}),
+        ...(Number.isFinite(plan.ends_at) ? { endsAt: plan.ends_at } : {}),
+        entitlements: (plan.entitlements ?? []).flatMap((item) => {
+          const entitlementId = item.entitlement_id?.trim() ?? "";
+          return entitlementId
+            ? [
+                {
+                  entitlementId,
+                  showName: item.show_name?.trim() ?? "",
+                  ...(Number.isFinite(item.effective_at) ? { effectiveAt: item.effective_at } : {}),
+                },
+              ]
+            : [];
+        }),
+      },
+    };
   }
 
   /**

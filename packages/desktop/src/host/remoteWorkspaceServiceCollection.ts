@@ -32,6 +32,8 @@ import {
   ICommandsService,
   IHooksService,
   IMemoryService,
+  IOutputStyleService,
+  IBotsService,
   ISettingsSyncService,
   IPromptAttachmentTransferService,
   type IServiceAccessor,
@@ -61,6 +63,8 @@ import {
   createServiceLogger,
   createSubagentsService,
   createMemoryService,
+  createOutputStyleService,
+  createBotsService,
   createRemoteConversationShareArtifactSource,
   OAuthCredentialRepo,
 } from "@zcode/services/node";
@@ -359,6 +363,16 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(ISubagentsService, createSubagentsService({ isDesktopRuntime: true }))
     .register(IHooksService, params.connectionServices.hooksService)
     .register(IMemoryService, createMemoryService())
+    .register(IOutputStyleService, createOutputStyleService())
+    // 混合远端 Host 复用本机 bots 配置，但不跑 polling/websocket，也不建 C2。
+    .register(
+      IBotsService,
+      createBotsService({
+        runStartupBackgroundTasks: false,
+        settingService: localSettingService,
+        credentialService: localCredentialService,
+      }),
+    )
     .register(
       ISettingsSyncService,
       createSettingsSyncService({ settingService: localSettingService }),

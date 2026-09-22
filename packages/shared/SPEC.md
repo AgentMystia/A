@@ -28,4 +28,60 @@
 - `pnpm typecheck` 与 `pnpm lint` 通过。
 - 频道字符串与发布包 `main/chunk-YSD25WTT.js` 一致。
 - RPC 小消息可以编码后再按序重组回原字节。
-- 本规格不表示生产包 SHA-256 已经与 `66fabd76d12be24cc3b83060be66e09cad10745edd9f2d17e6d67eeea3de3832` 一致。Bot 服务、marketing 和 renderer 组件仍未还原成可编译源码。
+- 本规格不表示生产包 SHA-256 已经与 `66fabd76d12be24cc3b83060be66e09cad10745edd9f2d17e6d67eeea3de3832` 一致。Renderer 组件仍未从混淆产物唯一还原。
+
+## 从 Host keepNames 恢复的服务
+
+发布包 host `index.js` / `chunk-GVBBGMXG.js` 用 `keepNames` 保留了工厂名。这些服务的状态所有者和协议如下。
+
+### 所有者
+
+- `marketing-touch`：Host 内唯一请求面。身份 scope 是 token 变化时换发的 UUID；device mid 必须是 UUID。快照只交给 `createMarketingAssetRegistry`，不另存一份 delivery 队列。
+- `cloud-content`：Host 内唯一 zip bundle 租约面。下载、解包、本地 loopback HTTP 只服务已放行的 sha256。`disposeAllAndWait` 后不再接受 prepare。
+- `output-style`：用户 `~/.claude/output-styles` 与 `~/.claude/settings.json` 的读写面。内置 default/explanatory/learning 不落盘。
+- `bots`：`bot-config.v3.json` / `bot-state.v3.json` 在 `getAppConfigDir()`。Repo 是唯一持久化入口。运行时 status、inbound queue、provider polling 只活在 `createBotsService` 实例里。
+- 手动领取：不是独立 service。方法挂在 Coding Plan 的 BigModel provider 上，走 `/api/v1/zcode-plan/billing/preview` 与 `/claim`。
+- Memory：同一 `memory` 频道。Project Memory catalog 之外还读写 `~/.claude/memory/MEMORY.md`。
+
+```text
+renderer hook → ProxyChannel → Host 单例
+                    └── 持久化 / bundle cache / ~/.claude 只由该单例写入
+```
+
+### 行为
+
+- marketing GET `/api/v1/marketing/touch?seq=`，POST `/api/v1/marketing/touch/action`。token 在 query/report 之间变化则抛 `marketing_identity_changed`。
+- 资源只允许 https（测试可放行 loopback）。image 8MiB、video 16MiB，按 sha256 校验。
+- cloud-content zip 入口必须是 `.html`，单文件 8MiB，解包合计 32MiB，磁盘 cache 128MiB。loopback 只监听 `127.0.0.1`。
+- bots provider：telegram / webhook / feishu / lark / weixin 可用；discord / wecom 仅占位。
+- 远端 workspace 的 bots 不跑 startup polling（`runStartupBackgroundTasks: false`），也不注册 marketing / cloud-content。
+- 飞书 App ID 必须匹配 `/^cli_[0-9a-fA-F]{16}$/`。飞书注册走 `accounts.feishu.cn` / `accounts.larksuite.com` 的 `/oauth/v1/app/registration`，`source=node-sdk/zcode`。
+- 微信 iLink API 基址 `https://ilinkai.weixin.qq.com/ilink/bot`，注册 QR 走同一 host。
+- Telegram 命令名 workspace=`project`、thoughtLevel=`think`。绑定码 3 字节 hex 大写，默认 TTL 30s。
+- 飞书回复粒度只保留 `streaming_card`；其余 provider 去掉该粒度。
+- `listUserConfigOptions` 发布包 keepNames 实现返回 `[]`。
+- 手动领取 `server_time` 秒值乘 1000；JWT 键 `zcodejwttoken`；平台头 `${platform}-${arch}`。
+- 已从 keepNames 唯一还原的 inbound：`bind`、`help`、`status`、`reconnect`、`mode.list`/`mode.set`（回复 `modeLocked`）、`reply.list`/`reply.set`、unknown、微信首次激活。
+- 尚未唯一还原的 inbound：`new`、`workspace`、`model`、`thoughtLevel`、`task`、`stop`、`permission`、`elicitation`、`message`、`selection.cancel`。当前落入 `unknownCommand`。
+- `watchAutomationRun` 只持久化 task 上下文，不重建 `watchTaskStream` 投递。
+- callback 只覆盖 webhook/feishu secret、displayName、inbound 去重、acknowledge 与 outbound。
+
+```text
+createLocalServices
+  ├── marketing-touch + cloud-content   （仅本机 Host）
+  ├── bots(runStartupBackgroundTasks)
+  │     └── BotRemoteWorkspaceService   （仅本机 Host，经 parentPort 问 Main）
+  └── output-style + memory extras
+
+createRemoteWorkspaceServiceCollection
+  ├── bots(runStartupBackgroundTasks:false)
+  └── output-style + memory extras
+        （不注册 marketing / cloud-content，不建 C2）
+```
+
+### 验收
+
+- `pnpm typecheck` 与 `pnpm lint` 通过。
+- 服务频道字符串仍与发布包一致。
+- marketing / output-style / cloud-content / bots repo / 手动领取的 schema 与发布包 zod 字面量一致。
+- 本规格仍不表示生产包 SHA-256 已匹配；renderer 仍未从混淆产物唯一还原。
