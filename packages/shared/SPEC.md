@@ -228,3 +228,13 @@ createRemoteWorkspaceServiceCollection
 - 同一 workspace 打开任务时可选标记已读，再走现有 `onSelectTask` 和 `updateMobileViewState`。跨 workspace 把 `mobileNavigationIntent: "chat"` 交给 `switchWorkspace`。错误含 `远程工作区尚未连接` 或 `请先重连` 时回到首页。当前壳不会因切换卸载，成功后清掉切换遮罩。
 - 远控 switcher 存在时，选择任务跳过本地 tab 补开，只回到 chat 并调用已有 `handleSelectTask`。窄屏 header 复用 `simplifyForNarrowRemote`。侧栏面板复用现有 `AnimatedSidePanePanel`，不另造 `mobileOverlay` 分支。
 - Switcher 的构造不在 renderer 里，本层不实现第二套会话所有者。没有 switcher 时保持桌面壳。
+
+### 桌面远控导航收起
+
+发布包在同一个 `WorkspaceShellLayout` 里，手机视口走任务首页，桌面分栏仍保留导航高度状态。导航高度和收起标志只属于这个壳；侧栏只在打开任务时通知是否跨 workspace。
+
+- 视口查询仍是 `(max-width: 767px)`，只有 switcher 存在时才订阅变化。展开高度是 `round(clamp(viewport * 0.5 - 48, 0, 352))`。拖拽上限是 `max(0, round(viewport - 48 - 168))`。高度小于等于 24 视为收起。
+- 单击把手在展开和上述展开高度之间切换。拖拽超过 4px 才改高度，松手时再按同一规则吸附。`pointercancel` 不提交。
+- 手机视口上打开任务会收起导航。跨 workspace 时写入 `sessionStorage` 键 `zcode:web-remote-control:collapse-navigation-once`，下次壳初始化读到后删除并直接收起。桌面宽度不写这个键。
+- 侧栏面板在窄屏用 `--web-remote-navigation-height`。收起时高度为 0 并隐藏。竖向分隔条在窄屏隐藏。Switcher 存在时禁用分屏入口，并把 automations / plugin-store 收成 chat。
+- 模式文案表只给现有 `ConfigSelect` 查 `mode.label.*` / `mode.description.*`。不把 claude、codex、gemini、opencode 加进 `ZCodeProvider`。

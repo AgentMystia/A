@@ -115,6 +115,8 @@ import { WorkspaceFileTree } from "@/WorkspaceFileTree.js";
 import { WorkspaceArchivedTasksFlatSection } from "@/WorkspaceArchivedTasksFlatSection.js";
 import { MarketingCampaignBanner } from "@/marketing/MarketingCampaignBanner.js";
 import { WorkspaceSidebarFooter } from "@/WorkspaceSidebarFooter.js";
+import { getWorkspaceKey } from "@/lib/workspaceKey.js";
+import type { WebRemoteNavigationTaskOpen } from "@/web-remote/navigation/webRemoteControlNavigation.js";
 import { WorkspacePinnedTasksSection } from "@/WorkspacePinnedTasksSection.js";
 import { WorkspaceTimelineTasksSection } from "@/WorkspaceTimelineTasksSection.js";
 import { WorkspaceGroupedTasksSection } from "@/WorkspaceGroupedTasksSection.js";
@@ -263,6 +265,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   automationsActive = false,
   pluginStoreActive = false,
   onFileTreeOpenChange,
+  onWebRemoteTaskOpen,
 }: {
   workspacePath: string;
   workspaceRemoteSessionId?: string;
@@ -315,27 +318,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   automationsActive?: boolean;
   pluginStoreActive?: boolean;
   onFileTreeOpenChange?: (open: boolean) => void;
+  onWebRemoteTaskOpen?: (event: WebRemoteNavigationTaskOpen) => void;
 }) {
   const { intl, localePreference, setLocalePreference } = useZCodeIntl();
-  const handleTaskRowSelect = useCallback(
-    (
-      targetWorkspacePath: string,
-      taskId: string,
-      targetWorkspaceIdentity?: string,
-      expectedUnreadAt?: number,
-    ) => {
-      // Shell 第四个参数是远程 session 路由，任务行的 unreadAt 不能复用该位置。
-      // Sidebar 行选择显式留空 remoteSessionId，再把用户看到的未读版本传给已读事务。
-      onSelectTask(
-        targetWorkspacePath,
-        taskId,
-        targetWorkspaceIdentity,
-        undefined,
-        expectedUnreadAt,
-      );
-    },
-    [onSelectTask],
-  );
   const { openCodingPlanUpgrade } = useCodingPlanUpgradeDialog();
   const bumpTaskListVersion = useZCodeSessionStore((state) => state.bumpTaskListVersion);
   const workspaceIdentity = useTabStore((state) => {
@@ -350,6 +335,31 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
 
     return activeTab.workspaceIdentity;
   });
+  const handleTaskRowSelect = useCallback(
+    (
+      targetWorkspacePath: string,
+      taskId: string,
+      targetWorkspaceIdentity?: string,
+      expectedUnreadAt?: number,
+    ) => {
+      // Shell 第四个参数是远程 session 路由，任务行的 unreadAt 不能复用该位置。
+      // Sidebar 行选择显式留空 remoteSessionId，再把用户看到的未读版本传给已读事务。
+      // 远控壳用这次选择决定是否收起导航；侧栏不保存收起状态。
+      onWebRemoteTaskOpen?.({
+        crossWorkspace:
+          getWorkspaceKey(targetWorkspacePath, targetWorkspaceIdentity) !==
+          getWorkspaceKey(workspacePath, workspaceIdentity),
+      });
+      onSelectTask(
+        targetWorkspacePath,
+        taskId,
+        targetWorkspaceIdentity,
+        undefined,
+        expectedUnreadAt,
+      );
+    },
+    [onSelectTask, onWebRemoteTaskOpen, workspaceIdentity, workspacePath],
+  );
   const workspaceReadOnly = useTabStore((state) =>
     isWorkspaceReadOnly(state, workspacePath, workspaceIdentity),
   );

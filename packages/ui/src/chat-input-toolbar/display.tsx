@@ -40,7 +40,11 @@ import {
   ShieldCheckIcon,
   type LucideIcon,
 } from "lucide-react";
-import { ZCODE_MODE_OPTION_DESCRIPTION_IDS, ZCODE_MODE_OPTION_LABEL_IDS } from "./display-help.js";
+import {
+  ZCODE_MODE_OPTION_DESCRIPTION_IDS,
+  ZCODE_MODE_OPTION_LABEL_IDS,
+  readModeOptionMessageId,
+} from "./display-help.js";
 import { RollingToolbarLabel } from "@/chat-input-toolbar/RollingToolbarLabel.js";
 
 export {
@@ -150,22 +154,14 @@ function getModeOptionLabelMessageId(
   provider: ZCodeProvider | undefined,
   entry: Pick<ZCodeConfigSelectValue, "value">,
 ): string | null {
-  if (!provider) {
-    return null;
-  }
-
-  return ZCODE_MODE_OPTION_LABEL_IDS[provider]?.[entry.value] ?? null;
+  return readModeOptionMessageId(ZCODE_MODE_OPTION_LABEL_IDS, provider, entry.value);
 }
 
 export function getModeOptionDescriptionMessageId(
   provider: ZCodeProvider | undefined,
   entry: Pick<ZCodeConfigSelectValue, "value">,
 ): string | null {
-  if (!provider) {
-    return null;
-  }
-
-  return ZCODE_MODE_OPTION_DESCRIPTION_IDS[provider]?.[entry.value] ?? null;
+  return readModeOptionMessageId(ZCODE_MODE_OPTION_DESCRIPTION_IDS, provider, entry.value);
 }
 
 export function getConfigOptionEntryLabel(
@@ -199,8 +195,16 @@ function getConfigOptionEntryDescription(
   return entry.description;
 }
 
+// 发布包把 bypass / full-access 与 yolo 放在同一高权限集合，图标走 shield-alert。
+const HIGH_PERMISSION_MODE_VALUES = new Set([
+  "bypassPermissions",
+  "full-access",
+  "agent-full-access",
+  "yolo",
+]);
+
 function isHighPermissionModeValue(value: unknown): boolean {
-  return value === "yolo";
+  return typeof value === "string" && HIGH_PERMISSION_MODE_VALUES.has(value);
 }
 
 export function resolveModeOptionIcon(value: unknown): LucideIcon {
@@ -208,11 +212,13 @@ export function resolveModeOptionIcon(value: unknown): LucideIcon {
     return ShieldAlertIcon;
   }
 
-  // build 对应常规确认模式，使用确认图标。
-  if (typeof value === "string" && value.toLocaleLowerCase() === "build") return HandIcon;
+  if (typeof value === "string" && /^(default|build)$/i.test(value)) return HandIcon;
   if (typeof value === "string" && value.toLocaleLowerCase() === "plan") return NotepadText;
 
-  if (typeof value === "string" && /^(auto|agent|autoEdit|edit)$/i.test(value)) {
+  if (
+    typeof value === "string" &&
+    /^(auto|acceptEdits|agent|autoEdit|dontAsk|edit)$/i.test(value)
+  ) {
     return ShieldCheckIcon;
   }
 

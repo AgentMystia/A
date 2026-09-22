@@ -35,6 +35,9 @@ import { DesktopTopOverlay } from "@/DesktopTopOverlay.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
 import { WebRemoteControlMobileShell } from "@/web-remote/mobile/WebRemoteControlMobileShell.js";
 import { useMobileWebRemoteViewport } from "@/web-remote/mobile/useMobileWebRemoteViewport.js";
+import { useWebRemoteControlNavigation } from "@/web-remote/navigation/useWebRemoteControlNavigation.js";
+import { WebRemoteControlNavigationHandle } from "@/web-remote/navigation/WebRemoteControlNavigationHandle.js";
+import { webRemoteNavigationSidebarPanelClass } from "@/web-remote/navigation/webRemoteControlNavigation.js";
 import { WorkspacePluginPreview } from "@/WorkspacePluginPreview.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { GitBranchSwitcher } from "@/GitBranchSwitcher.js";
@@ -825,6 +828,15 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   const showChatMainView = useCallback(() => {
     onWorkspaceMainViewChange("chat");
   }, [onWorkspaceMainViewChange]);
+  // 发布包在远控 switcher 存在时不把 automations / plugin-store 留在桌面分栏里。
+  useEffect(() => {
+    if (!webRemoteControlWorkspaceSwitcher) {
+      return;
+    }
+    if (workspaceMainView === "automations" || workspaceMainView === "plugin-store") {
+      onWorkspaceMainViewChange("chat");
+    }
+  }, [onWorkspaceMainViewChange, webRemoteControlWorkspaceSwitcher, workspaceMainView]);
   const primaryNavigationBack =
     workspaceMainView === "plugin-store" ? handleManageInstalledPlugins : handleTaskNavBack;
   const canPrimaryNavigationBack = workspaceMainView === "plugin-store" || canTaskNavBack;
@@ -1530,8 +1542,11 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     () => [workspaceKey, isSidebarVisible],
     [workspaceKey, isSidebarVisible],
   );
-  const isMobileWebRemoteViewport = useMobileWebRemoteViewport(
-    webRemoteControlWorkspaceSwitcher != null,
+  const isWebRemoteControlShell = webRemoteControlWorkspaceSwitcher != null;
+  const isMobileWebRemoteViewport = useMobileWebRemoteViewport(isWebRemoteControlShell);
+  const webRemoteNavigation = useWebRemoteControlNavigation(
+    isWebRemoteControlShell,
+    isMobileWebRemoteViewport,
   );
 
   if (webRemoteControlWorkspaceSwitcher && isMobileWebRemoteViewport) {
@@ -1693,7 +1708,14 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       <div
         ref={workspaceShellRef}
         data-workspace-shell="true"
-        style={workspaceShellSplitStyle}
+        style={
+          isWebRemoteControlShell
+            ? ({
+                ...workspaceShellSplitStyle,
+                "--web-remote-navigation-height": `${webRemoteNavigation.heightPx}px`,
+              } as CSSProperties)
+            : workspaceShellSplitStyle
+        }
         className={cn(
           "relative flex h-full min-h-0 w-full overflow-hidden",
           // 窗口原生 resize 时，外层 react-resizable-panels 会把每一帧
@@ -1710,13 +1732,20 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
             "w-[var(--workspace-sidebar-panel-width)] max-w-[50%] flex-none overflow-hidden duration-200 ease-out transition-[width,opacity] data-[workspace-sidebar-resizing=true]:transition-opacity",
             // 拖动侧栏宽度时如果继续过渡 width，会让指针移动和实际宽度之间产生滞后。
             // 拖拽 active 通过 DOM 标记切 transition，避免 pointerdown/up 为了切 class 重渲染整棵 workspace。
+            isWebRemoteControlShell &&
+              webRemoteNavigationSidebarPanelClass(webRemoteNavigation.isPanelShown),
             isSidebarPanelVisible ? "opacity-100" : "pointer-events-none opacity-0",
           )}
         >
           <aside
             ref={sidebarContainerRef}
-            className="h-full overflow-hidden select-none"
-            aria-hidden={!isSidebarPanelVisible}
+            id={isWebRemoteControlShell ? "web-remote-control-navigation-panel" : undefined}
+            className={cn(
+              "h-full overflow-hidden select-none",
+              isWebRemoteControlShell && "max-md:min-h-0 max-md:flex-1",
+              isWebRemoteControlShell && !webRemoteNavigation.isPanelShown && "max-md:hidden",
+            )}
+            aria-hidden={!isSidebarPanelVisible || !webRemoteNavigation.isPanelShown}
           >
             <ScopedErrorBoundary
               scope="workspace-sidebar"
@@ -1726,7 +1755,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
             >
               {/* session workbench groups：桌面和普通 web app 可分屏。 */}
               <V4SplitPaneEntryProvider
-                enabled
+                enabled={!isWebRemoteControlShell && !isMobileWebRemoteViewport}
                 canOpenSession={canOpenSessionInSplitPane}
                 onOpenSession={handleOpenSessionInSplitPane}
               >
@@ -1775,6 +1804,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     onOpenPluginStore={handleOpenPluginStore}
                     pluginStoreActive={workspaceMainView === "plugin-store"}
                     onFileTreeOpenChange={setIsSidebarFileTreeOpen}
+                    onWebRemoteTaskOpen={
+                      isWebRemoteControlShell ? webRemoteNavigation.collapseForTaskOpen : undefined
+                    }
                   />
                 </WorkflowRunOpenProvider>
               </V4SplitPaneEntryProvider>
@@ -1782,7 +1814,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           </aside>
         </div>
 
-        {isSidebarVisible ? (
+        {isSidebarVisible && webRemoteNavigation.isPanelShown ? (
           <div
             role="separator"
             tabIndex={0}
@@ -1802,6 +1834,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
               "after:pointer-events-none after:absolute after:rounded-full after:bg-foreground-subtlest/50 after:opacity-0 after:transition-opacity after:content-[''] after:inset-y-[var(--workspace-panel-radius)] after:w-0.5",
               "hover:after:opacity-100 data-[separator=hover]:after:opacity-100 data-[separator=active]:after:opacity-100 focus-visible:after:opacity-100 [[data-workspace-sidebar-resizing=true]_&]:after:opacity-100",
               hasDesktopPanelInset && "after:inset-y-[var(--workspace-resize-handle-inset)]",
+              isWebRemoteControlShell && "max-md:hidden",
             )}
           />
         ) : null}
@@ -1812,6 +1845,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           className={cn(
             "flex min-w-[320px] flex-1 flex-col",
             hasDesktopPanelInset ? "p-1 pl-0 pt-0" : "p-0",
+            isWebRemoteControlShell &&
+              "max-md:!w-full max-md:!min-w-0 max-md:!flex-1 max-md:!basis-0",
           )}
         >
           {
@@ -1822,12 +1857,17 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           <ResizablePanelGroup
             layoutId="workspace-body-layout"
             panelIds={WORKSPACE_BODY_PANEL_IDS}
-            className="min-h-0 flex-1"
+            className={cn("min-h-0 flex-1", isWebRemoteControlShell && "max-md:!flex-col")}
           >
             <ResizablePanel
               id="conversation-column"
-              minSize="35%"
+              minSize={isWebRemoteControlShell ? "0px" : "35%"}
               defaultSize={isSidePaneVisible ? "52%" : undefined}
+              className={
+                isWebRemoteControlShell
+                  ? "max-md:!w-full max-md:!min-w-0 max-md:!flex-1 max-md:!basis-0"
+                  : undefined
+              }
             >
               <ResizablePanelGroup
                 orientation="vertical"
@@ -1856,6 +1896,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                               desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
                           }),
                       isTerminalVisible && "rounded-b-[var(--workspace-panel-radius)] border-b",
+                      isWebRemoteControlShell &&
+                        "max-md:rounded-none max-md:border-x-0 max-md:border-b-0",
                     )}
                   >
                     {shouldRenderWorkspaceHeader ? (
@@ -1900,6 +1942,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                           isWindowsDesktop={isWindowsDesktop}
                           windowsWindowControlsRightPaddingPx={windowsWindowControlsRightPaddingPx}
                           isDesktop={isDesktop}
+                          simplifyForNarrowRemote={
+                            isWebRemoteControlShell && isMobileWebRemoteViewport
+                          }
                           isSidebarVisible={isSidebarVisible}
                           isTerminalOpen={isTerminalOpen}
                           isSidePaneOpen={isSidePaneOpen}
@@ -1917,8 +1962,20 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                         />
                       </ScopedErrorBoundary>
                     ) : null}
+                    {isWebRemoteControlShell ? (
+                      <WebRemoteControlNavigationHandle
+                        hasHeader={shouldRenderWorkspaceHeader}
+                        isCollapsed={webRemoteNavigation.isCollapsed}
+                        isDragging={webRemoteNavigation.isDragging}
+                        onClick={webRemoteNavigation.onClick}
+                        onPointerCancel={(event) => webRemoteNavigation.finishPointer(event, true)}
+                        onPointerDown={webRemoteNavigation.onPointerDown}
+                        onPointerMove={webRemoteNavigation.onPointerMove}
+                        onPointerUp={(event) => webRemoteNavigation.finishPointer(event)}
+                      />
+                    ) : null}
                     <div className="min-h-0 flex-1 overflow-hidden">
-                      {workspaceMainView === "automations" ? (
+                      {workspaceMainView === "automations" && !isWebRemoteControlShell ? (
                         <main
                           id={AUTOMATIONS_TOAST_ANCHOR_ID}
                           className="flex h-full min-h-0 flex-1 flex-col bg-background"
@@ -1971,7 +2028,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                             </div>
                           </AutomationsMainBreadcrumbFrame>
                         </main>
-                      ) : workspaceMainView === "plugin-store" ? (
+                      ) : workspaceMainView === "plugin-store" && !isWebRemoteControlShell ? (
                         <main className="flex h-full min-h-0 flex-1 flex-col bg-background">
                           <AutomationsMainBreadcrumbFrame
                             isDesktop={Boolean(isDesktop)}
