@@ -55,6 +55,8 @@ export const BOT_ELICITATION_SKIP = "__skip__";
 export const BOT_ELICITATION_FORM_PREFIX = "__form__:";
 /** 发布包 host `Ile`。 */
 export const BOT_ELICITATION_BROADCAST_TIMEOUT_MS = 1_000;
+/** 发布包 host 变量 `yH`：callback acknowledge 的 abort 时限，bundle 未给 keepName。 */
+export const BOT_CALLBACK_ACK_TIMEOUT_MS = 3_000;
 export const WEBHOOK_SECRET_HEADER = "x-zcode-bot-secret";
 export const WEBHOOK_TEST_TYPE = "zcode.bot.test";
 export const WEBHOOK_MESSAGE_TYPE = "zcode.bot.message";

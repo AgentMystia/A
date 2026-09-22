@@ -1,7 +1,12 @@
 import type { BotInboundMessage, BotOutboundMessage, ZCodeProvider } from "@zcode/shared";
 import { copy } from "./botsInboundText.js";
 import { createBotTraceId, deriveSessionTitle } from "./botsHostHelpers.js";
-import { completeBotModelSelection, readModelSelectionView, toBotTaskProvider, buildInitializedDraftOptions } from "./botsDraft.js";
+import {
+  completeBotModelSelection,
+  readModelSelectionView,
+  toBotTaskProvider,
+  buildInitializedDraftOptions,
+} from "./botsDraft.js";
 import { handlePendingElicitationText as handleElicitationText } from "./botsInboundElicitation.js";
 import {
   createTaskServiceResolver,
@@ -17,6 +22,7 @@ import {
 } from "./botsTaskStream.js";
 import { getWorkspaceKey } from "./botsNormalize.js";
 import { formatAttachmentRejectedReason, prepareBotMessageContent } from "./botsAttachments.js";
+import { broadcastTaskListChange } from "./botsBroadcast.js";
 
 /** 发布包 host `handleMessage`。 */
 export async function handleBotMessage(
@@ -29,7 +35,9 @@ export async function handleBotMessage(
   }
   let replacedTaskId: string | undefined;
   if (authorized.context.mode === "task" && authorized.context.activeTaskId) {
-    const deleted = await (await resolveZCodeTaskServiceForContext(runtime, authorized.context))
+    const deleted = await (
+      await resolveZCodeTaskServiceForContext(runtime, authorized.context)
+    )
       .listDeletedTaskIds({
         workspacePath: authorized.context.workspacePath,
         workspaceIdentity: authorized.context.workspaceIdentity,
@@ -45,12 +53,21 @@ export async function handleBotMessage(
   if (elicitation) {
     return elicitation;
   }
-  if (authorized.context.mode === "task" && authorized.context.activeTaskId && (await isContextActiveTaskRunning(runtime, authorized.context))) {
+  if (
+    authorized.context.mode === "task" &&
+    authorized.context.activeTaskId &&
+    (await isContextActiveTaskRunning(runtime, authorized.context))
+  ) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
   }
   let prepared;
   try {
-    prepared = await prepareBotMessageContent(authorized.bot, message, authorized.locale, runtime.providers);
+    prepared = await prepareBotMessageContent(
+      authorized.bot,
+      message,
+      authorized.locale,
+      runtime.providers,
+    );
   } catch (error) {
     return runtime.replies(
       message.actor,
@@ -60,8 +77,16 @@ export async function handleBotMessage(
     );
   }
   if (authorized.context.mode === "draft" || !authorized.context.activeTaskId) {
-    const draft = authorized.context.draftOptions ?? (await buildInitializedDraftOptions(authorized.context, (item) => runtime.isRemoteConnected(item)));
-    const view = await readModelSelectionView(createTaskServiceResolver(runtime), authorized.context, draft.modelSelection);
+    const draft =
+      authorized.context.draftOptions ??
+      (await buildInitializedDraftOptions(authorized.context, (item) =>
+        runtime.isRemoteConnected(item),
+      ));
+    const view = await readModelSelectionView(
+      createTaskServiceResolver(runtime),
+      authorized.context,
+      draft.modelSelection,
+    );
     const selection = draft.modelSelection ? view?.effectiveSelection : view?.preferredSelection;
     if (!selection || !view || (draft.modelSelection && view.selectionIssue)) {
       throw new Error("Bot 无法从目标 Host 解析 Submission 模型");
@@ -79,20 +104,29 @@ export async function handleBotMessage(
     const created = await taskService.createTask({
       workspacePath: authorized.context.workspacePath,
       workspaceIdentity: authorized.context.workspaceIdentity,
-      ...(toBotTaskProvider(draft.provider) === "glm" ? { provider: "glm" satisfies ZCodeProvider } : {}),
+      ...(toBotTaskProvider(draft.provider) === "glm"
+        ? { provider: "glm" satisfies ZCodeProvider }
+        : {}),
       modelSelection: nextDraft.modelSelection,
     });
     const title = deriveSessionTitle(prepared.content, prepared.zcodeAttachments);
     const createdTask = title ? { ...created, title } : created;
     const traceId = createBotTraceId(created.taskId);
     try {
-      await applyDraftConfigOptions(runtime, { ...authorized.context, draftOptions: nextDraft }, created.taskId, traceId);
+      await applyDraftConfigOptions(
+        runtime,
+        { ...authorized.context, draftOptions: nextDraft },
+        created.taskId,
+        traceId,
+      );
     } catch (error) {
-      await taskService.deleteTask({
-        taskId: created.taskId,
-        workspacePath: authorized.context.workspacePath,
-        workspaceIdentity: authorized.context.workspaceIdentity,
-      }).catch(() => undefined);
+      await taskService
+        .deleteTask({
+          taskId: created.taskId,
+          workspacePath: authorized.context.workspacePath,
+          workspaceIdentity: authorized.context.workspaceIdentity,
+        })
+        .catch(() => undefined);
       throw error;
     }
     const next = await runtime.persistContext({
@@ -101,19 +135,7 @@ export async function handleBotMessage(
       activeTaskId: created.taskId,
       draftOptions: undefined,
     });
-    await runtime.broadcastService
-      ?.send({
-        channel: "bots:task-list",
-        payload: {
-          workspacePath: next.workspacePath,
-          workspaceIdentity: next.workspaceIdentity,
-          taskId: created.taskId,
-          event: "created",
-          task: createdTask,
-          updatedAt: Date.now(),
-        },
-      })
-      .catch(() => undefined);
+    await broadcastTaskListChange(runtime, next, created.taskId, "created", { task: createdTask });
     if (replacedTaskId) {
       runtime.logger.info(
         undefined,
@@ -136,25 +158,15 @@ export async function handleBotMessage(
     }
     runtime.runningTasks.add(created.taskId);
     await watchTaskStream(runtime, authorized.bot, message.actor, next);
-    await runtime.broadcastService
-      ?.send({
-        channel: "bots:task-list",
-        payload: {
-          workspacePath: next.workspacePath,
-          workspaceIdentity: next.workspaceIdentity,
-          taskId: created.taskId,
-          event: "prompt_sent",
-          task: createdTask,
-          prompt: {
-            content: prepared.content,
-            attachments: prepared.zcodeAttachments.length > 0 ? prepared.zcodeAttachments : undefined,
-            messageId: `bot-${traceId}`,
-            sentAt: Date.now(),
-          },
-          updatedAt: Date.now(),
-        },
-      })
-      .catch(() => undefined);
+    await broadcastTaskListChange(runtime, next, created.taskId, "prompt_sent", {
+      task: createdTask,
+      prompt: {
+        content: prepared.content,
+        attachments: prepared.zcodeAttachments.length > 0 ? prepared.zcodeAttachments : undefined,
+        messageId: `bot-${traceId}`,
+        sentAt: Date.now(),
+      },
+    });
     sendPromptInBackground(
       runtime,
       authorized.bot,
@@ -174,45 +186,39 @@ export async function handleBotMessage(
     workspacePath: authorized.context.workspacePath,
     workspaceIdentity: authorized.context.workspaceIdentity,
   });
-  const current = await taskService.getTaskModelSelection({ taskId: authorized.context.activeTaskId });
-  const view = current ? await readModelSelectionView(createTaskServiceResolver(runtime), authorized.context, current) : null;
+  const current = await taskService.getTaskModelSelection({
+    taskId: authorized.context.activeTaskId,
+  });
+  const view = current
+    ? await readModelSelectionView(createTaskServiceResolver(runtime), authorized.context, current)
+    : null;
   const effective = view?.effectiveSelection;
   if (!effective || view?.selectionIssue) {
     throw new Error(copy(authorized.locale, "sessionModelUnavailable"));
   }
-  await runtime.broadcastService
-    ?.send({
-      channel: "bots:task-list",
-      payload: {
-        workspacePath: authorized.context.workspacePath,
-        workspaceIdentity: authorized.context.workspaceIdentity,
-        taskId: authorized.context.activeTaskId,
-        event: "resumed",
-        updatedAt: Date.now(),
-      },
-    })
-    .catch(() => undefined);
+  await broadcastTaskListChange(
+    runtime,
+    authorized.context,
+    authorized.context.activeTaskId,
+    "resumed",
+  );
   runtime.runningTasks.add(authorized.context.activeTaskId);
   await watchTaskStream(runtime, authorized.bot, message.actor, authorized.context);
   const resumeTraceId = createBotTraceId(authorized.context.activeTaskId);
-  await runtime.broadcastService
-    ?.send({
-      channel: "bots:task-list",
-      payload: {
-        workspacePath: authorized.context.workspacePath,
-        workspaceIdentity: authorized.context.workspaceIdentity,
-        taskId: authorized.context.activeTaskId,
-        event: "prompt_sent",
-        prompt: {
-          content: prepared.content,
-          attachments: prepared.zcodeAttachments.length > 0 ? prepared.zcodeAttachments : undefined,
-          messageId: `bot-${resumeTraceId}`,
-          sentAt: Date.now(),
-        },
-        updatedAt: Date.now(),
+  await broadcastTaskListChange(
+    runtime,
+    authorized.context,
+    authorized.context.activeTaskId,
+    "prompt_sent",
+    {
+      prompt: {
+        content: prepared.content,
+        attachments: prepared.zcodeAttachments.length > 0 ? prepared.zcodeAttachments : undefined,
+        messageId: `bot-${resumeTraceId}`,
+        sentAt: Date.now(),
       },
-    })
-    .catch(() => undefined);
+    },
+  );
   sendPromptInBackground(
     runtime,
     authorized.bot,

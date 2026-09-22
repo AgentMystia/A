@@ -15,7 +15,10 @@ import {
 import { copy, getActorContextKey } from "./botsInboundText.js";
 import { createSelectionReply } from "./botsInboundDraft.js";
 import type { AuthorizedContext } from "./botsInbound.js";
-import { resolveZCodeTaskServiceForContext, type BotInboundTaskRuntime } from "./botsInboundRuntime.js";
+import {
+  resolveZCodeTaskServiceForContext,
+  type BotInboundTaskRuntime,
+} from "./botsInboundRuntime.js";
 import {
   createBotElicitationRequestSnapshot,
   createBotElicitationSelection,
@@ -39,26 +42,31 @@ import {
   type PendingElicitation,
 } from "./botsElicitationParse.js";
 import type { BotMessageLocale } from "./botsCopy.js";
+import { broadcastTaskListChange } from "./botsBroadcast.js";
 import { createOutbound } from "./botsOutbound.js";
+import { upsertTransientInteractionCard } from "./botsTransientCards.js";
 
 async function broadcastElicitationResolved(
   runtime: BotInboundTaskRuntime,
   context: BotRuntimeState,
   pending: PendingElicitation,
 ): Promise<void> {
-  await runtime.broadcastService
-    ?.send({
-      channel: "bots:task-list",
-      payload: {
-        workspacePath: context.workspacePath,
-        workspaceIdentity: context.workspaceIdentity,
-        taskId: pending.taskId,
-        event: "elicitation_resolved",
-        requestId: pending.requestId,
-        updatedAt: Date.now(),
-      },
-    })
-    .catch(() => undefined);
+  await broadcastTaskListChange(runtime, context, pending.taskId, "elicitation_resolved", {
+    requestId: pending.requestId,
+  });
+}
+
+/** 发布包 host `clearPendingElicitationForRequest`。 */
+export async function clearPendingElicitationForRequest(
+  runtime: BotInboundTaskRuntime,
+  context: BotRuntimeState,
+  requestId: string,
+): Promise<void> {
+  if (context.pendingElicitation?.requestId !== requestId) {
+    return;
+  }
+  clearPendingElicitationSelection(runtime, context.pendingElicitation);
+  await runtime.persistContext({ ...context, pendingElicitation: undefined });
 }
 
 /** 发布包 host `submitPendingElicitation`。 */
@@ -76,7 +84,9 @@ export async function submitPendingElicitation(
   if (pending.handledAt) {
     return runtime.replies(actor, copy(authorized.locale, "elicitationHandled"));
   }
-  const submitted = await (await resolveZCodeTaskServiceForContext(runtime, authorized.context)).respondElicitation({
+  const submitted = await (
+    await resolveZCodeTaskServiceForContext(runtime, authorized.context)
+  ).respondElicitation({
     taskId: pending.taskId,
     workspacePath: authorized.context.workspacePath,
     workspaceIdentity: authorized.context.workspaceIdentity,
@@ -98,7 +108,13 @@ export async function submitPendingElicitation(
   if (action === "accept") {
     runtime.startTyping(authorized.bot, actor, pending.taskId);
   }
-  return createCompletedElicitationOutbound(runtime.replies, actor, pending, authorized.locale, action);
+  return createCompletedElicitationOutbound(
+    runtime.replies,
+    actor,
+    pending,
+    authorized.locale,
+    action,
+  );
 }
 
 async function advancePendingElicitation(
@@ -109,7 +125,14 @@ async function advancePendingElicitation(
   answers: PendingElicitation["answers"],
 ): Promise<BotOutboundMessage[]> {
   if (pending.currentQuestionIndex >= pending.questions.length - 1) {
-    return submitPendingElicitation(runtime, authorized, actor, { ...pending, answers }, "accept", buildBotElicitationContent(pending, answers));
+    return submitPendingElicitation(
+      runtime,
+      authorized,
+      actor,
+      { ...pending, answers },
+      "accept",
+      buildBotElicitationContent(pending, answers),
+    );
   }
   const next: PendingElicitation = {
     ...pending,
@@ -126,7 +149,12 @@ async function createElicitationReply(
   pending: PendingElicitation,
   locale: BotMessageLocale,
 ): Promise<BotOutboundMessage[]> {
-  return createSelectionReply(runtime, actor, createBotElicitationSelection(pending, locale), locale);
+  return createSelectionReply(
+    runtime,
+    actor,
+    createBotElicitationSelection(pending, locale),
+    locale,
+  );
 }
 
 /** 发布包 host `handlePendingElicitationValue`。 */
@@ -137,7 +165,11 @@ export async function handlePendingElicitationValue(
   value: string,
 ): Promise<BotOutboundMessage[]> {
   const pending = authorized.context.pendingElicitation;
-  if (!pending || pending.taskId !== authorized.context.activeTaskId || !isPendingElicitationOwnedByActor(pending, actor)) {
+  if (
+    !pending ||
+    pending.taskId !== authorized.context.activeTaskId ||
+    !isPendingElicitationOwnedByActor(pending, actor)
+  ) {
     return runtime.replies(actor, copy(authorized.locale, "elicitationExpired"));
   }
   const question = pending.questions[pending.currentQuestionIndex];
@@ -156,7 +188,11 @@ export async function handlePendingElicitationValue(
   }
   const form = parseElicitationFormValues(parsed.value);
   if (form) {
-    const merged = mergeElicitationFormValues(question, readElicitationAnswerValues(pending, pending.currentQuestionIndex), form);
+    const merged = mergeElicitationFormValues(
+      question,
+      readElicitationAnswerValues(pending, pending.currentQuestionIndex),
+      form,
+    );
     return merged.length === 0
       ? createElicitationReply(runtime, actor, pending, authorized.locale)
       : advancePendingElicitation(runtime, authorized, actor, pending, {
@@ -176,12 +212,17 @@ export async function handlePendingElicitationValue(
   const key = getElicitationAnswerKey(pending.currentQuestionIndex);
   if (question.multiSelect) {
     const current = readElicitationAnswerValues(pending, pending.currentQuestionIndex);
-    const nextValues = current.includes(resolved) ? current.filter((item) => item !== resolved) : [...current, resolved];
+    const nextValues = current.includes(resolved)
+      ? current.filter((item) => item !== resolved)
+      : [...current, resolved];
     const next = { ...pending, answers: { ...pending.answers, [key]: nextValues } };
     await runtime.persistContext({ ...authorized.context, pendingElicitation: next });
     return createElicitationReply(runtime, actor, next, authorized.locale);
   }
-  return advancePendingElicitation(runtime, authorized, actor, pending, { ...pending.answers, [key]: [resolved] });
+  return advancePendingElicitation(runtime, authorized, actor, pending, {
+    ...pending.answers,
+    [key]: [resolved],
+  });
 }
 
 /** 发布包 host `handlePendingElicitationText`。 */
@@ -192,7 +233,11 @@ export async function handlePendingElicitationText(
   text: string,
 ): Promise<BotOutboundMessage[] | null> {
   const pending = authorized.context.pendingElicitation;
-  if (!pending || pending.taskId !== authorized.context.activeTaskId || !isPendingElicitationOwnedByActor(pending, actor)) {
+  if (
+    !pending ||
+    pending.taskId !== authorized.context.activeTaskId ||
+    !isPendingElicitationOwnedByActor(pending, actor)
+  ) {
     return null;
   }
   const trimmed = text.trim();
@@ -207,9 +252,11 @@ export async function handlePendingElicitationText(
     return runtime.replies(actor, copy(authorized.locale, "elicitationExpired"));
   }
   const values = question.multiSelect
-    ? trimmed.split(/[,\n，、]/u).map((item) => item.trim()).filter(Boolean).map((item) =>
-        resolveElicitationQuestionValue(question, item, { includeSubmit: false }),
-      )
+    ? trimmed
+        .split(/[,\n，、]/u)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((item) => resolveElicitationQuestionValue(question, item, { includeSubmit: false }))
     : [resolveElicitationQuestionValue(question, trimmed, { includeSubmit: false })];
   return advancePendingElicitation(runtime, authorized, actor, pending, {
     ...pending.answers,
@@ -221,17 +268,32 @@ export async function handlePendingElicitationText(
 export async function handleStructuredElicitationResponse(
   runtime: BotInboundTaskRuntime,
   message: BotInboundMessage,
-  response: { requestId: string; action: "accept" | "decline" | "cancel"; content?: Record<string, unknown> },
+  response: {
+    requestId: string;
+    action: "accept" | "decline" | "cancel";
+    content?: Record<string, unknown>;
+  },
 ): Promise<BotOutboundMessage[]> {
   const authorized = await runtime.withAuthorizedContext(message, "message");
   if (!authorized.ok) {
     return authorized.reply;
   }
   const pending = authorized.context.pendingElicitation;
-  if (!pending || pending.requestId !== response.requestId || !isPendingElicitationOwnedByActor(pending, message.actor)) {
+  if (
+    !pending ||
+    pending.requestId !== response.requestId ||
+    !isPendingElicitationOwnedByActor(pending, message.actor)
+  ) {
     return runtime.replies(message.actor, copy(authorized.locale, "elicitationExpired"));
   }
-  return submitPendingElicitation(runtime, authorized, message.actor, pending, response.action, response.content);
+  return submitPendingElicitation(
+    runtime,
+    authorized,
+    message.actor,
+    pending,
+    response.action,
+    response.content,
+  );
 }
 
 /** 发布包 host `broadcastPendingElicitationProgress`。 */
@@ -242,20 +304,10 @@ export async function broadcastPendingElicitationProgress(
 ): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const result = await Promise.race([
-    runtime.broadcastService
-      ?.send({
-        channel: "bots:task-list",
-        payload: {
-          workspacePath: context.workspacePath,
-          workspaceIdentity: context.workspaceIdentity,
-          taskId: pending.taskId,
-          event: "elicitation_request",
-          elicitationRequest: createBotElicitationRequestSnapshot(pending),
-          requestId: pending.requestId,
-          updatedAt: Date.now(),
-        },
-      })
-      .then(() => "broadcast" as const) ?? Promise.resolve("broadcast" as const),
+    broadcastTaskListChange(runtime, context, pending.taskId, "elicitation_request", {
+      elicitationRequest: createBotElicitationRequestSnapshot(pending),
+      requestId: pending.requestId,
+    }).then(() => "broadcast" as const),
     new Promise<"timeout">((resolve) => {
       timer = setTimeout(() => resolve("timeout"), BOT_ELICITATION_BROADCAST_TIMEOUT_MS);
     }),
@@ -321,11 +373,14 @@ export async function handleElicitationRequest(
       elicitation: reply.elicitation,
     });
     if (shouldUseTransientInteractionCard(runtime, bot)) {
-      const provider = runtime.providers[bot.provider];
-      const handle = await provider?.createTransientInteractionCard?.(bot, outbound);
-      if (handle) {
-        await provider?.updateTransientInteractionCard?.(bot, handle, outbound);
-      }
+      await upsertTransientInteractionCard(
+        runtime.providers,
+        runtime.transientCards,
+        bot,
+        actor,
+        request.taskId,
+        outbound,
+      );
       continue;
     }
     await runtime.sendOutbound(bot, outbound);
@@ -333,4 +388,3 @@ export async function handleElicitationRequest(
 }
 
 export { BOT_ELICITATION_BROADCAST_TIMEOUT_MS };
-

@@ -59,7 +59,8 @@ renderer hook → ProxyChannel → Host 单例
 - 微信 iLink API 基址 `https://ilinkai.weixin.qq.com/ilink/bot`，注册 QR 走同一 host。
 - Telegram 命令名 workspace=`project`、thoughtLevel=`think`。绑定码 3 字节 hex 大写，默认 TTL 30s。
 - 飞书回复粒度只保留 `streaming_card`；其余 provider 去掉该粒度。
-- `listUserConfigOptions` 发布包 keepNames 实现返回 `[]`。
+- `listUserConfigOptions` 发布包 keepNames 实现返回 `[]`。`listProviderConfigOptionsForActiveTask` 只调用它。`readCurrentActiveTaskMode` 取 config `mode` 的 currentValue，否则用 task.mode。
+- 任务列表广播频道是 `bots:task`（`broadcastTaskListChange` / `broadcastTaskConfigSync`）。每条任务流事件先走 `bots:task-stream`（`broadcastTaskStreamEvent`），`task_stream_mirror_batch` 只广播批次本身，内嵌 `stream_event` 不再次广播。不得使用 `bots:task-list`。
 - 手动领取 `server_time` 秒值乘 1000；JWT 键 `zcodejwttoken`；平台头 `${platform}-${arch}`。
 - 已从 keepNames 唯一还原的 inbound：`bind`、`help`、`status`、`reconnect`、`mode.list`/`mode.set`（回复 `modeLocked`）、`reply.list`/`reply.set`（`reply.set` 走公开 `saveBot`）、unknown、微信首次激活、`new`、`workspace`、`model`、`thoughtLevel`、`task`、`stop`、`permission`、`elicitation`、`message`、`selection.cancel`。
 - `createBotsService` 唯一注入 `zcodeTaskService` 与 `modelSelectionService`。`resolveZCodeTaskServiceForContext` / `resolveModelSelectionServiceForContext`：无 `workspaceIdentity` 用本机服务，否则问 `remoteWorkspaceService`，缺失则抛中文重连错误。
@@ -69,7 +70,11 @@ renderer hook → ProxyChannel → Host 单例
 - 已从 keepNames 唯一还原的附件链路：`sanitizeAttachmentFilename`、`formatAttachmentSize`、`formatAttachmentRejectedReason`、`buildAttachmentCachePath`、`fetchAttachmentDownloadUrl`、`resolveAttachmentBytes`、`cacheResolvedAttachment`、`prepareBotMessageContent`。最多 4 个附件、5MB、下载超时 30s；image/audio 进 `zcodeAttachments`，失败回 `attachmentRejected`。
 - 已从 keepNames 唯一还原：`isSessionExpiredError`、`formatUserFacingBotError`、`reconnectRemoteWorkspaceForBot`、`readTaskMeta`、`isTerminalTaskMeta`、`readTerminalTaskMeta`（轮询延迟 `[80,160,320]`）。
 - 已从 keepNames 唯一还原的 elicitation：`normalizeBotElicitationQuestions`、`readBotElicitationRenderContext`、`formatBotElicitationTitle`、`createBotElicitationSelection`、`createBotElicitationRequestSnapshot`、`broadcastPendingElicitationProgress`、`createCompletedElicitationOutbound`、`handleElicitationRequest`。`watchTaskStream` 对 `elicitation_request` 调 `handleElicitationRequest`。
-- `createAssistantReplyBlocks` 与飞书 `streaming_card` 同步仍依赖未具名外层 helper，本规格不发明实现。
+- `writeContext` 是 bot-state 的唯一写入。`isRemoteWorkspaceConnected`：无 identity 为已连接，无 remote service 为未连接，否则 `isConnected` 失败当未连接。`clearCandidateCaches` 只清 workspace ref 缓存，由 `refreshRuntimes` 调用。`saveBot` / `removeBotSecret` / `deleteBot` 已走 `refreshRuntimes`。
+- inbound 去重只有一张 map：`markInboundDelivery` / `releaseInboundDelivery` / `pruneRecentInboundDeliveryDedupe`。`performRemoteReconnect` 是 `/重连` 已通过去重与冷却后的连接与草稿回写。`clearPendingElicitationForRequest` 在 requestId 匹配时清 elicitation selection 并持久化去掉 pending。
+- `stopInboundTyping`：同一 bot 与同一 `providerMessageId` 仍有 live typing 时不调用 `stopTyping`。callback 在失败通知和成功投递之后调用它。callback acknowledge 超时是发布包变量 `yH = 3000`。
+- 临时交互卡片只有一张 actor-key map：`upsertTransientInteractionCard` / `finalizeTransientInteractionCard`。`handleElicitationRequest` 在 `streaming_card` 时 upsert，不在 create 之后立刻再 update。
+- `createAssistantReplyBlocks`、`updateLiveStatusProgress` 与飞书 `streaming_card` 同步仍依赖未具名外层 helper，本规格不发明实现。
 
 ```text
 createLocalServices

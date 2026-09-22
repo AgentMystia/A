@@ -22,7 +22,12 @@ function buildRemoteReconnectCommandKey(
 function buildRemoteReconnectDeliveryKey(message: BotInboundMessage): string | null {
   const id = message.actor.providerMessageId?.trim();
   return id
-    ? [message.actor.botId, message.actor.provider, message.actor.chatId ?? message.actor.providerUserId, id].join("::")
+    ? [
+        message.actor.botId,
+        message.actor.provider,
+        message.actor.chatId ?? message.actor.providerUserId,
+        id,
+      ].join("::")
     : null;
 }
 
@@ -32,6 +37,51 @@ function pruneRecentRemoteReconnectDeliveryDedupe(map: Map<string, number>, now:
       map.delete(key);
     }
   }
+}
+
+/** 发布包 host `performRemoteReconnect`。 */
+export async function performRemoteReconnect(input: {
+  message: BotInboundMessage;
+  context: BotRuntimeState;
+  locale: BotMessageLocale;
+  remoteWorkspaceService?: IBotRemoteWorkspaceService;
+  isRemoteConnected(
+    context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
+  ): Promise<boolean>;
+  persistContext(context: BotRuntimeState): Promise<BotRuntimeState>;
+  createStatusReply(
+    actor: BotInboundMessage["actor"],
+    context: BotRuntimeState,
+    locale: BotMessageLocale,
+  ): Promise<BotOutboundMessage[]>;
+  replies(
+    actor: BotInboundMessage["actor"],
+    text: string,
+    locale?: BotMessageLocale,
+  ): BotOutboundMessage[];
+}): Promise<BotOutboundMessage[]> {
+  let result: { ok: boolean; message?: string };
+  try {
+    result = await reconnectRemoteWorkspaceForBot(input.remoteWorkspaceService, input.context);
+  } catch (error) {
+    result = { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+  if (!result.ok) {
+    return input.replies(
+      input.message.actor,
+      copy(input.locale, "remoteReconnectFailed", {
+        workspacePath: input.context.workspacePath,
+        message: result.message ?? "unknown",
+      }),
+    );
+  }
+  if (input.context.mode === "draft" || !input.context.activeTaskId) {
+    const draft = await buildInitializedDraftOptions(input.context, (item) =>
+      input.isRemoteConnected(item),
+    );
+    await input.persistContext({ ...input.context, draftOptions: draft });
+  }
+  return input.createStatusReply(input.message.actor, input.context, input.locale);
 }
 
 /** 发布包 host `reconnectRemoteWorkspaceForBot`。 */
@@ -55,14 +105,20 @@ export async function handleBotReconnect(input: {
   message: BotInboundMessage;
   authorized: AuthorizedContext;
   remoteWorkspaceService?: IBotRemoteWorkspaceService;
-  isRemoteConnected(context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">): Promise<boolean>;
+  isRemoteConnected(
+    context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
+  ): Promise<boolean>;
   persistContext(context: BotRuntimeState): Promise<BotRuntimeState>;
   createStatusReply(
     actor: BotInboundMessage["actor"],
     context: BotRuntimeState,
     locale: BotMessageLocale,
   ): Promise<BotOutboundMessage[]>;
-  replies(actor: BotInboundMessage["actor"], text: string, locale?: BotMessageLocale): BotOutboundMessage[];
+  replies(
+    actor: BotInboundMessage["actor"],
+    text: string,
+    locale?: BotMessageLocale,
+  ): BotOutboundMessage[];
   reconnectInFlight: Map<string, Promise<BotOutboundMessage[]>>;
   reconnectCooldown: Map<string, number>;
   reconnectDelivery: Map<string, number>;
@@ -102,28 +158,16 @@ export async function handleBotReconnect(input: {
   if (await input.isRemoteConnected(context)) {
     return input.createStatusReply(input.message.actor, context, locale);
   }
-  const run = (async () => {
-    let result: { ok: boolean; message?: string };
-    try {
-      result = await reconnectRemoteWorkspaceForBot(input.remoteWorkspaceService, context);
-    } catch (error) {
-      result = { ok: false, message: error instanceof Error ? error.message : String(error) };
-    }
-    if (!result.ok) {
-      return input.replies(
-        input.message.actor,
-        copy(locale, "remoteReconnectFailed", {
-          workspacePath: context.workspacePath,
-          message: result.message ?? "unknown",
-        }),
-      );
-    }
-    if (context.mode === "draft" || !context.activeTaskId) {
-      const draft = await buildInitializedDraftOptions(context, (item) => input.isRemoteConnected(item));
-      await input.persistContext({ ...context, draftOptions: draft });
-    }
-    return input.createStatusReply(input.message.actor, context, locale);
-  })();
+  const run = performRemoteReconnect({
+    message: input.message,
+    context,
+    locale,
+    remoteWorkspaceService: input.remoteWorkspaceService,
+    isRemoteConnected: input.isRemoteConnected,
+    persistContext: input.persistContext,
+    createStatusReply: input.createStatusReply,
+    replies: input.replies,
+  });
   input.reconnectInFlight.set(key, run);
   try {
     const repliesOut = await run;

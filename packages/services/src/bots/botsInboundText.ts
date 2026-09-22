@@ -1,11 +1,7 @@
 import type { BotActor, BotConfigEntry, BotWorkspaceRef } from "@zcode/shared";
 import type { ISettingService } from "../setting/setting.js";
 import { WORKSPACE_REF_CACHE_MS } from "./botsConstants.js";
-import {
-  formatBotMessage,
-  type BotCopyKey,
-  type BotMessageLocale,
-} from "./botsCopy.js";
+import { formatBotMessage, type BotCopyKey, type BotMessageLocale } from "./botsCopy.js";
 import { createWorkspaceRef, getWorkspaceKey } from "./botsNormalize.js";
 import { HELP_COPY_KEYS, TELEGRAM_COMMAND_ORDER } from "./botsPaths.js";
 
@@ -65,6 +61,11 @@ export function buildHelpText(locale: BotMessageLocale, bot: BotConfigEntry): st
 }
 
 /** 发布包 host `listWorkspaceRefs`：5s 缓存 lastWorkspaceSession。 */
+/** 发布包 host `clearCandidateCaches`。 */
+export function clearCandidateCaches(cache: { clear(): void }): void {
+  cache.clear();
+}
+
 export function createWorkspaceRefCache(settingService: Pick<ISettingService, "get">): {
   list(currentWorkspace?: BotWorkspaceRef): Promise<BotWorkspaceRef[]>;
   clear(): void;
@@ -85,7 +86,10 @@ export function createWorkspaceRefCache(settingService: Pick<ISettingService, "g
       }
       const refs = new Map<string, BotWorkspaceRef>();
       if (currentWorkspace) {
-        refs.set(getWorkspaceKey(currentWorkspace.workspacePath, currentWorkspace.workspaceIdentity), currentWorkspace);
+        refs.set(
+          getWorkspaceKey(currentWorkspace.workspacePath, currentWorkspace.workspaceIdentity),
+          currentWorkspace,
+        );
       }
       const settings = await settingService.get().catch(() => null);
       for (const entry of settings?.lastWorkspaceSession ?? []) {

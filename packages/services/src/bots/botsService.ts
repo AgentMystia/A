@@ -18,7 +18,11 @@ import { createProviderCallbackProcessor } from "./botsCallback.js";
 import { createFeishuBotProvider } from "./botsFeishu.js";
 import { beginFeishuAppRegistration, pollFeishuAppRegistration } from "./botsFeishuRegistration.js";
 import { createFeishuChannelRuntime } from "./botsFeishuRuntime.js";
-import { createInboundHandlers, createWorkspaceRefCache, type BotBindCodeRecord } from "./botsInbound.js";
+import {
+  createInboundHandlers,
+  createWorkspaceRefCache,
+  type BotBindCodeRecord,
+} from "./botsInbound.js";
 import { dispatchInboundMessage } from "./botsInboundDispatch.js";
 import { createStatusReply } from "./botsInboundDraft.js";
 import type { BotContextTaskEntry, BotInboundTaskRuntime } from "./botsInboundRuntime.js";
@@ -41,6 +45,9 @@ import { createWeixinBotProvider } from "./botsWeixin.js";
 import { beginWeixinRegistration, pollWeixinRegistration } from "./botsWeixinRegistration.js";
 import { createWeixinChannelRuntime } from "./botsWeixinRuntime.js";
 import { createTypingController, watchAutomationRun } from "./botsTaskStream.js";
+import { clearCandidateCaches } from "./botsInboundText.js";
+import { listUserConfigOptions } from "./botsDraft.js";
+import type { TransientInteractionCardEntry } from "./botsTransientCards.js";
 
 export interface CreateBotsServiceOptions {
   runStartupBackgroundTasks?: boolean;
@@ -120,6 +127,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     wecom: null,
   };
   const typing = createTypingController(providers);
+  const transientCards = new Map<string, TransientInteractionCardEntry>();
 
   async function ensureBotStorageMigrated(): Promise<void> {
     migrated ??= Promise.all([repo.readConfig(), repo.readState()])
@@ -169,7 +177,8 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     workspaceSelectionEntries,
     automationWarnAt,
     persistContext: (context) => inbound.persistContext(context),
-    replies: (actor, text, locale, selection, extra) => inbound.replies(actor, text, locale, selection, extra),
+    replies: (actor, text, locale, selection, extra) =>
+      inbound.replies(actor, text, locale, selection, extra),
     withAuthorizedContext: (message, command) => inbound.withAuthorizedContext(message, command),
     readMessageLocale: () => inbound.readMessageLocale(),
     listWorkspaceRefs: (current) => inbound.listWorkspaceRefs(current),
@@ -196,12 +205,17 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     },
     startTyping: (bot, actor, taskId) => typing.startTyping(bot, actor, taskId),
     stopTyping: (taskId) => typing.stopTyping(taskId),
+    stopInboundTyping: (bot, actor) => typing.stopInboundTyping(bot, actor),
     providers,
-    resolveZCodeTaskServiceForContext: (context) => resolveZCodeTaskServiceForContext(runtime, context),
+    transientCards,
+    resolveZCodeTaskServiceForContext: (context) =>
+      resolveZCodeTaskServiceForContext(runtime, context),
     resolveModelSelectionServiceForContext: (context) =>
       resolveModelSelectionServiceForContext(runtime, context),
   };
-  inbound.setCreateStatusReply((actor, context, locale) => createStatusReply(runtime, actor, context, locale));
+  inbound.setCreateStatusReply((actor, context, locale) =>
+    createStatusReply(runtime, actor, context, locale),
+  );
   let service!: IBotsService;
   const callback = createProviderCallbackProcessor({
     logger,
@@ -210,6 +224,8 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     readConfig: () => repo.readConfig(),
     readLocale: () => inbound.readMessageLocale(),
     handleInboundMessage: (message) => service.handleInboundMessage(message),
+    transientCards,
+    stopInboundTyping: (bot, actor) => typing.stopInboundTyping(bot, actor),
   });
   const telegramRuntime = createTelegramChannelRuntime({
     runBackgroundTasks,
@@ -221,7 +237,8 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     readConfig: () => repo.readConfig(),
     readTelegramOffset: polling.readTelegramOffset,
     writeTelegramOffset: polling.writeTelegramOffset,
-    processProviderCallback: (provider, payload) => callback.processProviderCallback(provider, payload),
+    processProviderCallback: (provider, payload) =>
+      callback.processProviderCallback(provider, payload),
   });
   const weixinRuntime = createWeixinChannelRuntime({
     runBackgroundTasks,
@@ -232,7 +249,8 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     readConfig: () => repo.readConfig(),
     readWeixinGetUpdatesBuf: polling.readWeixinGetUpdatesBuf,
     writeWeixinGetUpdatesBuf: polling.writeWeixinGetUpdatesBuf,
-    processProviderCallback: (provider, payload) => callback.processProviderCallback(provider, payload),
+    processProviderCallback: (provider, payload) =>
+      callback.processProviderCallback(provider, payload),
   });
   const feishuRuntime = createFeishuChannelRuntime({
     runBackgroundTasks,
@@ -242,10 +260,11 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     ensureBotStorageMigrated,
     readConfig: () => repo.readConfig(),
     summarizeCallbackPayload: (payload) => JSON.stringify(payload).slice(0, 500),
-    processProviderCallback: (provider, payload) => callback.processProviderCallback(provider, payload),
+    processProviderCallback: (provider, payload) =>
+      callback.processProviderCallback(provider, payload),
   });
   const refreshRuntimes = (config?: BotsConfig) => {
-    workspaceRefs.clear();
+    clearCandidateCaches(workspaceRefs);
     telegramRuntime.scheduleRefresh(config);
     weixinRuntime.scheduleRefresh(config);
     feishuRuntime.scheduleRefresh(config);
@@ -265,7 +284,9 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
   service = {
     async syncAppRuntimePreferences(preferences) {
       await options.remoteWorkspaceService?.syncAppRuntimePreferences(
-        preferences as Parameters<NonNullable<IBotRemoteWorkspaceService["syncAppRuntimePreferences"]>>[0],
+        preferences as Parameters<
+          NonNullable<IBotRemoteWorkspaceService["syncAppRuntimePreferences"]>
+        >[0],
       );
     },
     async getStatus() {
@@ -289,8 +310,8 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     },
     getConfig: () => repo.readConfig(),
     listWorkspaceRefs: () => workspaceRefs.list(),
-    async getUserConfigOptions() {
-      return [];
+    async getUserConfigOptions(request) {
+      return listUserConfigOptions(request);
     },
     beginFeishuRegistration: (request) => beginFeishuAppRegistration(request?.domain),
     pollFeishuRegistration: (request) => pollFeishuAppRegistration(request),
@@ -321,7 +342,9 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
       await watchAutomationRun(runtime, watch);
     },
     handleInboundMessage(message: BotInboundMessage) {
-      return inboundQueue.enqueue(message.actor, () => dispatchInboundMessage(runtime, inbound, message));
+      return inboundQueue.enqueue(message.actor, () =>
+        dispatchInboundMessage(runtime, inbound, message),
+      );
     },
     async handleProviderCallback(provider, payload) {
       return (await callback.processProviderCallback(provider, payload)).replies;
@@ -354,6 +377,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
       reconnectInFlight.clear();
       reconnectCooldown.clear();
       reconnectDelivery.clear();
+      transientCards.clear();
       disposing = Promise.allSettled([
         telegramRuntime.dispose(),
         weixinRuntime.dispose(),

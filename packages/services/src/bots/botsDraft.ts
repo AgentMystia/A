@@ -71,7 +71,10 @@ export function findSelectConfigOption(
   configId: string,
 ): ZCodeConfigOption | undefined {
   const category = configId === "thoughtLevel" ? "thought_level" : configId;
-  return options.find((option) => option.type === "select" && (option.category === category || option.id === category));
+  return options.find(
+    (option) =>
+      option.type === "select" && (option.category === category || option.id === category),
+  );
 }
 
 export function getModeDisplayLabel(
@@ -89,7 +92,9 @@ export function formatConfigOptionLabel(
   option: { id: string; label: string },
   input: { configId: string; locale: BotMessageLocale; provider?: string },
 ): string {
-  return input.configId !== "mode" ? option.label : getModeDisplayLabel(input.locale, input.provider, option);
+  return input.configId !== "mode"
+    ? option.label
+    : getModeDisplayLabel(input.locale, input.provider, option);
 }
 
 export function listConfigSelectOptions(
@@ -101,12 +106,19 @@ export function listConfigSelectOptions(
     const option = { id: item.value, label: item.name, description: item.description };
     return {
       ...option,
-      label: formatConfigOptionLabel(option, { configId, locale: input.locale, provider: input.provider }),
+      label: formatConfigOptionLabel(option, {
+        configId,
+        locale: input.locale,
+        provider: input.provider,
+      }),
     };
   });
 }
 
-export function readConfigSelectCurrentValue(options: ZCodeConfigOption[], configId: string): string | undefined {
+export function readConfigSelectCurrentValue(
+  options: ZCodeConfigOption[],
+  configId: string,
+): string | undefined {
   const current = findSelectConfigOption(options, configId)?.currentValue;
   return typeof current === "string" ? current : undefined;
 }
@@ -121,7 +133,10 @@ export function readConfigSelectLabelForValue(
   if (!value) {
     return undefined;
   }
-  return listConfigSelectOptions(options, configId, input).find((item) => item.id === value)?.label ?? value;
+  return (
+    listConfigSelectOptions(options, configId, input).find((item) => item.id === value)?.label ??
+    value
+  );
 }
 
 /** 发布包 host `readConfigSelectCurrentLabel`。 */
@@ -130,7 +145,12 @@ export function readConfigSelectCurrentLabel(
   configId: string,
   input: { locale: BotMessageLocale; provider?: string } = { locale: "zh-CN" },
 ): string | undefined {
-  return readConfigSelectLabelForValue(options, configId, readConfigSelectCurrentValue(options, configId), input);
+  return readConfigSelectLabelForValue(
+    options,
+    configId,
+    readConfigSelectCurrentValue(options, configId),
+    input,
+  );
 }
 
 export function resolveSupportedDraftMode(
@@ -145,8 +165,40 @@ export function resolveSupportedDraftMode(
   return values.includes(modeId) ? modeId : undefined;
 }
 
-export function readCurrentActiveTaskModel(task: Pick<ZCodeTaskMeta, "model">, options: ZCodeConfigOption[]): string | undefined {
+export function readCurrentActiveTaskModel(
+  task: Pick<ZCodeTaskMeta, "model">,
+  options: ZCodeConfigOption[],
+): string | undefined {
   return readConfigSelectCurrentValue(options, "model") ?? task.model;
+}
+
+/** 发布包 host `readCurrentActiveTaskMode`。 */
+export function readCurrentActiveTaskMode(
+  task: Pick<ZCodeTaskMeta, "mode">,
+  options: ZCodeConfigOption[],
+): string | undefined {
+  return readConfigSelectCurrentValue(options, "mode") ?? task.mode;
+}
+
+/** 发布包 host `listUserConfigOptions`：发布包实现固定返回空列表。 */
+export async function listUserConfigOptions(_request?: {
+  workspacePath?: string;
+  workspaceIdentity?: string;
+  provider?: string;
+}): Promise<never[]> {
+  return [];
+}
+
+/** 发布包 host `listProviderConfigOptionsForActiveTask`。 */
+export async function listProviderConfigOptionsForActiveTask(
+  context: { workspacePath: string; workspaceIdentity?: string },
+  provider: string,
+): Promise<never[]> {
+  return listUserConfigOptions({
+    workspacePath: context.workspacePath,
+    workspaceIdentity: context.workspaceIdentity,
+    provider,
+  });
 }
 
 export { getConfigCommandMissingMessageId };
@@ -186,7 +238,11 @@ export async function listModelSelectionProviderOptions(
   context: BotDraftWorkspace,
 ): Promise<Array<{ id: string; label: string; models: BotSelectionOption[] }>> {
   const view = await readModelSelectionView(resolver, context);
-  return view ? view.providers.map(createModelSelectionProviderOption).filter((item) => item.models.length > 0) : [];
+  return view
+    ? view.providers
+        .map(createModelSelectionProviderOption)
+        .filter((item) => item.models.length > 0)
+    : [];
 }
 
 export async function listModelProviderOptionsForActiveTask(
@@ -201,8 +257,11 @@ export async function listModelOptionsForProviderFromActiveTask(
   context: BotDraftWorkspace,
   providerId: string,
 ): Promise<BotSelectionOption[]> {
-  return (await listModelProviderOptionsForActiveTask(resolver, context)).find((item) => item.id === providerId)
-    ?.models ?? [];
+  return (
+    (await listModelProviderOptionsForActiveTask(resolver, context)).find(
+      (item) => item.id === providerId,
+    )?.models ?? []
+  );
 }
 
 export function readModelProviderSelectionModels(option: unknown): BotSelectionOption[] {
@@ -225,7 +284,9 @@ export async function listAllModelOptionsForActiveTask(
   resolver: BotTaskServiceResolver,
   context: BotDraftWorkspace,
 ): Promise<BotSelectionOption[]> {
-  return (await listModelProviderOptionsForActiveTask(resolver, context)).flatMap((item) => item.models);
+  return (await listModelProviderOptionsForActiveTask(resolver, context)).flatMap(
+    (item) => item.models,
+  );
 }
 
 export async function formatStatusModelLabel(
@@ -261,8 +322,10 @@ export async function readCurrentModelProviderId(
     return custom.providerId;
   }
   const providers = await listModelProviderOptionsForActiveTask(resolver, context);
-  return providers.find((item) => item.models.some((candidate) => candidate.id === model))?.id
-    ?? (provider ? getNativeModelProviderId(provider) : undefined);
+  return (
+    providers.find((item) => item.models.some((candidate) => candidate.id === model))?.id ??
+    (provider ? getNativeModelProviderId(provider) : undefined)
+  );
 }
 
 /** 发布包 host `buildInitializedDraftOptions`。 */
@@ -283,7 +346,9 @@ export async function listActiveTaskConfigOptions(
   context: BotDraftWorkspace,
   taskId: string,
 ): Promise<ZCodeConfigOption[]> {
-  return (await resolver.resolveZCodeTaskServiceForContext(context)).getTaskConfigOptions({ taskId });
+  return (await resolver.resolveZCodeTaskServiceForContext(context)).getTaskConfigOptions({
+    taskId,
+  });
 }
 
 export async function listDraftConfigOptions(
@@ -292,14 +357,20 @@ export async function listDraftConfigOptions(
   draft: BotDraftOptions,
   view?: Awaited<ReturnType<typeof readModelSelectionView>>,
 ): Promise<ZCodeConfigOption[]> {
-  const modelView = view === undefined ? await readModelSelectionView(resolver, context, draft.modelSelection) : view;
-  const selection = draft.modelSelection ? modelView?.effectiveSelection : modelView?.preferredSelection;
+  const modelView =
+    view === undefined
+      ? await readModelSelectionView(resolver, context, draft.modelSelection)
+      : view;
+  const selection = draft.modelSelection
+    ? modelView?.effectiveSelection
+    : modelView?.preferredSelection;
   if (!selection) {
     return [];
   }
   const spec = modelView?.providers
     .find((provider) => provider.providerId === selection.providerId)
-    ?.models.find((model) => model.modelId === selection.modelId)?.config.optionSpecs.reasoningLevel;
+    ?.models.find((model) => model.modelId === selection.modelId)?.config
+    .optionSpecs.reasoningLevel;
   if (!spec) {
     return [];
   }
@@ -322,7 +393,12 @@ export function completeBotModelSelection(
   return completeNewModelSelection(view, selection);
 }
 
-export { formatBotModelSelectionValue, parseBotModelOptionValue, resolveCustomModelRuntimeModelId, toBotTaskProvider };
+export {
+  formatBotModelSelectionValue,
+  parseBotModelOptionValue,
+  resolveCustomModelRuntimeModelId,
+  toBotTaskProvider,
+};
 export type { BotTaskProvider };
 
 export function copyMissing(locale: BotMessageLocale, configId: string): string {

@@ -45,11 +45,7 @@ function webhookBot(id: string, extras: Partial<BotConfigEntry> = {}): BotConfig
   };
 }
 
-function inbound(
-  botId: string,
-  text: string,
-  providerUserId = "user-1",
-): BotInboundMessage {
+function inbound(botId: string, text: string, providerUserId = "user-1"): BotInboundMessage {
   return {
     botId,
     text,
@@ -147,16 +143,27 @@ test("readServerTimeMilliseconds multiplies unique second values by 1000", () =>
 });
 
 test("unique remaining bots helpers match published keepNames", async () => {
-  const { formatAttachmentSize, formatAttachmentRejectedReason, sanitizeAttachmentFilename, prepareBotMessageContent } =
-    await import("../src/bots/botsAttachments.js");
-  const { isSessionExpiredError, formatUserFacingBotError } = await import("../src/bots/botsErrors.js");
+  const {
+    formatAttachmentSize,
+    formatAttachmentRejectedReason,
+    sanitizeAttachmentFilename,
+    prepareBotMessageContent,
+  } = await import("../src/bots/botsAttachments.js");
+  const { isSessionExpiredError, formatUserFacingBotError } =
+    await import("../src/bots/botsErrors.js");
   const { isTerminalTaskMeta } = await import("../src/bots/botsTaskMeta.js");
-  const { normalizeBotElicitationQuestions, readBotElicitationRenderContext, formatBotElicitationTitle } =
-    await import("../src/bots/botsElicitationBuild.js");
+  const {
+    normalizeBotElicitationQuestions,
+    readBotElicitationRenderContext,
+    formatBotElicitationTitle,
+  } = await import("../src/bots/botsElicitationBuild.js");
 
-  assert.equal(sanitizeAttachmentFilename('a/b:c'), "a_b_c");
+  assert.equal(sanitizeAttachmentFilename("a/b:c"), "a_b_c");
   assert.equal(formatAttachmentSize(2048), "2KB");
-  assert.equal(formatAttachmentRejectedReason(new Error("file.png exceeds 5MB."), "zh-CN"), "附件超过 5MB，请压缩后重新发送。");
+  assert.equal(
+    formatAttachmentRejectedReason(new Error("file.png exceeds 5MB."), "zh-CN"),
+    "附件超过 5MB，请压缩后重新发送。",
+  );
   assert.equal(isSessionExpiredError(new Error("Session not found: abc")), true);
   assert.match(formatUserFacingBotError(new Error("Session is not active: x"), "zh-CN"), /新任务/);
   assert.equal(isTerminalTaskMeta({ status: "completed" } as never, "task_complete"), true);
@@ -175,15 +182,18 @@ test("unique remaining bots helpers match published keepNames", async () => {
     "zh-CN",
   );
   assert.equal(questions[0]?.options[0]?.value, "approve");
-  assert.equal(readBotElicitationRenderContext({
-    type: "elicitation_request",
-    taskId: "t1",
-    traceId: "tr",
-    requestId: "r1",
-    message: "pick",
-    options: [],
-    schema: { interaction: "plan_approval", plan: "do it" },
-  })?.kind, "plan_approval");
+  assert.equal(
+    readBotElicitationRenderContext({
+      type: "elicitation_request",
+      taskId: "t1",
+      traceId: "tr",
+      requestId: "r1",
+      message: "pick",
+      options: [],
+      schema: { interaction: "plan_approval", plan: "do it" },
+    })?.kind,
+    "plan_approval",
+  );
   assert.match(
     formatBotElicitationTitle(
       {
@@ -208,4 +218,56 @@ test("unique remaining bots helpers match published keepNames", async () => {
   );
   assert.equal(prepared.content, "hello");
   assert.deepEqual(prepared.zcodeAttachments, []);
+});
+
+test("published bot task channels and config keepNames", async () => {
+  const {
+    BOT_TASK_LIST_CHANNEL,
+    BOT_TASK_STREAM_CHANNEL,
+    broadcastTaskListChange,
+    broadcastTaskStreamEvent,
+  } = await import("../src/bots/botsBroadcast.js");
+  const {
+    listProviderConfigOptionsForActiveTask,
+    listUserConfigOptions,
+    readCurrentActiveTaskMode,
+  } = await import("../src/bots/botsDraft.js");
+  const sent: Array<{ channel: string; payload: { event?: unknown; taskId?: string } }> = [];
+  const runtime = {
+    broadcastService: {
+      send: async (message: { channel: string; payload: { event?: unknown; taskId?: string } }) => {
+        sent.push(message);
+      },
+    },
+  };
+  assert.equal(BOT_TASK_LIST_CHANNEL, "bots:task");
+  assert.equal(BOT_TASK_STREAM_CHANNEL, "bots:task-stream");
+  await broadcastTaskListChange(runtime, { workspacePath: "/tmp/ws" }, "task-1", "created", {
+    task: { taskId: "task-1" },
+  });
+  await broadcastTaskStreamEvent(
+    runtime,
+    { workspacePath: "/tmp/ws" },
+    {
+      type: "task_complete",
+      taskId: "task-1",
+      traceId: "trace-1",
+    },
+  );
+  assert.equal(sent[0]?.channel, "bots:task");
+  assert.equal(sent[0]?.payload.event, "created");
+  assert.equal(sent[1]?.channel, "bots:task-stream");
+  assert.equal(sent[1]?.payload.taskId, "task-1");
+  assert.deepEqual(await listUserConfigOptions({ workspacePath: "/tmp/ws", provider: "glm" }), []);
+  assert.deepEqual(
+    await listProviderConfigOptionsForActiveTask({ workspacePath: "/tmp/ws" }, "glm"),
+    [],
+  );
+  assert.equal(readCurrentActiveTaskMode({ mode: "yolo" }, []), "yolo");
+  assert.equal(
+    readCurrentActiveTaskMode({ mode: "yolo" }, [
+      { id: "mode", name: "Mode", type: "select", currentValue: "plan" },
+    ]),
+    "plan",
+  );
 });

@@ -17,6 +17,7 @@ import type { BotMessageLocale } from "./botsCopy.js";
 import type { AuthorizedContext } from "./botsInbound.js";
 import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 import type { BotsRepo } from "./botsRepo.js";
+import type { TransientInteractionCardEntry } from "./botsTransientCards.js";
 import type { BotSelection, BotSelectionOption, BotProvider } from "./botsTypes.js";
 import type { BotTaskServiceResolver } from "./botsDraft.js";
 import { createWorkspaceRef, getWorkspaceKey } from "./botsNormalize.js";
@@ -51,13 +52,17 @@ export interface BotInboundTaskRuntime extends BotTaskServiceResolver {
   withAuthorizedContext(message: BotInboundMessage, command: string): Promise<AuthorizedContext>;
   readMessageLocale(): Promise<BotMessageLocale>;
   listWorkspaceRefs(current?: BotWorkspaceRef): Promise<BotWorkspaceRef[]>;
-  isRemoteConnected(context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">): Promise<boolean>;
+  isRemoteConnected(
+    context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
+  ): Promise<boolean>;
   saveBot(bot: BotConfigEntry): Promise<BotConfigEntry>;
   sendOutbound(bot: BotConfigEntry, outbound: BotProviderOutbound): Promise<void>;
   sendAckTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
   startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
   stopTyping(taskId: string): void;
+  stopInboundTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
   providers: Record<string, BotProvider | null>;
+  transientCards: Map<string, TransientInteractionCardEntry>;
 }
 
 export async function resolveZCodeTaskServiceForContext(
@@ -79,7 +84,9 @@ export async function resolveZCodeTaskServiceForContext(
   if (remote) {
     return remote;
   }
-  throw new Error(`当前远端项目 ${context.workspacePath} runtime 不可用，请发送 **/\u91cd\u8fde** 后重试。`);
+  throw new Error(
+    `当前远端项目 ${context.workspacePath} runtime 不可用，请发送 **/\u91cd\u8fde** 后重试。`,
+  );
 }
 
 export async function resolveModelSelectionServiceForContext(
@@ -96,12 +103,15 @@ export async function resolveModelSelectionServiceForContext(
   if (remote) {
     return remote;
   }
-  throw new Error(`当前远端项目 ${context.workspacePath} runtime 不可用，请发送 **/\u91cd\u8fde** 后重试。`);
+  throw new Error(
+    `当前远端项目 ${context.workspacePath} runtime 不可用，请发送 **/\u91cd\u8fde** 后重试。`,
+  );
 }
 
 export function createTaskServiceResolver(runtime: BotInboundTaskRuntime): BotTaskServiceResolver {
   return {
-    resolveZCodeTaskServiceForContext: (context) => resolveZCodeTaskServiceForContext(runtime, context),
+    resolveZCodeTaskServiceForContext: (context) =>
+      resolveZCodeTaskServiceForContext(runtime, context),
     resolveModelSelectionServiceForContext: (context) =>
       resolveModelSelectionServiceForContext(runtime, context),
   };
@@ -109,7 +119,13 @@ export function createTaskServiceResolver(runtime: BotInboundTaskRuntime): BotTa
 
 /** 发布包 host `requiresRemoteWorkspaceRuntime`。 */
 export function requiresRemoteWorkspaceRuntime(command: string): boolean {
-  return command !== "help" && command !== "status" && command !== "workspace" && command !== "reconnect" && command !== "reply";
+  return (
+    command !== "help" &&
+    command !== "status" &&
+    command !== "workspace" &&
+    command !== "reconnect" &&
+    command !== "reply"
+  );
 }
 
 export async function blockDisconnectedRemoteWorkspace(
@@ -137,7 +153,10 @@ export function readConfigSelectCurrentLabel(
   configId: string,
   listed: BotSelectionOption[],
 ): string | undefined {
-  const current = listed.find((item) => item.id === String(options.find((option) => option.id === configId)?.currentValue ?? ""));
+  const current = listed.find(
+    (item) =>
+      item.id === String(options.find((option) => option.id === configId)?.currentValue ?? ""),
+  );
   return current?.label;
 }
 

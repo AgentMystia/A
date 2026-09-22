@@ -1,5 +1,7 @@
 import {
   isFeishuBotProvider,
+  type BotActor,
+  type BotConfigEntry,
   type BotInboundMessage,
   type BotOutboundMessage,
   type BotProviderCallbackResult,
@@ -7,15 +9,24 @@ import {
   type BotsConfig,
 } from "@zcode/shared";
 import { formatBotMessage, normalizeBotMessageLocale, type BotMessageLocale } from "./botsCopy.js";
+import { deliverProviderCallbackReplies } from "./botsCallbackDelivery.js";
 import { createInboundDeliveryDedupe } from "./botsDedupe.js";
 import { findBot } from "./botsNormalize.js";
 import { isRecord } from "./botsJson.js";
-import { createOutbound, sendOutbound, summarizeCallbackPayload, toOutboundMessages } from "./botsOutbound.js";
+import {
+  createOutbound,
+  sendOutbound,
+  summarizeCallbackPayload,
+  toOutboundMessages,
+} from "./botsOutbound.js";
+import type { TransientInteractionCardEntry } from "./botsTransientCards.js";
 import type { BotProvider } from "./botsTypes.js";
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 
 function readWebhookSecret(payload: unknown): string | undefined {
-  return isRecord(payload) && typeof payload.webhookSecret === "string" ? payload.webhookSecret : undefined;
+  return isRecord(payload) && typeof payload.webhookSecret === "string"
+    ? payload.webhookSecret
+    : undefined;
 }
 
 function readFeishuCallbackToken(payload: unknown): string | undefined {
@@ -36,6 +47,8 @@ export function createProviderCallbackProcessor(deps: {
   readConfig(): Promise<BotsConfig>;
   readLocale(): Promise<BotMessageLocale>;
   handleInboundMessage(message: BotInboundMessage): Promise<BotOutboundMessage[]>;
+  transientCards: Map<string, TransientInteractionCardEntry>;
+  stopInboundTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
 }): {
   processProviderCallback(
     provider: BotProviderId,
@@ -94,7 +107,10 @@ export function createProviderCallbackProcessor(deps: {
           try {
             const displayName = await impl.resolveActorDisplayName(bot, inbound.actor);
             if (displayName?.trim()) {
-              message = { ...inbound, actor: { ...inbound.actor, displayName: displayName.trim() } };
+              message = {
+                ...inbound,
+                actor: { ...inbound.actor, displayName: displayName.trim() },
+              };
             }
           } catch (error) {
             deps.logger.debug(
@@ -117,10 +133,12 @@ export function createProviderCallbackProcessor(deps: {
           `provider callback provider=${provider} bot=${message.botId} user=${message.actor.providerUserId} displayName=${message.actor.displayName ?? ""} text=${message.text}`,
         );
         let outbound: BotOutboundMessage[] = [];
+        let inboundFailed = false;
         try {
           outbound = await deps.handleInboundMessage(message);
         } catch (error) {
           failed = true;
+          inboundFailed = true;
           dedupe.release(message);
           const detail = error instanceof Error ? error.message : String(error);
           deps.logger.warn(
@@ -128,39 +146,54 @@ export function createProviderCallbackProcessor(deps: {
             `provider callback failed provider=${provider} bot=${message.botId}: ${detail}`,
           );
           outbound = toOutboundMessages(message.actor, [
-            createOutbound(message.actor, formatBotMessage(locale, "callbackFailed", { message: detail })),
+            createOutbound(
+              message.actor,
+              formatBotMessage(locale, "callbackFailed", { message: detail }),
+            ),
           ]);
         }
         replies.push(...outbound);
-        if (bot) {
-          try {
-            const first = outbound[0];
-            const toast = first?.text ?? formatBotMessage(locale, "received");
-            await impl.acknowledgeCallback?.(
+        if (!bot) {
+          continue;
+        }
+        if (inboundFailed) {
+          for (const reply of outbound) {
+            await sendOutbound(
+              impl,
               bot,
-              payload,
-              toast,
-              first
-                ? createOutbound(message.actor, first.text, first.selection, {
-                    elicitation: first.elicitation,
-                    locale: first.locale,
-                  })
-                : undefined,
-            );
-            for (const reply of outbound) {
-              await sendOutbound(
-                impl,
-                bot,
-                createOutbound(message.actor, reply.text, reply.selection, {
-                  elicitation: reply.elicitation,
-                  locale: reply.locale,
-                }),
+              createOutbound(message.actor, reply.text, reply.selection, {
+                elicitation: reply.elicitation,
+                locale: reply.locale,
+              }),
+            ).catch((error) => {
+              deps.logger.warn(
+                undefined,
+                `provider callback failure notice failed provider=${provider} bot=${bot.id}: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
               );
-            }
-          } catch (error) {
-            dedupe.release(message);
-            throw error;
+            });
           }
+          await deps.stopInboundTyping(bot, message.actor).catch(() => undefined);
+          continue;
+        }
+        try {
+          await deliverProviderCallbackReplies({
+            providerId: provider,
+            provider: impl,
+            bot,
+            payload,
+            message,
+            locale,
+            replies: outbound,
+            logger: deps.logger,
+            providers: deps.providers,
+            transientCards: deps.transientCards,
+            stopInboundTyping: deps.stopInboundTyping,
+          });
+        } catch (error) {
+          dedupe.release(message);
+          throw error;
         }
       }
       return { ok: !failed, replies, ...(failed ? { status: 503 } : {}) };

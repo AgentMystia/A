@@ -34,6 +34,7 @@ import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 import type { BotsRepo } from "./botsRepo.js";
 import type { BotSelection } from "./botsTypes.js";
 import { buildInitializedDraftOptions } from "./botsDraft.js";
+import { isRemoteWorkspaceConnected, writeContext } from "./botsContext.js";
 import { requiresRemoteWorkspaceRuntime } from "./botsInboundRuntime.js";
 
 export interface BotBindCodeRecord {
@@ -87,7 +88,9 @@ export function createInboundHandlers(deps: {
     extra?: Partial<BotProviderOutbound>,
   ): BotOutboundMessage[];
   persistContext(context: BotRuntimeState): Promise<BotRuntimeState>;
-  isRemoteConnected(context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">): Promise<boolean>;
+  isRemoteConnected(
+    context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
+  ): Promise<boolean>;
   listWorkspaceRefs(current?: BotWorkspaceRef): Promise<BotWorkspaceRef[]>;
   setCreateStatusReply(
     fn: (
@@ -110,16 +113,12 @@ export function createInboundHandlers(deps: {
     extra?: Partial<BotProviderOutbound>,
   ): BotOutboundMessage[] {
     return toOutboundMessages(actor, [
-      createOutbound(actor, text, selection, locale ? { locale, ...extra } : extra ?? {}),
+      createOutbound(actor, text, selection, locale ? { locale, ...extra } : (extra ?? {})),
     ]);
   }
 
   async function persistContext(context: BotRuntimeState): Promise<BotRuntimeState> {
-    const state = await deps.repo.readState();
-    const next = { ...context, updatedAt: Date.now() };
-    state.bots[context.botId] = next;
-    await deps.repo.writeState(state);
-    return next;
+    return writeContext(deps.repo, context);
   }
 
   let createStatusReplyImpl: (
@@ -129,21 +128,27 @@ export function createInboundHandlers(deps: {
   ) => Promise<BotOutboundMessage[]> = async (actor, _context, locale) =>
     replies(actor, copy(locale, "statusDraft"), locale);
 
-  async function readContext(actor: BotActor, bot: BotConfigEntry): Promise<BotRuntimeState | null> {
+  async function readContext(
+    actor: BotActor,
+    bot: BotConfigEntry,
+  ): Promise<BotRuntimeState | null> {
     const state = await deps.repo.readState();
     const existing = state.bots[bot.id];
     const workspaces = await deps.workspaceRefs.list();
     if (existing) {
-    const matched = resolveCanonicalContextWorkspace(existing, workspaces);
-    if (!matched) {
-      return existing;
-    }
-    const next = {
-      ...existing,
-      workspacePath: matched.workspacePath,
-      workspaceIdentity: matched.workspaceIdentity,
-      workspaceId: existing.workspaceId && existing.workspaceId !== matched.id ? existing.workspaceId : matched.id,
-    };
+      const matched = resolveCanonicalContextWorkspace(existing, workspaces);
+      if (!matched) {
+        return existing;
+      }
+      const next = {
+        ...existing,
+        workspacePath: matched.workspacePath,
+        workspaceIdentity: matched.workspaceIdentity,
+        workspaceId:
+          existing.workspaceId && existing.workspaceId !== matched.id
+            ? existing.workspaceId
+            : matched.id,
+      };
       if (
         next.workspacePath === existing.workspacePath &&
         next.workspaceIdentity === existing.workspaceIdentity &&
@@ -169,19 +174,10 @@ export function createInboundHandlers(deps: {
     };
   }
 
-  async function isRemoteConnected(context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">): Promise<boolean> {
-    if (!context.workspaceIdentity) {
-      return true;
-    }
-    if (!deps.remoteWorkspaceService) {
-      return false;
-    }
-    return deps.remoteWorkspaceService
-      .isConnected({
-        workspacePath: context.workspacePath,
-        workspaceIdentity: context.workspaceIdentity,
-      })
-      .catch(() => false);
+  async function isRemoteConnected(
+    context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
+  ): Promise<boolean> {
+    return isRemoteWorkspaceConnected(deps.remoteWorkspaceService, context);
   }
 
   async function withAuthorizedContext(
@@ -224,13 +220,23 @@ export function createInboundHandlers(deps: {
     if (nextBot.allowedWorkspaces.join("\n") !== bot.allowedWorkspaces.join("\n")) {
       await deps.repo.writeConfig(nextConfig);
     }
-    if (context.workspaceId && !isWorkspaceAllowed(context.workspaceId, nextBot.allowedWorkspaces)) {
+    if (
+      context.workspaceId &&
+      !isWorkspaceAllowed(context.workspaceId, nextBot.allowedWorkspaces)
+    ) {
       return { ok: false, reply: replies(message.actor, copy(locale, "workspaceOutOfScope")) };
     }
-    if (context.workspaceIdentity && requiresRemoteWorkspaceRuntime(command) && !(await isRemoteConnected(context))) {
+    if (
+      context.workspaceIdentity &&
+      requiresRemoteWorkspaceRuntime(command) &&
+      !(await isRemoteConnected(context))
+    ) {
       return {
         ok: false,
-        reply: replies(message.actor, copy(locale, "remoteDisconnected", { workspacePath: context.workspacePath })),
+        reply: replies(
+          message.actor,
+          copy(locale, "remoteDisconnected", { workspacePath: context.workspacePath }),
+        ),
       };
     }
     if (deps.sendTyping) {
@@ -290,7 +296,10 @@ export function createInboundHandlers(deps: {
       });
     },
     async handleUnknown(message, name) {
-      return replies(message.actor, copy(await readMessageLocale(), "unknownCommand", { command: name }));
+      return replies(
+        message.actor,
+        copy(await readMessageLocale(), "unknownCommand", { command: name }),
+      );
     },
     async handleModeLocked(message) {
       const authorized = await withAuthorizedContext(message, "mode");
@@ -303,11 +312,18 @@ export function createInboundHandlers(deps: {
       if (!authorized.ok) {
         return authorized.reply;
       }
-      const currentId = normalizeBotReplyGranularity(authorized.bot.provider, authorized.bot.replyMode);
+      const currentId = normalizeBotReplyGranularity(
+        authorized.bot.provider,
+        authorized.bot.replyMode,
+      );
       const selection: BotSelection = {
         id: `reply-${Date.now()}`,
         title: copy(authorized.locale, "replySelectTitle", {
-          mode: formatReplyGranularityLabel(authorized.locale, authorized.bot.provider, authorized.bot.replyMode),
+          mode: formatReplyGranularityLabel(
+            authorized.locale,
+            authorized.bot.provider,
+            authorized.bot.replyMode,
+          ),
         }),
         currentId,
         action: "reply.set",
@@ -357,9 +373,10 @@ export function createInboundHandlers(deps: {
       await persistContext({ ...authorized.context, weixinActivatedAt: Date.now() });
       return replies(
         message.actor,
-        [copy(authorized.locale, "weixinActivatedWelcome"), buildHelpText(authorized.locale, authorized.bot)].join(
-          "\n\n",
-        ),
+        [
+          copy(authorized.locale, "weixinActivatedWelcome"),
+          buildHelpText(authorized.locale, authorized.bot),
+        ].join("\n\n"),
       );
     },
   };

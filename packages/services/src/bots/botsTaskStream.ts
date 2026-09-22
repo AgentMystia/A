@@ -8,7 +8,11 @@ import type {
   ZCodeTaskMode,
   ZCodePromptAttachment,
 } from "@zcode/shared";
-import { AUTOMATION_DELIVERY_WARN_MS, BOT_FORCED_MODE, BOT_TYPING_INTERVAL_MS } from "./botsConstants.js";
+import {
+  AUTOMATION_DELIVERY_WARN_MS,
+  BOT_FORCED_MODE,
+  BOT_TYPING_INTERVAL_MS,
+} from "./botsConstants.js";
 import { copy } from "./botsInboundText.js";
 import { findBot } from "./botsNormalize.js";
 import {
@@ -16,20 +20,29 @@ import {
   resolveZCodeTaskServiceForContext,
   type BotInboundTaskRuntime,
 } from "./botsInboundRuntime.js";
-import { listActiveTaskConfigOptions, findSelectConfigOption, resolveSupportedDraftMode, toBotTaskProvider } from "./botsDraft.js";
+import {
+  listActiveTaskConfigOptions,
+  findSelectConfigOption,
+  resolveSupportedDraftMode,
+  toBotTaskProvider,
+} from "./botsDraft.js";
 import { createBotTraceId } from "./botsHostHelpers.js";
 import { createOutbound } from "./botsOutbound.js";
 import type { BotProvider } from "./botsTypes.js";
+import { broadcastTaskListChange } from "./botsBroadcast.js";
 import { formatUserFacingBotError, isSessionExpiredError } from "./botsErrors.js";
-import { handleElicitationRequest } from "./botsInboundElicitation.js";
-import { readTerminalTaskMeta } from "./botsTaskMeta.js";
+import { handlePublishedTaskStreamEvent } from "./botsTaskStreamEvents.js";
 
 export function createTypingController(providers: Record<string, BotProvider | null>): {
   startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
   stopTyping(taskId: string): void;
+  stopInboundTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
   dispose(): void;
 } {
-  const live = new Map<string, { bot: BotConfigEntry; target: Parameters<NonNullable<BotProvider["startTyping"]>>[1] }>();
+  const live = new Map<
+    string,
+    { bot: BotConfigEntry; target: Parameters<NonNullable<BotProvider["startTyping"]>>[1] }
+  >();
   const intervals = new Map<string, ReturnType<typeof setInterval>>();
   return {
     startTyping(bot, actor, taskId) {
@@ -62,7 +75,9 @@ export function createTypingController(providers: Record<string, BotProvider | n
       const liveHandle = live.get(taskId);
       if (liveHandle) {
         live.delete(taskId);
-        providers[liveHandle.bot.provider]?.stopTyping?.(liveHandle.bot, liveHandle.target).catch(() => undefined);
+        providers[liveHandle.bot.provider]
+          ?.stopTyping?.(liveHandle.bot, liveHandle.target)
+          .catch(() => undefined);
       }
       const interval = intervals.get(taskId);
       if (interval) {
@@ -70,34 +85,32 @@ export function createTypingController(providers: Record<string, BotProvider | n
         intervals.delete(taskId);
       }
     },
+    async stopInboundTyping(bot, actor) {
+      const provider = providers[bot.provider];
+      const userId = actor.chatId ?? actor.providerUserId;
+      if (!provider?.stopTyping || !userId || !actor.providerMessageId) {
+        return;
+      }
+      const stillLive = Array.from(live.values()).some(
+        (entry) =>
+          entry.bot.id === bot.id && entry.target.providerMessageId === actor.providerMessageId,
+      );
+      if (stillLive) {
+        return;
+      }
+      const target = {
+        providerUserId: userId,
+        providerMessageId: actor.providerMessageId,
+        providerContextToken: actor.providerContextToken,
+      };
+      await provider.stopTyping(bot, target).catch(() => undefined);
+    },
     dispose() {
       for (const taskId of [...live.keys(), ...intervals.keys()]) {
         this.stopTyping(taskId);
       }
     },
   };
-}
-
-async function broadcastTaskEvent(
-  runtime: BotInboundTaskRuntime,
-  context: BotRuntimeState,
-  taskId: string,
-  event: string,
-  extra: Record<string, unknown> = {},
-): Promise<void> {
-  await runtime.broadcastService
-    ?.send({
-      channel: "bots:task-list",
-      payload: {
-        workspacePath: context.workspacePath,
-        workspaceIdentity: context.workspaceIdentity,
-        taskId,
-        event,
-        updatedAt: Date.now(),
-        ...extra,
-      },
-    })
-    .catch(() => undefined);
 }
 
 /** 发布包 host `applyDraftConfigOptions`：草稿强制 yolo。 */
@@ -112,14 +125,23 @@ export async function applyDraftConfigOptions(
     return;
   }
   const options = await listActiveTaskConfigOptions(
-    { resolveZCodeTaskServiceForContext: (item) => resolveZCodeTaskServiceForContext(runtime, item), resolveModelSelectionServiceForContext: async () => null },
+    {
+      resolveZCodeTaskServiceForContext: (item) => resolveZCodeTaskServiceForContext(runtime, item),
+      resolveModelSelectionServiceForContext: async () => null,
+    },
     context,
     taskId,
   );
   const mode = findSelectConfigOption(options, "mode");
-  const supported = resolveSupportedDraftMode(options, BOT_FORCED_MODE, toBotTaskProvider(draft.provider));
+  const supported = resolveSupportedDraftMode(
+    options,
+    BOT_FORCED_MODE,
+    toBotTaskProvider(draft.provider),
+  );
   if (mode?.id && supported) {
-    await (await resolveZCodeTaskServiceForContext(runtime, context)).setMode({
+    await (
+      await resolveZCodeTaskServiceForContext(runtime, context)
+    ).setMode({
       taskId,
       mode: supported as ZCodeTaskMode,
     });
@@ -141,7 +163,9 @@ export async function isContextActiveTaskRunning(
   if (context.workspaceIdentity && !(await runtime.isRemoteConnected(context))) {
     return false;
   }
-  const snapshot = await (await resolveZCodeTaskServiceForContext(runtime, context))
+  const snapshot = await (
+    await resolveZCodeTaskServiceForContext(runtime, context)
+  )
     .getTaskSnapshot({
       taskId: context.activeTaskId,
       workspacePath: context.workspacePath,
@@ -156,7 +180,7 @@ export async function isContextActiveTaskRunning(
   return true;
 }
 
-/** 发布包 host `watchTaskStream` 子集：连续订阅终态并投递。 */
+/** 发布包 host `watchTaskStream`：先广播 bots:task-stream，再处理 elicitation 与终态。 */
 export async function watchTaskStream(
   runtime: BotInboundTaskRuntime,
   bot: BotConfigEntry,
@@ -179,45 +203,17 @@ export async function watchTaskStream(
     deliveryKind: "continuous",
   });
   let chain = Promise.resolve();
+  const handle = (event: ZCodeStreamEvent, broadcast: boolean): Promise<void> =>
+    handlePublishedTaskStreamEvent(runtime, bot, actor, context, key, event, broadcast);
   const sub = subscribe((event: ZCodeStreamEvent) => {
-    chain = chain.then(async () => {
-      if (event.type === "elicitation_request") {
-        await handleElicitationRequest(runtime, bot, actor, context, event);
-        return;
-      }
-      if (event.type === "elicitation_response") {
-        if (context.pendingElicitation?.requestId === event.requestId) {
-          await runtime.persistContext({ ...context, pendingElicitation: undefined });
-        }
-        await broadcastTaskEvent(runtime, context, event.taskId, "elicitation_resolved", { requestId: event.requestId });
-        return;
-      }
-      if (event.type !== "task_complete" && event.type !== "task_error") {
-        return;
-      }
-      runtime.runningTasks.delete(event.taskId);
-      runtime.stopTyping(event.taskId);
-      runtime.streamSubs.get(key)?.dispose();
-      runtime.streamSubs.delete(key);
-      const terminal = await readTerminalTaskMeta(runtime, context, event.taskId, event.type).catch(() => null);
-      await broadcastTaskEvent(runtime, context, event.taskId, event.type === "task_error" ? "error" : "completed", {
-        ...(terminal ? { task: terminal } : {}),
-        ...(event.type === "task_error" ? { error: "error" in event ? String(event.error) : "error" } : {}),
+    chain = chain
+      .then(() => handle(event, true))
+      .catch((error) => {
+        runtime.logger.warn(
+          undefined,
+          `bot task stream event failed task=${event.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       });
-      const locale = await runtime.readMessageLocale();
-      const text =
-        event.type === "task_error"
-          ? copy(locale, "taskFailed", { message: "error" in event ? String(event.error) : "error" })
-          : locale === "en-US"
-            ? "Task completed."
-            : "任务已完成。";
-      await runtime.sendOutbound(bot, createOutbound(actor, text, undefined, { locale }));
-    }).catch((error) => {
-      runtime.logger.warn(
-        undefined,
-        `bot task stream event failed task=${event.taskId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    });
   });
   runtime.streamSubs.set(key, sub);
   runtime.startTyping(bot, actor, context.activeTaskId);
@@ -232,7 +228,9 @@ export function sendPromptInBackground(
   traceId: ReturnType<typeof createBotTraceId>,
   content: string,
   attachments: ZCodePromptAttachment[],
-  modelSelection: Parameters<NonNullable<BotInboundTaskRuntime["zcodeTaskService"]>["sendPrompt"]>[0]["modelSelection"],
+  modelSelection: Parameters<
+    NonNullable<BotInboundTaskRuntime["zcodeTaskService"]>["sendPrompt"]
+  >[0]["modelSelection"],
 ): void {
   resolveZCodeTaskServiceForContext(runtime, context)
     .then((service) =>
@@ -249,7 +247,7 @@ export function sendPromptInBackground(
       const message = formatUserFacingBotError(error, locale);
       runtime.runningTasks.delete(taskId);
       runtime.stopTyping(taskId);
-      await broadcastTaskEvent(runtime, context, taskId, "error", {
+      await broadcastTaskListChange(runtime, context, taskId, "error", {
         error: error instanceof Error ? error.message : String(error),
       });
       await runtime
@@ -278,7 +276,10 @@ function warnAutomationDeliveryOnce(
     return;
   }
   runtime.automationWarnAt.set(key, now);
-  runtime.logger.warn(undefined, `automation Bot delivery skipped provider=${watch.target.provider} bot=${watch.target.botId} reason=${reason}`);
+  runtime.logger.warn(
+    undefined,
+    `automation Bot delivery skipped provider=${watch.target.provider} bot=${watch.target.botId} reason=${reason}`,
+  );
 }
 
 /** 发布包 host `watchAutomationRun`：不写 bot-state，只 watchTaskStream(summary_changes)。 */
