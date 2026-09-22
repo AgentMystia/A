@@ -444,6 +444,37 @@ export type HostResourceUsageSnapshotRequestMessage = z.infer<
   typeof hostResourceUsageSnapshotRequestMessageSchema
 >;
 
+// 发布包 host 与 main 用这三条结果回写 Bot 远端 workspace。
+// runtime MessagePort 在 postMessage 的 transfer list 里，不进入 JSON。
+export const hostBotRemoteWorkspaceReconnectResultMessageSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-reconnect-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    sessionId: z.string().optional(),
+    error: z.string().optional(),
+  })
+  .strict();
+
+export const hostBotRemoteWorkspaceConnectionStatusResultMessageSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-connection-status-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    connected: z.boolean().optional(),
+    error: z.string().optional(),
+  })
+  .strict();
+
+export const hostBotRemoteWorkspaceRuntimePortMessageSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-runtime-port"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    error: z.string().optional(),
+  })
+  .strict();
+
 export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("database-startup-control"), control: databaseStartupControlSchema })
@@ -466,6 +497,9 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostTaskRunLeaseResultMessageSchema,
   hostTaskOwnerCommandDeliverMessageSchema,
   hostTaskOwnerCommandResultMessageSchema,
+  hostBotRemoteWorkspaceReconnectResultMessageSchema,
+  hostBotRemoteWorkspaceConnectionStatusResultMessageSchema,
+  hostBotRemoteWorkspaceRuntimePortMessageSchema,
   hostSessionMessageDeliverMessageSchema,
   hostSessionMessageDeliveryResultMessageSchema,
   hostFeedbackLogArchiveResultMessageSchema,
@@ -932,6 +966,35 @@ export type HostResourceUsageSnapshotResultResponse = z.infer<
   typeof hostResourceUsageSnapshotResultResponseSchema
 >;
 
+// workspaceIdentity 允许空串：发布包在 trim 为空时回退到 workspacePath。
+const botRemoteWorkspaceRequestFields = {
+  requestId: nonEmptyStringSchema,
+  workspacePath: nonEmptyStringSchema,
+  workspaceIdentity: z.string(),
+  target: remoteTargetSchema,
+};
+
+export const hostBotRemoteWorkspaceReconnectRequestResponseSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-reconnect-request"),
+    ...botRemoteWorkspaceRequestFields,
+  })
+  .strict();
+
+export const hostBotRemoteWorkspaceConnectionStatusRequestResponseSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-connection-status-request"),
+    ...botRemoteWorkspaceRequestFields,
+  })
+  .strict();
+
+export const hostBotRemoteWorkspaceRuntimePortRequestResponseSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-runtime-port-request"),
+    ...botRemoteWorkspaceRequestFields,
+  })
+  .strict();
+
 export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("database-startup-state"), state: databaseStartupStateSchema })
@@ -966,6 +1029,9 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostTaskRunLeaseReleaseResponseSchema,
   hostTaskOwnerCommandRequestResponseSchema,
   hostTaskOwnerCommandResultResponseSchema,
+  hostBotRemoteWorkspaceReconnectRequestResponseSchema,
+  hostBotRemoteWorkspaceConnectionStatusRequestResponseSchema,
+  hostBotRemoteWorkspaceRuntimePortRequestResponseSchema,
   hostSessionMessageSendRequestedResponseSchema,
   hostSessionRouteAnnounceResponseSchema,
   hostSessionMessageDeliverResultResponseSchema,
