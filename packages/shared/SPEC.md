@@ -194,3 +194,12 @@ createRemoteWorkspaceServiceCollection
 - 简单交换只属于 `packages/zcode-cua/broker.js` 的 `brokerExchange`。`callBrokerMethod` / `probeHelperHealth` 走它：先发 `id:0` 的空 `authenticate`，再发 `id:1` 的业务方法。鉴权被拒是 `CuaHelperError`，`code` 为 `auth_failed`。`probeHelperHealth` 在截止时间前按 `broker_info` 轮询，超时 `code` 为 `health_timeout`。
 - `PermissionBrokerClient` 只属于 `permissionBrokerClient.js`。每条 RPC 新建连接，鉴权帧带 `clientApiVersion:2` 与 `authenticateParams`，业务 id 从 1 递增。默认 peer 检查拒绝 world-writable socket；Windows 管道必须落在 `\\.\pipe\zcode-cua-helper-`。`hold_key` / `hold_key_to_app` 的等待时间是 `max(timeout, min(duration,30)*1000+5000)`。
 - PiP 客户端只属于 `pip-session-node.js`。它排队调用 `PermissionBrokerClient`，角色 `presentation`，协议 `2` / `zcode-cua-pip-session-v2`。事件 schema 与发布包 strict object 一致：`focus-changed`、`turn-started`、`turn-ended`、`session-closed`。握手不一致时记 `version_mismatch` 并不再发送。`broker_unavailable` 在 `reconnectAttempts` 内重试，其它错误立即抛出。诊断回调只发第一次。
+
+### 云内容弹窗与营销 hero
+
+发布包 renderer 的 styles chunk 渲染 `cloud-content-dialog`。资源 URL 与 zip 租约仍只属于 Host 的 `cloud-content`；弹窗自己的 pending、复制成功提示和焦点归还只活在弹窗组件里。
+
+- Hero 视图类型是 `image`、`video`、`lottie`、`interactive_bundle`。营销 schema 仍只有 `image`、`video`、`bundle`。`resolveMarketingHero` 是唯一投影：image/video 先解码再交给视图；`bundle` 仅桌面端 `prepare`，运行时 `zcode-hero-sandbox-v1`，通道 `zcode-cloud-hero-v1`。没有 media port 时 hero 为空，不另开下载。
+- Lottie 只从 `lottie-web` 5.13.0 的 `lottie_light_canvas` 动态加载。文档校验拒绝外链、字体、表达式和超限帧；下载超过 2MiB 失败。失败且有 fallback 时回退图片。
+- 弹窗按钮动作由 `buildCloudDialogPayload` 从 popup 拷贝生成。除 `plugin_marketplace` 记为 `plugin_store` 外，navigate 在视图里收成 `settings`；执行时仍用按钮序号回查原始 action。
+- 活动轮询、领取和导航控制器尚未从混淆产物还原。`MarketingTouchSurface` 在没有 payload 时不打开弹窗。
