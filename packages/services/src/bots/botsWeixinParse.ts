@@ -121,7 +121,7 @@ export function readWeixinAttachments(message: Record<string, unknown>): unknown
       : [];
   return [
     ...items.map((item, index) => readWeixinAttachmentItem(item, index)).filter((item) => item !== null),
-    ...attachments.flatMap((item, index) => {
+    ...attachments.flatMap((item) => {
       if (!isRecord(item)) {
         return [];
       }

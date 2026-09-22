@@ -5,6 +5,7 @@ import {
   type BotOutboundMessage,
   type BotRuntimeState,
   type BotsConfig,
+  normalizeBotReplyGranularity,
 } from "@zcode/shared";
 import type { ISettingService } from "../setting/setting.js";
 import { normalizeBotMessageLocale, type BotMessageLocale } from "./botsCopy.js";
@@ -25,7 +26,6 @@ import {
   isWorkspaceAllowed,
   normalizeAllowedWorkspaces,
   normalizeBotCommandPolicy,
-  normalizeBotReplyGranularity,
 } from "./botsNormalize.js";
 import { createOutbound, toOutboundMessages } from "./botsOutbound.js";
 import { handleBotReconnect } from "./botsInboundReconnect.js";

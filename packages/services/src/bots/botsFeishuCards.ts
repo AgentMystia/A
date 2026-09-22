@@ -123,7 +123,10 @@ function countTaggedElements(value: unknown): number {
     return 0;
   }
   const record = value as Record<string, unknown>;
-  return (typeof record.tag === "string" ? 1 : 0) + Object.values(record).reduce((sum, item) => sum + countTaggedElements(item), 0);
+  return (
+    (typeof record.tag === "string" ? 1 : 0) +
+    Object.values(record).reduce<number>((sum, item) => sum + countTaggedElements(item), 0)
+  );
 }
 
 export function buildFeishuStreamingCardPayload(state: FeishuStreamingCardState): Record<string, unknown> {

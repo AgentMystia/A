@@ -1,4 +1,4 @@
-import { ChannelClient, MessagePortProtocol, ProxyChannel } from "@zcode/rpc";
+import { ChannelClient, MessagePortProtocol, ProxyChannel, type MessagePortLike } from "@zcode/rpc";
 import { IModelSelectionService } from "../model-provider/providerFacadeServices.js";
 import { IZCodeTaskService } from "../session/zcodeTaskService.js";
 import { IZCodeAgentService } from "../zcode-agent/zcodeAgent.js";
@@ -60,7 +60,7 @@ export function toMessagePortLike(port: MessagePortLikeInput): {
 export function createRemoteRuntimeServicesFromPort(
   port: MessagePortLikeInput,
 ): RemoteRuntimeServicesFromPort {
-  const protocol = new MessagePortProtocol(toMessagePortLike(port));
+  const protocol = new MessagePortProtocol(toMessagePortLike(port) as MessagePortLike);
   const client = new ChannelClient(protocol);
   return {
     zcodeAgentService: ProxyChannel.toService<IZCodeAgentService>(

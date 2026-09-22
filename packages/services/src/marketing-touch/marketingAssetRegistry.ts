@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import {
   marketingAssetRefSchema,
   type MarketingAssetRef,
-  type MarketingDelivery,
   type MarketingTouchSnapshot,
 } from "@zcode/shared";
 
@@ -35,10 +34,7 @@ function sniffMediaType(bytes: Buffer, kind: "image" | "video"): string | undefi
   return undefined;
 }
 
-function allowVisual(
-  allow: (asset: MarketingAssetRef) => void,
-  visual: MarketingDelivery["banner"] extends never ? never : unknown,
-): void {
+function allowVisual(allow: (asset: MarketingAssetRef) => void, visual: unknown): void {
   const value = visual as
     | { type: "image"; image: { default: MarketingAssetRef; dark?: MarketingAssetRef | null } }
     | { type: "video"; video: { src: MarketingAssetRef; fallback: MarketingAssetRef } }

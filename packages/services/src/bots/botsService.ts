@@ -55,9 +55,15 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
   let disposing: Promise<void> | null = null;
   const loadCredential = (ref: string) => options.credentialService.load(ref);
   const setRuntimeStatus: BotRuntimeStatusSink["setRuntimeStatus"] = (status) => {
+    const previous = runtimeStatus.get(status.botId);
     runtimeStatus.set(status.botId, {
-      ...runtimeStatus.get(status.botId),
-      ...status,
+      botId: status.botId,
+      provider: status.provider,
+      status: status.status ?? previous?.status ?? "idle",
+      message: status.message ?? previous?.message,
+      messageId: status.messageId ?? previous?.messageId,
+      offset: status.offset ?? previous?.offset,
+      deliveryError: status.deliveryError ?? previous?.deliveryError,
       lastUpdateAt: Date.now(),
     });
   };

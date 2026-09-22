@@ -13,7 +13,6 @@ import {
   type BotDraftOptions,
   type BotProviderId,
   type BotsConfig,
-  type BotsState,
   type BotWorkspaceRef,
 } from "@zcode/shared";
 
@@ -246,17 +245,11 @@ export function findAuthorizedBot(
   config: BotsConfig,
   actor: { provider: BotProviderId; botId: string; providerUserId: string },
 ): BotConfigEntry | null {
-  if (actor.provider === "weixin") {
-    return (
-      config.bots.find(
-        (bot) => bot.enabled && bot.provider === "weixin" && bot.id === actor.botId,
-      ) ?? null
-    );
-  }
+  // 发布包按 enabled+provider+botId 找 bot。未绑定用户不能在这里用 providerUserId 过滤，
+  // 否则 /help、/status 会误报 botDisabled，而不是后续 findBoundUser 的 userNotBound。
   return (
     config.bots.find(
-      (bot) =>
-        bot.enabled && bot.provider === actor.provider && bot.providerUserId === actor.providerUserId,
+      (bot) => bot.enabled && bot.provider === actor.provider && bot.id === actor.botId,
     ) ?? null
   );
 }

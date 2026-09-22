@@ -59,6 +59,7 @@ export function createBotRemoteWorkspaceService(options: {
   if (!parentPort) {
     return undefined;
   }
+  const hostPort: BotHostParentPort = parentPort;
   const connectedKeys = new Set<string>();
   const reconnectWaiters = new Map<
     string,
@@ -120,7 +121,7 @@ export function createBotRemoteWorkspaceService(options: {
       error: runtime.data.error,
     });
   };
-  parentPort.on("message", onMessage);
+  hostPort.on("message", onMessage);
 
   async function buildRemoteTargetForWorkspace(
     workspace: BotRemoteWorkspaceRef,
@@ -165,7 +166,7 @@ export function createBotRemoteWorkspaceService(options: {
     const requestId = `bot-status-${randomUUID()}`;
     const result = await new Promise<{ ok: boolean; connected?: boolean; error?: string }>((resolve) => {
       statusWaiters.set(requestId, resolve);
-      parentPort.postMessage({
+      hostPort.postMessage({
         type: HostResponseTypes.BotRemoteWorkspaceConnectionStatusRequest,
         requestId,
         workspacePath: input.workspacePath,
@@ -197,7 +198,7 @@ export function createBotRemoteWorkspaceService(options: {
     const result = await new Promise<{ ok: boolean; port?: MessagePortLikeInput; error?: string }>(
       (resolve) => {
         runtimeWaiters.set(requestId, resolve);
-        parentPort.postMessage({
+        hostPort.postMessage({
           type: HostResponseTypes.BotRemoteWorkspaceRuntimePortRequest,
           requestId,
           workspacePath: workspace.workspacePath,
@@ -218,12 +219,14 @@ export function createBotRemoteWorkspaceService(options: {
       options.createRuntimeServicesFromPort?.(result.port) ?? createRemoteRuntimeServicesFromPort(result.port);
     for (;;) {
       const generation = preferencesGeneration;
-      const next =
-        preferences ??
-        (await options.settingService.get().then((settings) => ({
+      let next = preferences;
+      if (!next) {
+        const settings = await options.settingService.get();
+        next = {
           askUserQuestionAutoResolutionEnabled: settings.askUserQuestionAutoResolutionEnabled !== false,
           modelIoFullRetentionEnabled: settings.modelIoFullRetentionEnabled === true,
-        })));
+        };
+      }
       await services.zcodeAgentService.syncAppRuntimePreferences(next);
       if (generation === preferencesGeneration) {
         break;
@@ -260,7 +263,7 @@ export function createBotRemoteWorkspaceService(options: {
       const requestId = `bot-reconnect-${randomUUID()}`;
       const result = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
         reconnectWaiters.set(requestId, resolve);
-        parentPort.postMessage({
+        hostPort.postMessage({
           type: HostResponseTypes.BotRemoteWorkspaceReconnectRequest,
           requestId,
           workspacePath: workspace.workspacePath,
@@ -295,7 +298,7 @@ export function createBotRemoteWorkspaceService(options: {
       );
     },
     dispose() {
-      parentPort.off?.("message", onMessage);
+      hostPort.off?.("message", onMessage);
       reconnectWaiters.clear();
       runtimeWaiters.clear();
       statusWaiters.clear();

@@ -52,7 +52,8 @@ export function createOutputStyleService(): IOutputStyleService {
     if (!existsSync(claudeDir)) {
       await mkdir(claudeDir, { recursive: true });
     }
-    const next = { ...(await readJsonFile(settingsPath)) ?? {}, outputStyle: request.styleId };
+    const current = (await readJsonFile(settingsPath)) ?? {};
+    const next = { ...current, outputStyle: request.styleId };
     await writeJsonFile(settingsPath, next);
   }
 
