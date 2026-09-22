@@ -109,7 +109,13 @@ function createSharedDefines() {
       process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? "",
     ),
     // 客户端只有一个 CDN 配置，与发布端 OSS 目标列表分离。
+    // 未设置时注入发布包 main chunk 的那一条发布根；显式主机名仍由 remoteCdn 补上 releases 后缀。
     __ZCODE_CDN_BASE_URL__: JSON.stringify(env.ZCODE_CDN_BASE_URL?.trim() || ""),
+    __ZCODE_REMOTE_CDN_BASE_URLS__: JSON.stringify(
+      env.ZCODE_CDN_BASE_URL?.trim()
+        ? [env.ZCODE_CDN_BASE_URL.trim()]
+        : ["https://cdn-zcode.z.ai/zcode/electron/releases"],
+    ),
   };
 }
 

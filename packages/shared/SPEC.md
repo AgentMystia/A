@@ -106,6 +106,16 @@ createWindow / 更新状态窗口
   → resolveAppIcon：有图用图，否则用路径
 ```
 
+- 桌面远端资源 CDN 只有 `resolveRemoteCdnBaseUrls` 一条选择路径。`overrideBaseUrl` 只去掉末尾斜杠，不追加版本，也不检查协议。之后按语言和时区算出顺序：`zh` 开头且时区偏移正好 480 分钟时国内 `https://cdn.codegeex.cn/zcode/electron/releases` 在前，否则海外 `https://cdn.zcode-ai.com/zcode/electron/releases` 在前。时区用 `en-CA`、`hourCycle: "h23"` 的 `formatToParts`，无效时区返回 `null`，`null` 不是 480。注入列表非空时忽略该顺序，只在每个根后面加 `/版本`。发布包注入的列表是 `https://cdn-zcode.z.ai/zcode/electron/releases`。运行时 `ZCODE_CDN_BASE_URL` 或构建期同名配置若是主机名，先补上 `/zcode/electron/releases`。发布包 test 环境返回的内网资源根不写入源码；test 与其它环境走同一条注入列表，列表为空才用语言和时区顺序。
+
+```text
+resolveRemoteCdnBaseUrls
+  → override：去尾斜杠，原样返回
+  → 计算国内/海外顺序
+  → ZCODE_CDN_BASE_URL 或构建注入列表非空：列表 + /版本
+  → 否则：语言和时区顺序 + /版本
+```
+
 - `interaction/requestProviderRuntimeHeaders` 的 pending 只属于 `createZCodeAgentService`。有账号服务且 `accountAccess.mode` 不是 `start-plan` 时自动应答。Start Plan、缺 access 或缺服务时保留 pending，发出 `providerRuntimeHeaders.request`，并只通知已经存在的 workspace emitter。`onDynamicWorkspaceProviderRuntimeHeadersRequest` 创建该 emitter 并重放本 workspace 的 pending；session 订阅同样重放。`respondProviderRuntimeHeaders` 只合并 `X-Aliyun-Captcha-Verify-Param` 与 `X-Aliyun-Captcha-Verify-Region`。取消删除 pending，日志是 `验证码请求已取消`，只在 cancelled emitter 已存在时通知。Task adapter 忽略该事件。
 
 ```text
