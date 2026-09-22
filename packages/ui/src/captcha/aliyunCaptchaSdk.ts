@@ -1,6 +1,15 @@
 import { logger } from "@/logger.js";
 
 import { ALIYUN_CAPTCHA_LOGO } from "./captchaLogo.js";
+
+// 发布包只保留一份 logo 绑定。两处直接引用导入的字符串常量会被 styles 各内联一次。
+const captchaLogoHolder = {
+  href: new URL(ALIYUN_CAPTCHA_LOGO, "" + import.meta.url).href,
+};
+
+function readDefaultCaptchaLogo(): string {
+  return captchaLogoHolder.href;
+}
 import {
   ALIYUN_CAPTCHA_SCRIPT_URL,
   CAPTCHA_BUTTON_ID,
@@ -83,7 +92,7 @@ function captchaConfigKey(config: AliyunCaptchaRunConfig): string {
     config.sceneId,
     config.mode ?? "popup",
     config.language ?? "",
-    config.captchaLogoImg ?? ALIYUN_CAPTCHA_LOGO,
+    config.captchaLogoImg ?? readDefaultCaptchaLogo(),
   ].join("::");
 }
 
@@ -232,7 +241,7 @@ export async function bindCaptchaController(
   };
   captchaRuntime.controller = controller;
   const isCurrent = () => captchaRuntime.controller === controller;
-  const logo = config.captchaLogoImg ?? ALIYUN_CAPTCHA_LOGO;
+  const logo = config.captchaLogoImg ?? readDefaultCaptchaLogo();
   try {
     logger.info("[captcha] aliyun sdk init start", {
       configKey,
