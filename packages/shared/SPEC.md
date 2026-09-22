@@ -202,4 +202,8 @@ createRemoteWorkspaceServiceCollection
 - Hero 视图类型是 `image`、`video`、`lottie`、`interactive_bundle`。营销 schema 仍只有 `image`、`video`、`bundle`。`resolveMarketingHero` 是唯一投影：image/video 先解码再交给视图；`bundle` 仅桌面端 `prepare`，运行时 `zcode-hero-sandbox-v1`，通道 `zcode-cloud-hero-v1`。没有 media port 时 hero 为空，不另开下载。
 - Lottie 只从 `lottie-web` 5.13.0 的 `lottie_light_canvas` 动态加载。文档校验拒绝外链、字体、表达式和超限帧；下载超过 2MiB 失败。失败且有 fallback 时回退图片。
 - 弹窗按钮动作由 `buildCloudDialogPayload` 从 popup 拷贝生成。除 `plugin_marketplace` 记为 `plugin_store` 外，navigate 在视图里收成 `settings`；执行时仍用按钮序号回查原始 action。
-- 活动轮询、领取和导航控制器尚未从混淆产物还原。`MarketingTouchSurface` 在没有 payload 时不打开弹窗。
+- 活动展示的唯一所有者是 `createMarketingTouchController`。它保存 banner、待展示 popup、对话框、pending 和错误。Hero URL 与 zip 租约仍只经过 `resolveMarketingHero`。轮询器只负责按可见性和退避调用 `refresh`，不保存投放内容。
+- 生产环境轮询间隔 10 分钟，其它环境 30 秒。查询失败后的退避是 `min(600000, 30000 * 2^min(fails-1, 5))`。查询连续失败超过 10 分钟且没有进行中的动作时清掉 banner。可见性隐藏、已有对话框、领取错误或页面上已有 dialog / alertdialog / 升级面时，不新开 popup。
+- 导航请求只有 `marketingNavigationStore` 一份。设置分区沿用 `setPendingSettingsSectionIntent` 与 `openSettingsTab`；设置页在当前分区已经落到目标且没有 `provider_id` 时确认。带 `provider_id` 的确认只在模型设置里完成，并且只接受现有 Coding Plan provider id。插件市场沿用 `requestPluginStoreOpen` 与当前 workspace tab；商店页在列表或对应详情出现后确认。升级沿用 `openCodingPlanUpgrade` 的观察回调。确认前若已有导航请求，拒绝为 `marketing_navigation_busy`。30 秒未确认是 `marketing_capability_timeout`。
+- 领取在验证码配置不可用时取消，并使用 `manualClaimPlan.claim.failure.captcha`。配置可用时发布包会打开 Aliyun 验证码；该 runner 尚未还原，因此同样取消并记警告，不伪造 verify param。成功后的权益刷新只调用现有 start-plan entitlement 与 `providerSettingsService.refresh`。
+- 侧栏 footer 挂 banner。会话从非 `completedSuccess` 进入 `completedSuccess` 时触发一次轮询。没有 marketing 服务或正在恢复登录时不创建控制器。

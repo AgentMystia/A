@@ -53,7 +53,7 @@ import { WorkspaceShellLayout } from "@/app-shell/WorkspaceShellLayout.js";
 import { useAppChromeState } from "@/app-shell/useAppChromeState.js";
 import { useWorkspaceSessionReload } from "@/app-shell/useWorkspaceSessionReload.js";
 import { RewardsProvider } from "@/rewards/RewardsProvider.js";
-import { MarketingTouchSurface } from "@/marketing/MarketingTouchSurface.js";
+import { MarketingCampaignProvider } from "@/marketing/MarketingCampaignProvider.js";
 import { useWorkspaceShellLifecycle } from "@/app-shell/useWorkspaceShellLifecycle.js";
 import { useWorkspaceShellZCodeState } from "@/app-shell/useWorkspaceShellZCodeState.js";
 import { useWorkspaceMainViewSettingsExit } from "@/app-shell/useWorkspaceMainViewSettingsExit.js";
@@ -1108,7 +1108,13 @@ export function App({
 
   return (
     <RewardsProvider desktop={Boolean(isDesktop)}>
-      <MarketingTouchSurface />
+      <MarketingCampaignProvider
+        desktop={Boolean(isDesktop)}
+        workspacePath={workspaceAbsPath}
+        workspaceIdentity={workspaceIdentity}
+        endpointKey={workspaceRemoteSessionId}
+        rpcReady={workspaceRpcReady}
+      >
       <CommandCenterDialog
         open={isQuickPickOpen}
         commands={quickPickCommands}
@@ -1278,6 +1284,7 @@ export function App({
         // taskFindDialogProps 是对象 prop，内联创建会让 shell 在流式刷新中每轮都看到新引用。
         taskFindDialogProps={taskFindDialogProps}
       />
+      </MarketingCampaignProvider>
     </RewardsProvider>
   );
 }

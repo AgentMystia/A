@@ -1,6 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- footer 聚合账户、主题、模式和快捷键菜单。 */
 import type { Locale, UserInfo } from "@zcode/shared";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   DesktopCommandIds,
   TID_LOGIN_MENU_ITEM,
@@ -104,6 +104,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   activeTaskId,
   isDesktop = false,
   className,
+  banner,
 }: {
   theme: Theme;
   localeMenuValue: Locale | "system";
@@ -124,6 +125,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   activeTaskId?: string | null;
   isDesktop?: boolean;
   className?: string;
+  banner?: ReactNode;
 }) {
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
@@ -219,6 +221,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   return (
     // footer 被 Settings 复用，页面专属边距由调用方传入，避免修改共享默认样式。
     <footer className={cn("flex shrink-0 flex-col gap-2.5 px-4 pt-2 pb-4", className)}>
+      {banner}
       <div className="flex min-w-0 gap-2">
         <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
           <DropdownMenuTrigger asChild>

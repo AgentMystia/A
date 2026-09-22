@@ -1,5 +1,10 @@
 /* eslint-disable max-lines -- Model Provider 设置页需要集中编排导航、表单和 OAuth 交互，后续整体拆分时再收敛。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useStore } from "zustand";
+import {
+  acknowledgeMarketingNavigation,
+  marketingNavigationStore,
+} from "@/marketing/marketingNavigation.js";
 import {
   getProviderFormApiKey,
   type ProviderSettingsFormProvider,
@@ -346,6 +351,27 @@ export function ModelProviderSection({
     },
     [],
   );
+
+  const marketingNavigationRequest = useStore(
+    marketingNavigationStore,
+    (state) => state.request,
+  );
+  useEffect(() => {
+    const request = marketingNavigationRequest;
+    if (request?.target.page !== "settings" || !request.target.provider_id) return;
+    if (request.target.section && request.target.section !== "models") return;
+    const providerId = resolveCodingPlanIntentProviderId({ providerId: request.target.provider_id });
+    const key = providerId ? resolveProviderFamilySideNodeKey(providerId) : null;
+    if (!key) {
+      acknowledgeMarketingNavigation(request.id, new Error("marketing_provider_unavailable"));
+      return;
+    }
+    if (selectedNodeKey === key) {
+      acknowledgeMarketingNavigation(request.id);
+      return;
+    }
+    setSelectedNodeKey(key);
+  }, [marketingNavigationRequest, selectedNodeKey]);
 
   useEffect(() => {
     if (!pendingModelProviderTarget) {
