@@ -26,6 +26,33 @@ interface RemoteConnectionFormSnapshot {
   wslUser?: string;
   dockerContainer: string;
   manualDockerContainer?: string;
+  serverUrl?: string;
+  serverName?: string;
+  serverToken?: string;
+  serverWorkspacePath?: string;
+}
+
+export function listRemoteConnectionWizardKinds(options: {
+  isWindowsDesktop: boolean;
+  isLocalDevelopmentRuntime: boolean;
+}): RemoteConnectionWizardKind[] {
+  const kinds: RemoteConnectionWizardKind[] = ["ssh"];
+  // 发布包只在本地开发运行形态把 server 放进入口。打包后的桌面端该标志为 false，
+  // 选择页不出现 server，但表单分支仍保留，styles 才会带上 server.* 文案。
+  if (options.isLocalDevelopmentRuntime) {
+    kinds.push("server");
+  }
+  // 远程连接入口里 WSL 和 SSH 同属主机类连接。
+  // Windows 下先放 WSL 再放 Docker，避免 WSL 被 Docker 隔开后在选择页显得离 SSH 很远。
+  // 本地开发时 server 插在 SSH 和 WSL 之间，顺序与发布包一致。
+  if (options.isWindowsDesktop) {
+    kinds.push("wsl");
+  }
+  // Docker入口之前完全依赖预探测结果决定是否展示。
+  // 当探测能力暂时不可用、或用户还没切到 Docker 时，入口会直接消失，
+  // 用户甚至不知道这里支持 Docker 连接。改为始终展示入口，切换后再懒加载探测结果。
+  kinds.push("docker");
+  return kinds;
 }
 
 export function getRemoteWizardStepCopy(
@@ -142,6 +169,33 @@ export function buildRemoteTarget(
           kind: "wsl",
           distro: snapshot.wslDistro || undefined,
           ...(wslUser ? { user: wslUser } : {}),
+        },
+      };
+    }
+    case "server": {
+      const serverUrl = snapshot.serverUrl?.trim() ?? "";
+      if (!serverUrl) {
+        return {
+          errorMessage: intl.formatMessage({ id: "server.validation.urlRequired" }),
+        };
+      }
+      try {
+        new URL(serverUrl);
+      } catch {
+        return {
+          errorMessage: intl.formatMessage({ id: "server.validation.invalidUrl" }),
+        };
+      }
+      const serverName = snapshot.serverName?.trim();
+      const serverToken = snapshot.serverToken?.trim();
+      const serverWorkspacePath = snapshot.serverWorkspacePath?.trim();
+      return {
+        target: {
+          kind: "server",
+          url: serverUrl,
+          ...(serverName ? { name: serverName } : {}),
+          ...(serverToken ? { token: serverToken } : {}),
+          ...(serverWorkspacePath ? { workspacePath: serverWorkspacePath } : {}),
         },
       };
     }

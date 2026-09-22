@@ -41,8 +41,8 @@ export type RemoteTarget =
   | DockerConnectOptions
   | ServerConnectOptions;
 
-/** 连接向导只构造本机进程后端。server 身份不从这张表单进入。 */
-export type RemoteConnectionWizardKind = Exclude<RemoteTarget["kind"], "server">;
+/** 连接向导可构造 ssh、wsl、docker，以及本地开发运行形态下的 server。 */
+export type RemoteConnectionWizardKind = RemoteTarget["kind"];
 
 /** 删除只应存在于当前连接流程中的 secret，供长期内存状态和跨进程回包使用。 */
 export function stripRemoteTargetSecrets(target: RemoteTarget): RemoteTarget {
