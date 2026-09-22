@@ -121,6 +121,9 @@ interface ZCodeClientConfigEnvelope {
       dynamicWorkflow?: {
         mode?: unknown;
       } | null;
+      // 发布包原样下发，不在类型层收窄文案或验证码字段。
+      codingPlanBillingDiscount?: unknown;
+      captcha?: unknown;
     } | null;
   } | null;
 }
@@ -279,10 +282,14 @@ export class BigModelCodingPlanSubscriptionProvider {
                           meter: item.meter?.trim() ?? "",
                           unitType: item.unit_type?.trim() ?? "",
                           capabilities: item.capabilities ?? [],
-                          grantUnits: Number.isFinite(item.grant_units) ? (item.grant_units ?? 0) : 0,
+                          grantUnits: Number.isFinite(item.grant_units)
+                            ? (item.grant_units ?? 0)
+                            : 0,
                           period: item.period?.trim() ?? "",
                           priority: Number.isFinite(item.priority) ? (item.priority ?? 0) : 0,
-                          ...(Number.isFinite(item.effective_at) ? { effectiveAt: item.effective_at } : {}),
+                          ...(Number.isFinite(item.effective_at)
+                            ? { effectiveAt: item.effective_at }
+                            : {}),
                         },
                       ]
                     : [];
@@ -318,19 +325,25 @@ export class BigModelCodingPlanSubscriptionProvider {
           }>;
         };
       } | null;
-    }>(this.apiClient, new URL(buildRuntimeZCodeApiUrl(process.env, "/api/v1/zcode-plan/billing/claim")), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "X-Aliyun-Captcha-Verify-Param": request.captchaVerifyParam,
-        ...(request.captchaRegion ? { "X-Aliyun-Captcha-Verify-Region": request.captchaRegion } : {}),
-        "X-ZCode-App-Version": ZCODE_VERSION,
-        "X-Platform": resolveClientPlatformKey(),
+    }>(
+      this.apiClient,
+      new URL(buildRuntimeZCodeApiUrl(process.env, "/api/v1/zcode-plan/billing/claim")),
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "X-Aliyun-Captcha-Verify-Param": request.captchaVerifyParam,
+          ...(request.captchaRegion
+            ? { "X-Aliyun-Captcha-Verify-Region": request.captchaRegion }
+            : {}),
+          "X-ZCode-App-Version": ZCODE_VERSION,
+          "X-Platform": resolveClientPlatformKey(),
+        },
+        body: JSON.stringify({ plan_id: request.planId }),
+        timeoutMs: REQUEST_TIMEOUT_MS,
       },
-      body: JSON.stringify({ plan_id: request.planId }),
-      timeoutMs: REQUEST_TIMEOUT_MS,
-    });
+    );
     const rawCode = payload.code;
     const code =
       typeof rawCode === "number"
@@ -434,6 +447,16 @@ export class BigModelCodingPlanSubscriptionProvider {
   async getModelContextBudgetStrategy(): Promise<ZCodeModelContextBudgetStrategy> {
     // 3.12.2：预算统一为 preflight-v1；保留兼容方法，但不能再为每次建会话等待远端配置。
     return DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY;
+  }
+
+  async getBillingDiscount(): Promise<unknown> {
+    const payload = await this.getClientConfigs();
+    return unwrapClientConfigBillingDiscount(payload);
+  }
+
+  async getCaptchaConfig(): Promise<unknown> {
+    // 发布包不检查 code。HTTP 失败仍由 getClientConfigs 抛出；字段缺失才是 null。
+    return (await this.getClientConfigs()).data?.configs?.captcha ?? null;
   }
 
   async getForceUpdateConfig(): Promise<ForceUpdateConfig | null> {
@@ -1377,6 +1400,18 @@ function unwrapClientConfigStartPlanPreview(
     name: preview.name,
     entitlements: preview.entitlements.filter(isValidStartPlanPreviewEntitlement),
   };
+}
+
+function unwrapClientConfigBillingDiscount(payload: ZCodeClientConfigEnvelope): unknown {
+  if (payload.code !== undefined && payload.code !== 0) {
+    throw new Error(payload.msg?.trim() || "ZCode client config request failed");
+  }
+  const configs = payload.data?.configs;
+  // 键不存在与值为 null 不同：只有缺失才返回 undefined，存在则原样交给 UI。
+  if (!configs || !("codingPlanBillingDiscount" in configs)) {
+    return undefined;
+  }
+  return configs.codingPlanBillingDiscount;
 }
 
 function unwrapClientConfigForceUpdate(

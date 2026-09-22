@@ -127,6 +127,7 @@ import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHe
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
 import { projectPendingGuideQueue } from "@/v4/pendingGuideProjection.js";
 import { ConversationQuotaBanner } from "@/v4/ConversationQuotaBanner.js";
+import { useCodingPlanBillingDiscount } from "@/settings/model-provider-section/CodingPlanBillingDiscount.js";
 import { PendingCommandRecoveryBanner } from "@/v4/PendingCommandRecoveryBanner.js";
 import { WorkspaceHookPendingBanner } from "@/v4/WorkspaceHookPendingBanner.js";
 import { ConversationStatusPanel } from "@/v4/ConversationStatusPanel.js";
@@ -3944,6 +3945,7 @@ export function SessionPane({
     () => resolveMcpUnavailableNotice(snapshot?.rows.window),
     [snapshot?.rows.window],
   );
+  const billingDiscount = useCodingPlanBillingDiscount();
   const quotaBanner = useV4SessionQuotaBanner({
     sessionId: snapshot?.sessionId ?? sessionId,
     error: controlLastError,
@@ -4498,6 +4500,8 @@ export function SessionPane({
         <ConversationQuotaBanner
           state={quotaBanner.state}
           onShown={quotaBanner.markShown}
+          billingDiscountActive={billingDiscount.active}
+          billingDiscountConfig={billingDiscount.config}
           upgradeActionLabelId={quotaBanner.upgradeActionLabelId}
           onUpgrade={
             quotaBanner.upgradeProviderId && codingPlanUpgradeDialog

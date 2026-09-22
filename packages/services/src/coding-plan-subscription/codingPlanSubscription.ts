@@ -76,6 +76,10 @@ export interface ICodingPlanSubscriptionService {
   }): Promise<DynamicWorkflowClientConfig>;
   /** 兼容接口：固定返回 preflight-v1，不读取远端配置或缓存。 */
   getModelContextBudgetStrategy(): Promise<ZCodeModelContextBudgetStrategy>;
+  /** client/configs.codingPlanBillingDiscount。code 非 0 抛错；键缺失为 undefined；键存在则原样返回。 */
+  getBillingDiscount(): Promise<unknown>;
+  /** client/configs.captcha。不检查 code；缺失为 null。 */
+  getCaptchaConfig(): Promise<unknown>;
   getForceUpdateConfig(): Promise<ForceUpdateConfig | null>;
   productInfo(request: CodingPlanProductInfoRequest): Promise<CodingPlanProductInfo>;
   preview(request: CodingPlanPreviewRequest): Promise<CodingPlanPreviewResponse>;

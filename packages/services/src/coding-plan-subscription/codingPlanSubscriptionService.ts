@@ -49,6 +49,9 @@ export function createCodingPlanSubscriptionService(
     getDynamicWorkflowClientConfig: (options) =>
       bigmodelProvider.getDynamicWorkflowClientConfig(options),
     getModelContextBudgetStrategy: () => bigmodelProvider.getModelContextBudgetStrategy(),
+    // client/configs 是平台级快照，折扣和验证码与 family 无关，固定走 bigmodel provider。
+    getBillingDiscount: () => bigmodelProvider.getBillingDiscount(),
+    getCaptchaConfig: () => bigmodelProvider.getCaptchaConfig(),
     getForceUpdateConfig: () => bigmodelProvider.getForceUpdateConfig(),
     productInfo: (request) => bigmodelProvider.productInfo(request),
     preview: (request) => bigmodelProvider.preview(request),

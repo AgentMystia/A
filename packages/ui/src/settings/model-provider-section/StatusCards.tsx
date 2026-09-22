@@ -41,6 +41,10 @@ import {
 import type { CodingPlanStatusPanelViewState } from "./codingPlanStatusPanelViewState.js";
 import { CodingPlanStatusMeta, StartPlanStatusMeta } from "./CodingPlanStatusMeta.js";
 import { CodingPlanStatusActions, CodingPlanUpgradeAction } from "./CodingPlanStatusActions.js";
+import {
+  CodingPlanBillingDiscountBadgeWithInfo,
+  useCodingPlanBillingDiscount,
+} from "./CodingPlanBillingDiscount.js";
 import type { CodingPlanLoginOptions } from "./codingPlanPricingCards.js";
 import type { PurchaseAudience } from "./codingPlanEnterpriseTiers.js";
 import { StartPlanCard } from "./StartPlanCard.js";
@@ -217,6 +221,7 @@ export function CodingPlanStatusPanel({
   onQuotaResetEntitlementRefresh?: () => void | Promise<void>;
 }) {
   const { intl } = useZCodeIntl();
+  const billingDiscount = useCodingPlanBillingDiscount();
   const [internalUpgradePlansVisible, setInternalUpgradePlansVisible] = useState(false);
   const [startPlanEntitlementRefreshing, setStartPlanEntitlementRefreshing] = useState(false);
   const upgradePlansVisible = controlledUpgradePlansVisible ?? internalUpgradePlansVisible;
@@ -373,6 +378,8 @@ export function CodingPlanStatusPanel({
           ? "settings.modelProvider.codingPlan.renew"
           : "settings.modelProvider.codingPlan.upgrade"
       }
+      billingDiscountActive={isStartPlanProvider && billingDiscount.active}
+      billingDiscountConfig={billingDiscount.config}
       onUpgradePlansVisibleChange={(visible) => {
         if (visible) {
           openUpgradePlans(
@@ -604,6 +611,14 @@ export function CodingPlanStatusPanel({
           <PlanStatusCardSurface
             key="current-plan"
             planTitle={planTitle}
+            titleAccessory={
+              !isStartPlanProvider && billingDiscount.active ? (
+                <CodingPlanBillingDiscountBadgeWithInfo
+                  config={billingDiscount.config}
+                  size="compact"
+                />
+              ) : undefined
+            }
             statusMeta={statusContent}
             trailingAction={trailingAction}
             usageContent={
