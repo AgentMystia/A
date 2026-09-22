@@ -95,6 +95,17 @@ app.whenReady
        → info resource.completed 或 resource.failed
 ```
 
+- 未打包桌面进程的 DEV 角标只有一张图，所有者是 `devBadgeIcon` 模块。`app.whenReady` 在 Windows AUMID 之后、`applyAppIcon` 之前，仅当 `!app.isPackaged` 时调用 `renderDevBadgeIcon(iconPath)`。函数动态 `import("sharp")`，读图标文件，边长取宽高最小值，用 `buildDevRibbonSvg` 画蓝色 DEV 斜带，先 `blend:"over"` 再以原图 `blend:"dest-in"`。没有尺寸、结果为空或任意失败都打 `[dev-badge]` 警告并返回 `null`，继续用文件路径。打包态不调用，因为 `sharp` 不在 `app.asar`。Dock、主窗口和更新状态窗口读这一张图；退出确认、架构提示、Linux 桌面文件仍用路径。
+
+```text
+app.whenReady
+  → win32 setAppUserModelId
+  → 未打包：renderDevBadgeIcon → 唯一 NativeImage 或 null
+  → applyAppIcon(image ?? iconPath)
+createWindow / 更新状态窗口
+  → resolveAppIcon：有图用图，否则用路径
+```
+
 - `interaction/requestProviderRuntimeHeaders` 的 pending 只属于 `createZCodeAgentService`。有账号服务且 `accountAccess.mode` 不是 `start-plan` 时自动应答。Start Plan、缺 access 或缺服务时保留 pending，发出 `providerRuntimeHeaders.request`，并只通知已经存在的 workspace emitter。`onDynamicWorkspaceProviderRuntimeHeadersRequest` 创建该 emitter 并重放本 workspace 的 pending；session 订阅同样重放。`respondProviderRuntimeHeaders` 只合并 `X-Aliyun-Captcha-Verify-Param` 与 `X-Aliyun-Captcha-Verify-Region`。取消删除 pending，日志是 `验证码请求已取消`，只在 cancelled emitter 已存在时通知。Task adapter 忽略该事件。
 
 ```text

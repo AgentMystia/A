@@ -21,6 +21,7 @@ import { BrowserGuestManager } from "./browserView/browserGuestManager.js";
 import { createElectronBrowserWebmRecorder } from "./browserView/electronBrowserWebmRecorder.js";
 import { installBrowserRestoreBootstrapProtocol } from "./browserView/browserRestoreBootstrapProtocol.js";
 import { installCaptchaNetworkDiagnostics } from "./captchaNetworkDiagnostics.js";
+import { installDevBadgeIcon, resolveAppIcon } from "./devBadgeIcon.js";
 import {
   createLocalMediaPreviewPathRegistry,
   installLocalMediaPreviewProtocol,
@@ -1672,7 +1673,7 @@ function openUpdateStatusWindow() {
     transparent: false,
     backgroundColor: "#ffffff",
     title: "",
-    icon: iconPath,
+    icon: resolveAppIcon(iconPath),
     parent: parentWindow,
     modal: false,
     autoHideMenuBar: true,
@@ -1766,7 +1767,7 @@ function openUpdateStatusWindow() {
 function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
   const runtimeProcessEnvPreparation = takeRuntimeProcessEnvPreparation();
   const win = createWindow({
-    iconPath,
+    iconPath: resolveAppIcon(iconPath),
     preloadPath,
     logger,
     forceQuitRef,
@@ -2011,7 +2012,11 @@ app.whenReady().then(async () => {
     );
   }
 
-  applyAppIcon(iconPath);
+  if (!app.isPackaged) {
+    // 发布包只在未打包时绘制 DEV 角标。sharp 不在 app.asar，打包态短路。
+    await installDevBadgeIcon(iconPath);
+  }
+  applyAppIcon(resolveAppIcon(iconPath));
   if (!loadedBootstrapLocale) {
     currentApplicationLocale = resolveSystemApplicationLocale();
   }

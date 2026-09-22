@@ -1,7 +1,7 @@
 import { getDatabaseStartupPortPayload } from "./databaseStartupRelay.js";
 import { randomUUID } from "node:crypto";
 import { app, BrowserWindow, Menu, MessageChannelMain } from "electron";
-import type { UtilityProcess as ElectronUtilityProcess } from "electron";
+import type { NativeImage, UtilityProcess as ElectronUtilityProcess } from "electron";
 import { HostMessageTypes, InternalChannels, PlatformChannels, type Locale } from "@zcode/shared";
 import { scheduleArmsBrowserPerfLoadNudge } from "./armsBrowserPerfLoadNudge.js";
 import { createBrowserWindow } from "./desktopWindowChrome.js";
@@ -22,7 +22,7 @@ import {
 const DEFAULT_RUNTIME_PROCESS_ENV_WAIT_TIMEOUT_MS = 4_500;
 
 export function createWindow(options: {
-  iconPath: string;
+  iconPath: string | NativeImage;
   preloadPath: string;
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
   forceQuitRef: { current: boolean };
