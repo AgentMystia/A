@@ -6,30 +6,41 @@ import {
   type BotProviderId,
   type BotRuntimeStatus,
   type BotsConfig,
+  type BotWorkspaceRef,
 } from "@zcode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import type { ISettingService } from "../setting/setting.js";
+import type { IBroadcastService } from "../broadcast/broadcast.js";
+import type { IModelSelectionService } from "../model-provider/providerFacadeServices.js";
+import type { IZCodeTaskService } from "../session/zcodeTaskService.js";
 import { createProviderCallbackProcessor } from "./botsCallback.js";
 import { createFeishuBotProvider } from "./botsFeishu.js";
 import { beginFeishuAppRegistration, pollFeishuAppRegistration } from "./botsFeishuRegistration.js";
 import { createFeishuChannelRuntime } from "./botsFeishuRuntime.js";
 import { createInboundHandlers, createWorkspaceRefCache, type BotBindCodeRecord } from "./botsInbound.js";
+import { dispatchInboundMessage } from "./botsInboundDispatch.js";
+import { createStatusReply } from "./botsInboundDraft.js";
+import type { BotContextTaskEntry, BotInboundTaskRuntime } from "./botsInboundRuntime.js";
+import {
+  resolveModelSelectionServiceForContext,
+  resolveZCodeTaskServiceForContext,
+} from "./botsInboundRuntime.js";
 import { createBotsMutationApi } from "./botsMutations.js";
 import { normalizeConfigBots } from "./botsNormalize.js";
-import { createInboundQueue } from "./botsOutbound.js";
-import { parseBotCommand } from "./botsParseCommand.js";
+import { createInboundQueue, sendOutbound } from "./botsOutbound.js";
 import { createBotPollingState } from "./botsPollingState.js";
 import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 import { BotsRepo } from "./botsRepo.js";
 import { createTelegramBotProvider } from "./botsTelegram.js";
 import { createTelegramChannelRuntime } from "./botsTelegramRuntime.js";
 import type { IBotsService } from "./bots.js";
-import type { BotProvider, BotRuntimeStatusSink } from "./botsTypes.js";
+import type { BotProvider, BotRuntimeStatusSink, BotSelection } from "./botsTypes.js";
 import { createWebhookBotProvider } from "./botsWebhook.js";
 import { createWeixinBotProvider } from "./botsWeixin.js";
 import { beginWeixinRegistration, pollWeixinRegistration } from "./botsWeixinRegistration.js";
 import { createWeixinChannelRuntime } from "./botsWeixinRuntime.js";
+import { createTypingController, watchAutomationRun } from "./botsTaskStream.js";
 
 export interface CreateBotsServiceOptions {
   runStartupBackgroundTasks?: boolean;
@@ -37,6 +48,9 @@ export interface CreateBotsServiceOptions {
   credentialService: ICredentialService;
   settingService: Pick<ISettingService, "get">;
   remoteWorkspaceService?: IBotRemoteWorkspaceService;
+  zcodeTaskService?: IZCodeTaskService;
+  modelSelectionService?: IModelSelectionService;
+  broadcastService?: Pick<IBroadcastService, "send">;
 }
 
 /** 发布包 host `createBotsService`。 */
@@ -49,6 +63,13 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
   const workspaceRefs = createWorkspaceRefCache(options.settingService);
   const reconnectInFlight = new Map<string, Promise<BotOutboundMessage[]>>();
   const reconnectCooldown = new Map<string, number>();
+  const reconnectDelivery = new Map<string, number>();
+  const runningTasks = new Set<string>();
+  const streamSubs = new Map<string, { dispose(): void }>();
+  const pendingSelections = new Map<string, BotSelection>();
+  const taskSelectionEntries = new Map<string, Map<string, BotContextTaskEntry>>();
+  const workspaceSelectionEntries = new Map<string, Map<string, { workspace: BotWorkspaceRef }>>();
+  const automationWarnAt = new Map<string, number>();
   const inboundQueue = createInboundQueue();
   const polling = createBotPollingState(repo, () => workspaceRefs.list());
   let migrated: Promise<void> | null = null;
@@ -98,6 +119,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     discord: null,
     wecom: null,
   };
+  const typing = createTypingController(providers);
 
   async function ensureBotStorageMigrated(): Promise<void> {
     migrated ??= Promise.all([repo.readConfig(), repo.readState()])
@@ -117,7 +139,68 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     workspaceRefs,
     reconnectInFlight,
     reconnectCooldown,
+    reconnectDelivery,
+    sendTyping: async (bot, actor) => {
+      const provider = providers[bot.provider];
+      const userId = actor.chatId ?? actor.providerUserId;
+      if (!provider?.sendTyping || !userId) {
+        return;
+      }
+      await provider
+        .sendTyping(bot, {
+          providerUserId: userId,
+          providerMessageId: actor.providerMessageId,
+          providerContextToken: actor.providerContextToken,
+        })
+        .catch(() => undefined);
+    },
   });
+  const runtime: BotInboundTaskRuntime = {
+    repo,
+    remoteWorkspaceService: options.remoteWorkspaceService,
+    broadcastService: options.broadcastService,
+    zcodeTaskService: options.zcodeTaskService,
+    modelSelectionService: options.modelSelectionService,
+    logger,
+    runningTasks,
+    streamSubs,
+    pendingSelections,
+    taskSelectionEntries,
+    workspaceSelectionEntries,
+    automationWarnAt,
+    persistContext: (context) => inbound.persistContext(context),
+    replies: (actor, text, locale, selection, extra) => inbound.replies(actor, text, locale, selection, extra),
+    withAuthorizedContext: (message, command) => inbound.withAuthorizedContext(message, command),
+    readMessageLocale: () => inbound.readMessageLocale(),
+    listWorkspaceRefs: (current) => inbound.listWorkspaceRefs(current),
+    isRemoteConnected: (context) => inbound.isRemoteConnected(context),
+    async saveBot(bot) {
+      return mutations.saveBot({ bot });
+    },
+    async sendOutbound(bot, outbound) {
+      await sendOutbound(providers[bot.provider], bot, outbound);
+    },
+    async sendAckTyping(bot, actor) {
+      const provider = providers[bot.provider];
+      const userId = actor.chatId ?? actor.providerUserId;
+      if (!provider?.sendTyping || !userId) {
+        return;
+      }
+      await provider
+        .sendTyping(bot, {
+          providerUserId: userId,
+          providerMessageId: actor.providerMessageId,
+          providerContextToken: actor.providerContextToken,
+        })
+        .catch(() => undefined);
+    },
+    startTyping: (bot, actor, taskId) => typing.startTyping(bot, actor, taskId),
+    stopTyping: (taskId) => typing.stopTyping(taskId),
+    resolveZCodeTaskServiceForContext: (context) => resolveZCodeTaskServiceForContext(runtime, context),
+    resolveModelSelectionServiceForContext: (context) =>
+      resolveModelSelectionServiceForContext(runtime, context),
+  };
+  inbound.setCreateStatusReply((actor, context, locale) => createStatusReply(runtime, actor, context, locale));
   let service!: IBotsService;
   const callback = createProviderCallbackProcessor({
     logger,
@@ -234,60 +317,10 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
       await repo.writeState(state);
     },
     async watchAutomationRun(watch: BotAutomationRunWatch) {
-      const config = await repo.readConfig();
-      const bot = config.bots.find((item) => item.id === watch.target.botId);
-      if (!bot || !bot.enabled || bot.provider !== watch.target.provider) {
-        logger.warn(
-          undefined,
-          `automation Bot delivery skipped provider=${watch.target.provider} bot=${watch.target.botId} reason=${
-            !bot ? "bot_missing" : !bot.enabled ? "bot_disabled" : "provider_mismatch"
-          }`,
-        );
-        return;
-      }
-      const state = await repo.readState();
-      state.bots[bot.id] = {
-        botId: bot.id,
-        workspacePath: watch.workspacePath,
-        workspaceIdentity: watch.workspaceIdentity,
-        mode: "task",
-        activeTaskId: watch.taskId,
-        updatedAt: Date.now(),
-      };
-      await repo.writeState(state);
+      await watchAutomationRun(runtime, watch);
     },
     handleInboundMessage(message: BotInboundMessage) {
-      return inboundQueue.enqueue(message.actor, async () => {
-        const parsed = parseBotCommand(message.text);
-        const activated = await inbound.handleWeixinFirstActivation(
-          message,
-          parsed.type === "message" ? "message" : parsed.type,
-        );
-        if (activated) {
-          return activated;
-        }
-        switch (parsed.type) {
-          case "bind":
-            return inbound.handleBind(message, parsed.code);
-          case "help":
-            return inbound.handleHelp(message);
-          case "status":
-            return inbound.handleStatus(message);
-          case "reconnect":
-            return inbound.handleReconnect(message);
-          case "mode.list":
-          case "mode.set":
-            return inbound.handleModeLocked(message);
-          case "reply.list":
-            return inbound.handleReplyList(message);
-          case "reply.set":
-            return inbound.handleReplySet(message, parsed.value);
-          case "unknown":
-            return inbound.handleUnknown(message, parsed.name);
-          default:
-            return inbound.handleUnknown(message, parsed.type);
-        }
-      });
+      return inboundQueue.enqueue(message.actor, () => dispatchInboundMessage(runtime, inbound, message));
     },
     async handleProviderCallback(provider, payload) {
       return (await callback.processProviderCallback(provider, payload)).replies;
@@ -308,6 +341,18 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
         return disposing;
       }
       options.remoteWorkspaceService?.dispose();
+      typing.dispose();
+      for (const sub of streamSubs.values()) {
+        sub.dispose();
+      }
+      streamSubs.clear();
+      runningTasks.clear();
+      pendingSelections.clear();
+      taskSelectionEntries.clear();
+      workspaceSelectionEntries.clear();
+      reconnectInFlight.clear();
+      reconnectCooldown.clear();
+      reconnectDelivery.clear();
       disposing = Promise.allSettled([
         telegramRuntime.dispose(),
         weixinRuntime.dispose(),

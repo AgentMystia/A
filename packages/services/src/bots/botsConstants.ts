@@ -32,6 +32,23 @@ export const FEISHU_RESOLVE_NAME_DELAYS_MS = [0, 800, 1_800] as const;
 export const WORKSPACE_REF_CACHE_MS = 5_000;
 export const RECONNECT_COOLDOWN_MS = 3_000;
 export const INBOUND_DEDUPE_TTL_MS = 2 * 60_000;
+/** 发布包 host `II`：机器人草稿与 applyDraft 强制 yolo。 */
+export const BOT_FORCED_MODE = "yolo";
+/** 发布包 host `Dle`：未指定时的草稿 provider。 */
+export const DEFAULT_DRAFT_PROVIDER = "glm";
+/** 发布包 host `Hle`：automation 投递跳过日志去重窗口。 */
+export const AUTOMATION_DELIVERY_WARN_MS = 5 * 60_000;
+/** 发布包 host `Nle`：无 startTyping 时的 sendTyping 间隔。 */
+export const BOT_TYPING_INTERVAL_MS = 4_000;
+/** 发布包 host `Ule`。 */
+export const BOT_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
+/** 发布包 host `_H` / `dp` / `jle` / `RH`：elicitation 选项 id。 */
+export const BOT_ELICITATION_CUSTOM = "__custom__";
+export const BOT_ELICITATION_SUBMIT = "__submit__";
+export const BOT_ELICITATION_SKIP = "__skip__";
+export const BOT_ELICITATION_FORM_PREFIX = "__form__:";
+/** 发布包 host `Ile`。 */
+export const BOT_ELICITATION_BROADCAST_TIMEOUT_MS = 1_000;
 export const WEBHOOK_SECRET_HEADER = "x-zcode-bot-secret";
 export const WEBHOOK_TEST_TYPE = "zcode.bot.test";
 export const WEBHOOK_MESSAGE_TYPE = "zcode.bot.message";

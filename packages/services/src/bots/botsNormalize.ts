@@ -13,6 +13,7 @@ import {
   type BotDraftOptions,
   type BotProviderId,
   type BotsConfig,
+  type BotRuntimeState,
   type BotWorkspaceRef,
 } from "@zcode/shared";
 
@@ -65,6 +66,84 @@ export function firstAllowedWorkspace(
   bot: Pick<BotConfigEntry, "allowedWorkspaces">,
 ): BotWorkspaceRef | null {
   return filterAllowedWorkspaces(workspaces, bot.allowedWorkspaces)[0] ?? null;
+}
+
+/** 发布包 host `resolveCanonicalContextWorkspace`。 */
+export function resolveCanonicalContextWorkspace(
+  context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity" | "workspaceId">,
+  workspaces: BotWorkspaceRef[],
+): BotWorkspaceRef | null {
+  const key = getWorkspaceKey(context.workspacePath, context.workspaceIdentity);
+  const matched = workspaces.find(
+    (workspace) => getWorkspaceKey(workspace.workspacePath, workspace.workspaceIdentity) === key,
+  );
+  if (matched) {
+    return matched;
+  }
+  if (context.workspaceId) {
+    const byId = workspaces.find((workspace) => workspace.id === context.workspaceId);
+    if (byId) {
+      return byId;
+    }
+  }
+  if (context.workspaceIdentity) {
+    return null;
+  }
+  const byPath = workspaces.filter((workspace) => workspace.workspacePath === context.workspacePath);
+  return byPath.length === 1 ? (byPath[0] ?? null) : null;
+}
+
+/** 发布包 host `resolveCanonicalWorkspaceId`。 */
+export function resolveCanonicalWorkspaceId(
+  value: string | undefined,
+  workspaces: BotWorkspaceRef[],
+): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const byPath = workspaces.filter((workspace) => workspace.workspacePath === trimmed);
+  const byId = workspaces.find((workspace) => workspace.id === trimmed);
+  if (byId) {
+    const remotes = byPath.filter((workspace) => workspace.workspaceIdentity);
+    return !byId.workspaceIdentity && remotes.length === 1 ? remotes[0]!.id : byId.id;
+  }
+  return byPath.length === 1 ? byPath[0]!.id : trimmed;
+}
+
+/** 发布包 host `normalizeConfiguredAllowedWorkspaces`。 */
+export function normalizeConfiguredAllowedWorkspaces(
+  allowed: string[],
+  workspaces: BotWorkspaceRef[],
+): string[] {
+  const normalized = normalizeAllowedWorkspaces(allowed);
+  return isAllWorkspacesAllowed(normalized)
+    ? [ALL_WORKSPACES]
+    : [...new Set(normalized.map((item) => resolveCanonicalWorkspaceId(item, workspaces) ?? item))];
+}
+
+/** 发布包 host `resolveWorkspaceByValue`。 */
+export function resolveWorkspaceByValue(
+  workspaces: BotWorkspaceRef[],
+  value: string,
+  allowed: string[],
+): BotWorkspaceRef | null {
+  const trimmed = value.trim();
+  const listed = filterAllowedWorkspaces(workspaces, allowed);
+  const index = Number.parseInt(trimmed, 10);
+  if (Number.isFinite(index) && index > 0) {
+    return listed[index - 1] ?? null;
+  }
+  const token = trimmed.toLowerCase();
+  return (
+    listed.find(
+      (workspace) =>
+        workspace.id.toLowerCase() === token ||
+        workspace.label.toLowerCase() === token ||
+        workspace.workspacePath === trimmed ||
+        getWorkspaceKey(workspace.workspacePath, workspace.workspaceIdentity) === trimmed,
+    ) ?? null
+  );
 }
 
 export function findBot(config: BotsConfig, botId: string): BotConfigEntry | null {

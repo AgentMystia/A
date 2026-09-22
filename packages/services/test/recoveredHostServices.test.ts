@@ -63,7 +63,7 @@ function inbound(
   };
 }
 
-test("bots persist v3 files, bind/help/modeLocked, and unrecovered inbound stays unknown", async () => {
+test("bots persist v3 files, bind/help/modeLocked, and unique /new enters draft", async () => {
   const dir = await mkdtemp(join(tmpdir(), "zcode-bots-"));
   setDataBaseDir(dir);
   await mkdir(getAppConfigDir(), { recursive: true });
@@ -104,8 +104,8 @@ test("bots persist v3 files, bind/help/modeLocked, and unrecovered inbound stays
     const locked = await service.handleInboundMessage(inbound("bot-1", "/mode"));
     assert.match(locked[0]?.text ?? "", /yolo/);
 
-    const unknown = await service.handleInboundMessage(inbound("bot-1", "/new"));
-    assert.equal(unknown[0]?.text, "未知命令：**/new**");
+    const created = await service.handleInboundMessage(inbound("bot-1", "/new"));
+    assert.match(created[0]?.text ?? "", /草稿|工作区/);
 
     const discord = await service.saveBot({
       bot: webhookBot("bot-discord", { name: "Discord", provider: "discord" }),

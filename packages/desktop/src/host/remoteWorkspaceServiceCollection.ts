@@ -371,6 +371,9 @@ export function createRemoteWorkspaceServiceCollection(params: {
         runStartupBackgroundTasks: false,
         settingService: localSettingService,
         credentialService: localCredentialService,
+        zcodeTaskService: remoteZCodeTaskService,
+        modelSelectionService: params.connectionServices.modelSelectionService,
+        broadcastService: localBroadcastService,
       }),
     )
     .register(

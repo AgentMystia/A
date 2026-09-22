@@ -2451,6 +2451,9 @@ export function createLocalServices(options: {
     credentialService,
     settingService,
     remoteWorkspaceService: botRemoteWorkspaceService,
+    zcodeTaskService,
+    modelSelectionService: providerRuntime.modelSelection,
+    broadcastService,
   });
   const marketingAssets = isDesktopAttachedRemote
     ? undefined
