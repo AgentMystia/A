@@ -42,6 +42,12 @@ export const AUTOMATION_DELIVERY_WARN_MS = 5 * 60_000;
 export const BOT_TYPING_INTERVAL_MS = 4_000;
 /** 发布包 host `Ule`。 */
 export const BOT_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
+/** 发布包 host `Ble`。 */
+export const BOT_ATTACHMENT_MAX_COUNT = 4;
+/** 发布包 host `zle`。 */
+export const BOT_ATTACHMENT_DOWNLOAD_TIMEOUT_MS = 30_000;
+/** 发布包 host `Lle`：终态 task meta 重试间隔。 */
+export const TERMINAL_TASK_META_RETRY_DELAYS_MS = [80, 160, 320] as const;
 /** 发布包 host `_H` / `dp` / `jle` / `RH`：elicitation 选项 id。 */
 export const BOT_ELICITATION_CUSTOM = "__custom__";
 export const BOT_ELICITATION_SUBMIT = "__submit__";

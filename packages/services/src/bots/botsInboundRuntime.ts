@@ -17,7 +17,7 @@ import type { BotMessageLocale } from "./botsCopy.js";
 import type { AuthorizedContext } from "./botsInbound.js";
 import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 import type { BotsRepo } from "./botsRepo.js";
-import type { BotSelection, BotSelectionOption } from "./botsTypes.js";
+import type { BotSelection, BotSelectionOption, BotProvider } from "./botsTypes.js";
 import type { BotTaskServiceResolver } from "./botsDraft.js";
 import { createWorkspaceRef, getWorkspaceKey } from "./botsNormalize.js";
 
@@ -57,6 +57,7 @@ export interface BotInboundTaskRuntime extends BotTaskServiceResolver {
   sendAckTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
   startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
   stopTyping(taskId: string): void;
+  providers: Record<string, BotProvider | null>;
 }
 
 export async function resolveZCodeTaskServiceForContext(

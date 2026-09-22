@@ -66,6 +66,10 @@ renderer hook → ProxyChannel → Host 单例
 - 草稿默认 `provider=glm`、`mode=yolo`。`/mode` 仍只回复 `modeLocked`。`listUserConfigOptions` 仍返回 `[]`。
 - `watchAutomationRun` 不写 bot-state；唯一投递是 `watchTaskStream(..., replyMode: "summary_changes")`。
 - callback 只覆盖 webhook/feishu secret、displayName、inbound 去重、acknowledge 与 outbound。
+- 已从 keepNames 唯一还原的附件链路：`sanitizeAttachmentFilename`、`formatAttachmentSize`、`formatAttachmentRejectedReason`、`buildAttachmentCachePath`、`fetchAttachmentDownloadUrl`、`resolveAttachmentBytes`、`cacheResolvedAttachment`、`prepareBotMessageContent`。最多 4 个附件、5MB、下载超时 30s；image/audio 进 `zcodeAttachments`，失败回 `attachmentRejected`。
+- 已从 keepNames 唯一还原：`isSessionExpiredError`、`formatUserFacingBotError`、`reconnectRemoteWorkspaceForBot`、`readTaskMeta`、`isTerminalTaskMeta`、`readTerminalTaskMeta`（轮询延迟 `[80,160,320]`）。
+- 已从 keepNames 唯一还原的 elicitation：`normalizeBotElicitationQuestions`、`readBotElicitationRenderContext`、`formatBotElicitationTitle`、`createBotElicitationSelection`、`createBotElicitationRequestSnapshot`、`broadcastPendingElicitationProgress`、`createCompletedElicitationOutbound`、`handleElicitationRequest`。`watchTaskStream` 对 `elicitation_request` 调 `handleElicitationRequest`。
+- `createAssistantReplyBlocks` 与飞书 `streaming_card` 同步仍依赖未具名外层 helper，本规格不发明实现。
 
 ```text
 createLocalServices

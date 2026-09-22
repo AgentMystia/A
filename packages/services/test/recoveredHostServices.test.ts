@@ -145,3 +145,67 @@ test("readServerTimeMilliseconds multiplies unique second values by 1000", () =>
   assert.equal(readServerTimeMilliseconds("1"), undefined);
   assert.equal(readServerTimeMilliseconds(-1), undefined);
 });
+
+test("unique remaining bots helpers match published keepNames", async () => {
+  const { formatAttachmentSize, formatAttachmentRejectedReason, sanitizeAttachmentFilename, prepareBotMessageContent } =
+    await import("../src/bots/botsAttachments.js");
+  const { isSessionExpiredError, formatUserFacingBotError } = await import("../src/bots/botsErrors.js");
+  const { isTerminalTaskMeta } = await import("../src/bots/botsTaskMeta.js");
+  const { normalizeBotElicitationQuestions, readBotElicitationRenderContext, formatBotElicitationTitle } =
+    await import("../src/bots/botsElicitationBuild.js");
+
+  assert.equal(sanitizeAttachmentFilename('a/b:c'), "a_b_c");
+  assert.equal(formatAttachmentSize(2048), "2KB");
+  assert.equal(formatAttachmentRejectedReason(new Error("file.png exceeds 5MB."), "zh-CN"), "附件超过 5MB，请压缩后重新发送。");
+  assert.equal(isSessionExpiredError(new Error("Session not found: abc")), true);
+  assert.match(formatUserFacingBotError(new Error("Session is not active: x"), "zh-CN"), /新任务/);
+  assert.equal(isTerminalTaskMeta({ status: "completed" } as never, "task_complete"), true);
+  assert.equal(isTerminalTaskMeta({ status: "error" } as never, "task_error"), true);
+
+  const questions = normalizeBotElicitationQuestions(
+    {
+      type: "elicitation_request",
+      taskId: "t1",
+      traceId: "tr",
+      requestId: "r1",
+      message: "pick",
+      options: [{ value: "a", label: "A" }],
+      schema: { interaction: "plan_approval", plan: "do it" },
+    },
+    "zh-CN",
+  );
+  assert.equal(questions[0]?.options[0]?.value, "approve");
+  assert.equal(readBotElicitationRenderContext({
+    type: "elicitation_request",
+    taskId: "t1",
+    traceId: "tr",
+    requestId: "r1",
+    message: "pick",
+    options: [],
+    schema: { interaction: "plan_approval", plan: "do it" },
+  })?.kind, "plan_approval");
+  assert.match(
+    formatBotElicitationTitle(
+      {
+        taskId: "t1",
+        requestId: "r1",
+        runId: "tr",
+        currentQuestionIndex: 0,
+        questions,
+        answers: {},
+        renderContext: { kind: "plan_approval", plan: "do it" },
+      },
+      "zh-CN",
+    ),
+    /实施计划/,
+  );
+
+  const prepared = await prepareBotMessageContent(
+    webhookBot("bot-1"),
+    inbound("bot-1", "hello"),
+    "zh-CN",
+    { webhook: null },
+  );
+  assert.equal(prepared.content, "hello");
+  assert.deepEqual(prepared.zcodeAttachments, []);
+});

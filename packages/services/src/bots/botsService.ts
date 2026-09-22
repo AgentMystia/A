@@ -196,6 +196,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     },
     startTyping: (bot, actor, taskId) => typing.startTyping(bot, actor, taskId),
     stopTyping: (taskId) => typing.stopTyping(taskId),
+    providers,
     resolveZCodeTaskServiceForContext: (context) => resolveZCodeTaskServiceForContext(runtime, context),
     resolveModelSelectionServiceForContext: (context) =>
       resolveModelSelectionServiceForContext(runtime, context),

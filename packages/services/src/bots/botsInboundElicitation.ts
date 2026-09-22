@@ -1,17 +1,31 @@
-import type { BotActor, BotInboundMessage, BotOutboundMessage, BotRuntimeState } from "@zcode/shared";
+import type {
+  BotActor,
+  BotConfigEntry,
+  BotInboundMessage,
+  BotOutboundMessage,
+  BotRuntimeState,
+  ZCodeElicitationRequest,
+} from "@zcode/shared";
+import { isFeishuBotProvider, normalizeBotReplyGranularity } from "@zcode/shared";
 import {
   BOT_ELICITATION_BROADCAST_TIMEOUT_MS,
   BOT_ELICITATION_CUSTOM,
   BOT_ELICITATION_SUBMIT,
 } from "./botsConstants.js";
-import { copy } from "./botsInboundText.js";
+import { copy, getActorContextKey } from "./botsInboundText.js";
 import { createSelectionReply } from "./botsInboundDraft.js";
 import type { AuthorizedContext } from "./botsInbound.js";
 import { resolveZCodeTaskServiceForContext, type BotInboundTaskRuntime } from "./botsInboundRuntime.js";
 import {
+  createBotElicitationRequestSnapshot,
+  createBotElicitationSelection,
+  createCompletedElicitationOutbound,
+  normalizeBotElicitationQuestions,
+  readBotElicitationRenderContext,
+} from "./botsElicitationBuild.js";
+import {
   buildBotElicitationContent,
   clearPendingElicitationSelection,
-  createPendingElicitationSchema,
   getElicitationAnswerKey,
   getPendingElicitationSelectionToken,
   getPendingElicitationSkipOptionId,
@@ -25,6 +39,7 @@ import {
   type PendingElicitation,
 } from "./botsElicitationParse.js";
 import type { BotMessageLocale } from "./botsCopy.js";
+import { createOutbound } from "./botsOutbound.js";
 
 async function broadcastElicitationResolved(
   runtime: BotInboundTaskRuntime,
@@ -83,24 +98,7 @@ export async function submitPendingElicitation(
   if (action === "accept") {
     runtime.startTyping(authorized.bot, actor, pending.taskId);
   }
-  return runtime.replies(
-    actor,
-    copy(authorized.locale, action === "accept" ? "elicitationSubmitted" : "elicitationCancelled"),
-    authorized.locale,
-    undefined,
-    {
-      elicitation: {
-        requestId: pending.requestId,
-        taskId: pending.taskId,
-        runId: pending.runId,
-        currentQuestionIndex: Math.max(0, pending.questions.length - 1),
-        questions: pending.questions,
-        answers: pending.answers,
-        status: action === "cancel" ? "cancelled" : "completed",
-        ...(createPendingElicitationSchema(pending) ? { schema: createPendingElicitationSchema(pending) } : {}),
-      },
-    },
-  );
+  return createCompletedElicitationOutbound(runtime.replies, actor, pending, authorized.locale, action);
 }
 
 async function advancePendingElicitation(
@@ -128,29 +126,7 @@ async function createElicitationReply(
   pending: PendingElicitation,
   locale: BotMessageLocale,
 ): Promise<BotOutboundMessage[]> {
-  const question = pending.questions[pending.currentQuestionIndex];
-  const selected = new Set(readElicitationAnswerValues(pending, pending.currentQuestionIndex));
-  const options = (question?.options ?? []).map((option) => ({
-    id: option.value,
-    label: question?.multiSelect ? `${selected.has(option.value) ? "[x]" : "[ ]"} ${option.label}` : option.label,
-    description: option.description,
-  }));
-  if (question?.multiSelect) {
-    options.push({ id: BOT_ELICITATION_SUBMIT, label: copy(locale, "elicitationSubmitOption"), description: undefined });
-  } else if (question) {
-    options.push({
-      id: getPendingElicitationSkipOptionId(pending),
-      label: copy(locale, "elicitationSkipOption"),
-      description: undefined,
-    });
-  }
-  return createSelectionReply(runtime, actor, {
-    id: `elicitation-${pending.requestId}-${pending.currentQuestionIndex}`,
-    token: getPendingElicitationSelectionToken(pending),
-    title: question?.question ?? copy(locale, "elicitationQuestionTitle"),
-    action: "elicitation.respond",
-    options,
-  }, locale);
+  return createSelectionReply(runtime, actor, createBotElicitationSelection(pending, locale), locale);
 }
 
 /** 发布包 host `handlePendingElicitationValue`。 */
@@ -258,4 +234,103 @@ export async function handleStructuredElicitationResponse(
   return submitPendingElicitation(runtime, authorized, message.actor, pending, response.action, response.content);
 }
 
+/** 发布包 host `broadcastPendingElicitationProgress`。 */
+export async function broadcastPendingElicitationProgress(
+  runtime: BotInboundTaskRuntime,
+  context: BotRuntimeState,
+  pending: PendingElicitation,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const result = await Promise.race([
+    runtime.broadcastService
+      ?.send({
+        channel: "bots:task-list",
+        payload: {
+          workspacePath: context.workspacePath,
+          workspaceIdentity: context.workspaceIdentity,
+          taskId: pending.taskId,
+          event: "elicitation_request",
+          elicitationRequest: createBotElicitationRequestSnapshot(pending),
+          requestId: pending.requestId,
+          updatedAt: Date.now(),
+        },
+      })
+      .then(() => "broadcast" as const) ?? Promise.resolve("broadcast" as const),
+    new Promise<"timeout">((resolve) => {
+      timer = setTimeout(() => resolve("timeout"), BOT_ELICITATION_BROADCAST_TIMEOUT_MS);
+    }),
+  ]);
+  if (timer) {
+    clearTimeout(timer);
+  }
+  if (result === "timeout") {
+    runtime.logger.warn(
+      undefined,
+      `elicitation progress broadcast timed out task=${pending.taskId} request=${pending.requestId}`,
+    );
+  }
+}
+
+/** 发布包 host `shouldUseTransientInteractionCard`。 */
+export function shouldUseTransientInteractionCard(
+  runtime: BotInboundTaskRuntime,
+  bot: BotConfigEntry,
+): boolean {
+  const provider = runtime.providers[bot.provider];
+  return (
+    isFeishuBotProvider(bot.provider) &&
+    normalizeBotReplyGranularity(bot.provider, bot.replyMode) === "streaming_card" &&
+    !!provider?.createTransientInteractionCard &&
+    !!provider?.updateTransientInteractionCard
+  );
+}
+
+/** 发布包 host `handleElicitationRequest`。 */
+export async function handleElicitationRequest(
+  runtime: BotInboundTaskRuntime,
+  bot: BotConfigEntry,
+  actor: BotActor,
+  context: BotRuntimeState,
+  request: ZCodeElicitationRequest,
+): Promise<void> {
+  const locale = await runtime.readMessageLocale();
+  runtime.stopTyping(request.taskId);
+  const pending: PendingElicitation = {
+    taskId: request.taskId,
+    requestId: request.requestId,
+    runId: request.traceId,
+    ...(request.origin ? { origin: request.origin } : {}),
+    actorKey: getActorContextKey(actor),
+    currentQuestionIndex: 0,
+    questions: normalizeBotElicitationQuestions(request, locale),
+    answers: {},
+    ...(readBotElicitationRenderContext(request)
+      ? { renderContext: readBotElicitationRenderContext(request) }
+      : {}),
+  };
+  if (context.pendingElicitation) {
+    clearPendingElicitationSelection(runtime, context.pendingElicitation);
+  }
+  Object.assign(context, { pendingElicitation: pending });
+  await runtime.persistContext({ ...context, pendingElicitation: pending });
+  await broadcastPendingElicitationProgress(runtime, context, pending);
+  const replies = await createElicitationReply(runtime, actor, pending, locale);
+  for (const reply of replies) {
+    const outbound = createOutbound(actor, reply.text, reply.selection, {
+      locale,
+      elicitation: reply.elicitation,
+    });
+    if (shouldUseTransientInteractionCard(runtime, bot)) {
+      const provider = runtime.providers[bot.provider];
+      const handle = await provider?.createTransientInteractionCard?.(bot, outbound);
+      if (handle) {
+        await provider?.updateTransientInteractionCard?.(bot, handle, outbound);
+      }
+      continue;
+    }
+    await runtime.sendOutbound(bot, outbound);
+  }
+}
+
 export { BOT_ELICITATION_BROADCAST_TIMEOUT_MS };
+

@@ -16,17 +16,7 @@ import {
   watchTaskStream,
 } from "./botsTaskStream.js";
 import { getWorkspaceKey } from "./botsNormalize.js";
-
-/** 发布包 host `prepareBotMessageContent` 子集：测试无附件，正文原样提交。 */
-export function prepareBotMessageContent(
-  message: BotInboundMessage,
-  locale: "zh-CN" | "en-US",
-): { content: string; zcodeAttachments: Array<{ kind: string; filename: string; mimeType: string; dataBase64: string }> } {
-  return {
-    content: message.text.trim() || (message.attachments?.length ? copy(locale, "attachmentOnlyPrompt") : ""),
-    zcodeAttachments: [],
-  };
-}
+import { formatAttachmentRejectedReason, prepareBotMessageContent } from "./botsAttachments.js";
 
 /** 发布包 host `handleMessage`。 */
 export async function handleBotMessage(
@@ -44,6 +34,7 @@ export async function handleBotMessage(
         workspacePath: authorized.context.workspacePath,
         workspaceIdentity: authorized.context.workspaceIdentity,
       })
+      // 发布包 unique G4 无 catch；测试 Host 常无 zcodeTaskService，缺失时不能让 /message 崩掉。
       .catch((): string[] => []);
     if (deleted.includes(authorized.context.activeTaskId)) {
       replacedTaskId = authorized.context.activeTaskId;
@@ -57,7 +48,17 @@ export async function handleBotMessage(
   if (authorized.context.mode === "task" && authorized.context.activeTaskId && (await isContextActiveTaskRunning(runtime, authorized.context))) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
   }
-  const prepared = prepareBotMessageContent(message, authorized.locale);
+  let prepared;
+  try {
+    prepared = await prepareBotMessageContent(authorized.bot, message, authorized.locale, runtime.providers);
+  } catch (error) {
+    return runtime.replies(
+      message.actor,
+      copy(authorized.locale, "attachmentRejected", {
+        message: formatAttachmentRejectedReason(error, authorized.locale),
+      }),
+    );
+  }
   if (authorized.context.mode === "draft" || !authorized.context.activeTaskId) {
     const draft = authorized.context.draftOptions ?? (await buildInitializedDraftOptions(authorized.context, (item) => runtime.isRemoteConnected(item)));
     const view = await readModelSelectionView(createTaskServiceResolver(runtime), authorized.context, draft.modelSelection);
@@ -118,9 +119,42 @@ export async function handleBotMessage(
         undefined,
         `replaced deleted Bot task bot=${authorized.bot.id} oldTask=${replacedTaskId} newTask=${created.taskId} workspace=${getWorkspaceKey(next.workspacePath, next.workspaceIdentity)}`,
       );
+      await runtime
+        .sendOutbound(authorized.bot, {
+          botId: authorized.bot.id,
+          provider: authorized.bot.provider,
+          providerUserId: message.actor.chatId ?? message.actor.providerUserId,
+          text: copy(authorized.locale, "deletedTaskReplaced"),
+          locale: authorized.locale,
+        })
+        .catch((error) => {
+          runtime.logger.warn(
+            undefined,
+            `deleted task replacement notice failed bot=${authorized.bot.id} task=${created.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
     }
     runtime.runningTasks.add(created.taskId);
     await watchTaskStream(runtime, authorized.bot, message.actor, next);
+    await runtime.broadcastService
+      ?.send({
+        channel: "bots:task-list",
+        payload: {
+          workspacePath: next.workspacePath,
+          workspaceIdentity: next.workspaceIdentity,
+          taskId: created.taskId,
+          event: "prompt_sent",
+          task: createdTask,
+          prompt: {
+            content: prepared.content,
+            attachments: prepared.zcodeAttachments.length > 0 ? prepared.zcodeAttachments : undefined,
+            messageId: `bot-${traceId}`,
+            sentAt: Date.now(),
+          },
+          updatedAt: Date.now(),
+        },
+      })
+      .catch(() => undefined);
     sendPromptInBackground(
       runtime,
       authorized.bot,
@@ -146,15 +180,46 @@ export async function handleBotMessage(
   if (!effective || view?.selectionIssue) {
     throw new Error(copy(authorized.locale, "sessionModelUnavailable"));
   }
+  await runtime.broadcastService
+    ?.send({
+      channel: "bots:task-list",
+      payload: {
+        workspacePath: authorized.context.workspacePath,
+        workspaceIdentity: authorized.context.workspaceIdentity,
+        taskId: authorized.context.activeTaskId,
+        event: "resumed",
+        updatedAt: Date.now(),
+      },
+    })
+    .catch(() => undefined);
   runtime.runningTasks.add(authorized.context.activeTaskId);
   await watchTaskStream(runtime, authorized.bot, message.actor, authorized.context);
+  const resumeTraceId = createBotTraceId(authorized.context.activeTaskId);
+  await runtime.broadcastService
+    ?.send({
+      channel: "bots:task-list",
+      payload: {
+        workspacePath: authorized.context.workspacePath,
+        workspaceIdentity: authorized.context.workspaceIdentity,
+        taskId: authorized.context.activeTaskId,
+        event: "prompt_sent",
+        prompt: {
+          content: prepared.content,
+          attachments: prepared.zcodeAttachments.length > 0 ? prepared.zcodeAttachments : undefined,
+          messageId: `bot-${resumeTraceId}`,
+          sentAt: Date.now(),
+        },
+        updatedAt: Date.now(),
+      },
+    })
+    .catch(() => undefined);
   sendPromptInBackground(
     runtime,
     authorized.bot,
     message.actor,
     authorized.context,
     authorized.context.activeTaskId,
-    createBotTraceId(authorized.context.activeTaskId),
+    resumeTraceId,
     prepared.content,
     prepared.zcodeAttachments,
     effective,

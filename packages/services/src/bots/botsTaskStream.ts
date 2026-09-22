@@ -6,6 +6,7 @@ import type {
   BotRuntimeState,
   ZCodeStreamEvent,
   ZCodeTaskMode,
+  ZCodePromptAttachment,
 } from "@zcode/shared";
 import { AUTOMATION_DELIVERY_WARN_MS, BOT_FORCED_MODE, BOT_TYPING_INTERVAL_MS } from "./botsConstants.js";
 import { copy } from "./botsInboundText.js";
@@ -19,6 +20,9 @@ import { listActiveTaskConfigOptions, findSelectConfigOption, resolveSupportedDr
 import { createBotTraceId } from "./botsHostHelpers.js";
 import { createOutbound } from "./botsOutbound.js";
 import type { BotProvider } from "./botsTypes.js";
+import { formatUserFacingBotError, isSessionExpiredError } from "./botsErrors.js";
+import { handleElicitationRequest } from "./botsInboundElicitation.js";
+import { readTerminalTaskMeta } from "./botsTaskMeta.js";
 
 export function createTypingController(providers: Record<string, BotProvider | null>): {
   startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
@@ -177,6 +181,17 @@ export async function watchTaskStream(
   let chain = Promise.resolve();
   const sub = subscribe((event: ZCodeStreamEvent) => {
     chain = chain.then(async () => {
+      if (event.type === "elicitation_request") {
+        await handleElicitationRequest(runtime, bot, actor, context, event);
+        return;
+      }
+      if (event.type === "elicitation_response") {
+        if (context.pendingElicitation?.requestId === event.requestId) {
+          await runtime.persistContext({ ...context, pendingElicitation: undefined });
+        }
+        await broadcastTaskEvent(runtime, context, event.taskId, "elicitation_resolved", { requestId: event.requestId });
+        return;
+      }
       if (event.type !== "task_complete" && event.type !== "task_error") {
         return;
       }
@@ -184,7 +199,11 @@ export async function watchTaskStream(
       runtime.stopTyping(event.taskId);
       runtime.streamSubs.get(key)?.dispose();
       runtime.streamSubs.delete(key);
-      await broadcastTaskEvent(runtime, context, event.taskId, event.type === "task_error" ? "error" : "completed");
+      const terminal = await readTerminalTaskMeta(runtime, context, event.taskId, event.type).catch(() => null);
+      await broadcastTaskEvent(runtime, context, event.taskId, event.type === "task_error" ? "error" : "completed", {
+        ...(terminal ? { task: terminal } : {}),
+        ...(event.type === "task_error" ? { error: "error" in event ? String(event.error) : "error" } : {}),
+      });
       const locale = await runtime.readMessageLocale();
       const text =
         event.type === "task_error"
@@ -212,7 +231,7 @@ export function sendPromptInBackground(
   taskId: string,
   traceId: ReturnType<typeof createBotTraceId>,
   content: string,
-  attachments: Array<{ kind: string; filename: string; mimeType: string; dataBase64: string; localPath?: string }>,
+  attachments: ZCodePromptAttachment[],
   modelSelection: Parameters<NonNullable<BotInboundTaskRuntime["zcodeTaskService"]>["sendPrompt"]>[0]["modelSelection"],
 ): void {
   resolveZCodeTaskServiceForContext(runtime, context)
@@ -227,11 +246,23 @@ export function sendPromptInBackground(
     )
     .catch(async (error) => {
       const locale = await runtime.readMessageLocale();
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatUserFacingBotError(error, locale);
       runtime.runningTasks.delete(taskId);
       runtime.stopTyping(taskId);
-      await broadcastTaskEvent(runtime, context, taskId, "error", { error: message });
-      await runtime.sendOutbound(bot, createOutbound(actor, copy(locale, "taskFailed", { message }), undefined, { locale })).catch(() => undefined);
+      await broadcastTaskEvent(runtime, context, taskId, "error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await runtime
+        .sendOutbound(
+          bot,
+          createOutbound(
+            actor,
+            isSessionExpiredError(error) ? message : copy(locale, "taskFailed", { message }),
+            undefined,
+            { locale },
+          ),
+        )
+        .catch(() => undefined);
     });
 }
 

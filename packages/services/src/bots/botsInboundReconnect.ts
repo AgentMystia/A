@@ -34,6 +34,23 @@ function pruneRecentRemoteReconnectDeliveryDedupe(map: Map<string, number>, now:
   }
 }
 
+/** 发布包 host `reconnectRemoteWorkspaceForBot`。 */
+export async function reconnectRemoteWorkspaceForBot(
+  remoteWorkspaceService: IBotRemoteWorkspaceService | undefined,
+  context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
+): Promise<{ ok: boolean; message?: string }> {
+  if (!context.workspaceIdentity) {
+    return { ok: true };
+  }
+  if (!remoteWorkspaceService) {
+    return { ok: false, message: "remote reconnect service unavailable" };
+  }
+  return remoteWorkspaceService.ensureConnected({
+    workspacePath: context.workspacePath,
+    workspaceIdentity: context.workspaceIdentity,
+  });
+}
+
 export async function handleBotReconnect(input: {
   message: BotInboundMessage;
   authorized: AuthorizedContext;
@@ -88,10 +105,7 @@ export async function handleBotReconnect(input: {
   const run = (async () => {
     let result: { ok: boolean; message?: string };
     try {
-      result = await input.remoteWorkspaceService!.ensureConnected({
-        workspacePath: context.workspacePath,
-        workspaceIdentity: context.workspaceIdentity!,
-      });
+      result = await reconnectRemoteWorkspaceForBot(input.remoteWorkspaceService, context);
     } catch (error) {
       result = { ok: false, message: error instanceof Error ? error.message : String(error) };
     }
