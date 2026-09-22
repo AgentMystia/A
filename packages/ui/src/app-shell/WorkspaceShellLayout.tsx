@@ -8,6 +8,7 @@ import type {
 import type { PanelImperativeHandle } from "react-resizable-panels";
 
 import { TID_APP_HEADER } from "@zcode/shared";
+import { Loader } from "lucide-react";
 // 保活：workspace tab 真正关闭时，按 workspaceKey 回收 side pane terminal 的常驻 PTY/xterm。
 // 对称下侧 Terminal.tsx 的 openWorkspaceKeys 回收。
 import { sidePaneTerminalSessionRegistry } from "@/terminal/sidePaneTerminalSessionRegistry.js";
@@ -1543,6 +1544,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     [workspaceKey, isSidebarVisible],
   );
   const isWebRemoteControlShell = webRemoteControlWorkspaceSwitcher != null;
+  const [webRemoteTaskSwitching, setWebRemoteTaskSwitching] = useState(false);
+  const handleWebRemoteTaskSwitchingChange = useCallback((switching: boolean) => {
+    setWebRemoteTaskSwitching(switching);
+  }, []);
   const isMobileWebRemoteViewport = useMobileWebRemoteViewport(isWebRemoteControlShell);
   const webRemoteNavigation = useWebRemoteControlNavigation(
     isWebRemoteControlShell,
@@ -1773,6 +1778,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     onCreateConversationTask={onCreateConversationTask ?? handleCreateTaskInChat}
                     onOpenFolderFromWorkspaceMenu={onOpenFolderFromWorkspaceMenu}
                     onOpenRemoteWorkspace={onOpenRemoteWorkspace}
+                    webRemoteControlWorkspaceSwitcher={webRemoteControlWorkspaceSwitcher}
                     theme={theme}
                     onConnectRemote={onConnectRemote}
                     onSelectRemoteProject={onSelectRemoteProject}
@@ -1787,6 +1793,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     onLogin={onLogin}
                     user={user}
                     isDesktop={isDesktop}
+                    isWebRemoteControl={isWebRemoteControlShell}
                     isMacDesktop={isMacDesktop}
                     isWindowsDesktop={isWindowsDesktop}
                     isSidebarVisible={isSidebarVisible}
@@ -1806,6 +1813,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     onFileTreeOpenChange={setIsSidebarFileTreeOpen}
                     onWebRemoteTaskOpen={
                       isWebRemoteControlShell ? webRemoteNavigation.collapseForTaskOpen : undefined
+                    }
+                    onWebRemoteTaskSwitchingChange={
+                      isWebRemoteControlShell ? handleWebRemoteTaskSwitchingChange : undefined
                     }
                   />
                 </WorkflowRunOpenProvider>
@@ -2128,6 +2138,18 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                         </main>
                       )}
                     </div>
+                    {isWebRemoteControlShell && webRemoteTaskSwitching ? (
+                      <div
+                        className="absolute inset-0 z-40 flex items-center justify-center bg-background/72 backdrop-blur-[1px]"
+                        aria-live="polite"
+                        aria-busy="true"
+                      >
+                        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-ui-base text-foreground-subtle shadow-sm">
+                          <Loader className="size-4 animate-spin" />
+                          {intl.formatMessage({ id: "common.loading" })}
+                        </div>
+                      </div>
+                    ) : null}
                   </section>
                 </ResizablePanel>
                 {workspaceMainView !== "automations" && workspaceMainView !== "plugin-store" ? (

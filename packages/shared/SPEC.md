@@ -257,6 +257,18 @@ Root 挂载隐藏宿主 + 每个 workspace 订阅
 - 侧栏面板在窄屏用 `--web-remote-navigation-height`。收起时高度为 0 并隐藏。竖向分隔条在窄屏隐藏。Switcher 存在时禁用分屏入口，并把 automations / plugin-store 收成 chat。
 - 模式文案表只给现有 `ConfigSelect` 查 `mode.label.*` / `mode.description.*`。不把 claude、codex、gemini、opencode 加进 `ZCodeProvider`。
 
+### 桌面远控任务索引
+
+发布包侧栏在 `webRemoteControlWorkspaceSwitcher` 存在，且视图是 workspace、timeline 或 archived 时，用 `WebRemoteControlTaskIndex` 替换本地任务区。列表真值仍只来自 switcher；索引只保存当前展示快照、加载错误和本轮置顶/归档请求。
+
+- `listWorkspaces()` 在挂载和依赖变化时拉取。已有 `activeTaskId` 且任务数为 0 时，最多再等 3 次，每次 300ms，并记录 `[WebRemoteControlTaskIndex] 远控任务索引为空，等待桌面任务快照同步`。失败记录 `加载远程 task 索引失败`。`onWorkspaceListUpdated` 整表替换快照并清掉加载错误。
+- 分组、时间线和归档都复用手机首页的运行层排序。搜索匹配 title、workspaceLabel、workspacePath、workspaceIdentity、remoteSessionId。分组内固定按 `updated`。收起的 workspace key 只留在侧栏内存，不写入 grouped 任务的 localStorage。
+- 有 active workspaceIdentity 时，只有远程 workspace 能解析到 task service。远程会话服务来自现有 remote session store；本地 workspace 用当前 `useServices()`。断连或重连中的 workspace 不参与批量删除归档。
+- 置顶、归档、取消归档和删除归档都调用该 workspace 已有的 `IZCodeTaskService`。成功后只改展示快照。置顶和归档失败用现有 toast；取消归档和删除失败只记 `[WebRemoteControlTaskIndex]` 警告。
+- 打开任务先通知侧栏是否跨 workspace。同一 workspace 走现有 `onSelectTask`，并调用 switcher 的 `updateMobileViewState`。跨 workspace 只调用 `switchWorkspace`。成功后不清除壳上的切换标志；失败才清。壳在该标志为真时盖住会话列并显示 `common.loading`。
+- 侧栏另有一条 effect：active task 变化时调用 `updateMobileViewState`，失败记 `[WorkspaceSidebar] 同步远控 mobileViewState 失败`。Switcher 存在时隐藏本地置顶区，并把 grouped 视图按 workspace 交给索引。工具栏渲染在索引内部、置顶区之前。
+- Switcher 的构造仍不在 renderer。没有 switcher 时继续用本地任务区。
+
 ### 任务菜单里的 provider 配置与错误文案
 
 发布包任务菜单在复制 session id 之后提供「前往配置」。配置路径只由 `IZCodeTaskService.getWorkspaceProviderConfigFile` 回答；菜单和 hook 不另存一份已接受路径。

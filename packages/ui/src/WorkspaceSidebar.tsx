@@ -116,6 +116,12 @@ import { WorkspaceArchivedTasksFlatSection } from "@/WorkspaceArchivedTasksFlatS
 import { MarketingCampaignBanner } from "@/marketing/MarketingCampaignBanner.js";
 import { WorkspaceSidebarFooter } from "@/WorkspaceSidebarFooter.js";
 import { getWorkspaceKey } from "@/lib/workspaceKey.js";
+import type { WebRemoteControlMobileSwitcher } from "@/web-remote/mobile/webRemoteControlMobileTypes.js";
+import { WebRemoteControlTaskIndex } from "@/web-remote/task-index/WebRemoteControlTaskIndex.js";
+import {
+  pruneCollapsedWorkspaceKeys,
+  toggleCollapsedWorkspaceKey,
+} from "@/web-remote/task-index/webRemoteControlTaskIndexModel.js";
 import type { WebRemoteNavigationTaskOpen } from "@/web-remote/navigation/webRemoteControlNavigation.js";
 import { WorkspacePinnedTasksSection } from "@/WorkspacePinnedTasksSection.js";
 import { WorkspaceTimelineTasksSection } from "@/WorkspaceTimelineTasksSection.js";
@@ -236,6 +242,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onCreateConversationTask,
   onOpenFolderFromWorkspaceMenu,
   onOpenRemoteWorkspace,
+  webRemoteControlWorkspaceSwitcher,
   theme,
   onConnectRemote: _onConnectRemote,
   onSelectRemoteProject: _onSelectRemoteProject,
@@ -248,6 +255,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   remoteWorkspaceErrorByWorkspaceKey,
   reconnectingRemoteWorkspaceLogsByWorkspaceKey = EMPTY_RECONNECTING_REMOTE_WORKSPACE_LOGS_BY_WORKSPACE_KEY,
   isDesktop = false,
+  isWebRemoteControl = false,
   isMacDesktop: _isMacDesktop = false,
   isWindowsDesktop = false,
   isSidebarVisible: _isSidebarVisible = true,
@@ -266,6 +274,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   pluginStoreActive = false,
   onFileTreeOpenChange,
   onWebRemoteTaskOpen,
+  onWebRemoteTaskSwitchingChange,
 }: {
   workspacePath: string;
   workspaceRemoteSessionId?: string;
@@ -285,6 +294,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onCreateConversationTask: () => void;
   onOpenFolderFromWorkspaceMenu: () => void;
   onOpenRemoteWorkspace?: () => void;
+  webRemoteControlWorkspaceSwitcher?: WebRemoteControlMobileSwitcher;
   theme: Theme;
   onConnectRemote: (options: RemoteTarget, requestId?: string) => Promise<string>;
   onSelectRemoteProject: (
@@ -301,6 +311,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   remoteWorkspaceErrorByWorkspaceKey: Record<string, string>;
   reconnectingRemoteWorkspaceLogsByWorkspaceKey?: Record<string, RemoteConnectionLogEntry[]>;
   isDesktop?: boolean;
+  isWebRemoteControl?: boolean;
   isMacDesktop?: boolean;
   isWindowsDesktop?: boolean;
   isSidebarVisible?: boolean;
@@ -319,6 +330,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   pluginStoreActive?: boolean;
   onFileTreeOpenChange?: (open: boolean) => void;
   onWebRemoteTaskOpen?: (event: WebRemoteNavigationTaskOpen) => void;
+  onWebRemoteTaskSwitchingChange?: (switching: boolean) => void;
 }) {
   const { intl, localePreference, setLocalePreference } = useZCodeIntl();
   const { openCodingPlanUpgrade } = useCodingPlanUpgradeDialog();
@@ -395,6 +407,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     [expandedWorkspacePaths, workspacePaths],
   );
   const [showArchivedTasks, setShowArchivedTasks] = useState(false);
+  const [collapsedRemoteWorkspaceKeys, setCollapsedRemoteWorkspaceKeys] = useState(
+    () => new Set<string>(),
+  );
   const [archivedActionsContainer, setArchivedActionsContainer] = useState<HTMLDivElement | null>(
     null,
   );
@@ -577,6 +592,14 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     showArchivedTasks,
     taskOrganizeBy,
   });
+  const isWebRemoteTaskIndex = Boolean(webRemoteControlWorkspaceSwitcher) || isWebRemoteControl;
+  const remoteTaskViewMode: SidebarTaskViewMode =
+    isWebRemoteTaskIndex && taskViewMode === "grouped" ? "workspace" : taskViewMode;
+  const showWebRemoteTaskIndex =
+    webRemoteControlWorkspaceSwitcher != null &&
+    (remoteTaskViewMode === "workspace" ||
+      remoteTaskViewMode === "timeline" ||
+      remoteTaskViewMode === "archived");
   const effectiveTaskViewMode = taskViewMode;
   const visibleWorkspaceTaskKeys = useMemo(
     () =>
@@ -619,12 +642,14 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     setCreateGroupedTaskDraftAction(() => action);
   }, []);
   const shouldShowPinnedTasks =
+    // 远控索引自带 switcher 快照里的置顶区，本地 pinned 不能再画一份。
+    !isWebRemoteTaskIndex &&
     // grouped 主体会主动过滤 pinned task；如果同页不渲染全局置顶区，
     // 从 Header 置顶当前任务后整条 row 会无处展示，看起来像 session 被删除。
-    taskViewMode === "workspace" ||
-    taskViewMode === "timeline" ||
-    taskViewMode === "archived" ||
-    taskViewMode === "grouped";
+    (taskViewMode === "workspace" ||
+      taskViewMode === "timeline" ||
+      taskViewMode === "archived" ||
+      taskViewMode === "grouped");
   const workspaceScrollRef = useRef<HTMLDivElement | null>(null);
   const [showWorkspaceTopMask, setShowWorkspaceTopMask] = useState(false);
   const [showWorkspaceBottomMask, setShowWorkspaceBottomMask] = useState(false);
@@ -785,6 +810,21 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       // 当前任务高亮会丢失，也会把后续选择误判成未激活。
       selectWorkspaceZCodeState(state, workspacePath, workspaceIdentity).activeTaskId,
   );
+
+  useEffect(() => {
+    if (!webRemoteControlWorkspaceSwitcher?.updateMobileViewState || !activeTaskId) return;
+    const workspaceKey = getWorkspaceKey(workspacePath, workspaceIdentity);
+    void webRemoteControlWorkspaceSwitcher
+      .updateMobileViewState(workspaceKey, activeTaskId)
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn("[WorkspaceSidebar] 同步远控 mobileViewState 失败", {
+          error: message,
+          workspaceKey,
+          taskId: activeTaskId,
+        });
+      });
+  }, [activeTaskId, webRemoteControlWorkspaceSwitcher, workspaceIdentity, workspacePath]);
 
   useEffect(() => {
     const scrollNode = workspaceScrollRef.current;
@@ -1363,13 +1403,14 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
             <StickyGroupHeaderSlot header={groupedStickyHeader} />
             <div
               ref={workspaceScrollRef}
-              className={
+              className={cn(
                 // grouped task 拖拽预览会改变列表高度，禁用 scroll anchoring 避免浏览器自动锚定把 dnd-kit 测量放大成抖动。
-                "flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto"
-              }
+                "flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto",
+                isWebRemoteTaskIndex && "max-md:flex-none max-md:overflow-visible",
+              )}
               style={workspaceScrollMaskStyle}
             >
-              {workspaceTaskToolbar()}
+              {isWebRemoteTaskIndex ? null : workspaceTaskToolbar()}
               {shouldShowPinnedTasks ? (
                 // 归档切换主任务区时不应隐藏 pinned。
                 // pinned 是全局置顶区，归档态保持置顶区可见。
@@ -1387,7 +1428,32 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                 />
               ) : null}
               <div className="flex min-h-0 flex-col gap-3 px-2">
-                {taskViewMode === "archived" ? (
+                {showWebRemoteTaskIndex && webRemoteControlWorkspaceSwitcher ? (
+                  <WebRemoteControlTaskIndex
+                    switcher={webRemoteControlWorkspaceSwitcher}
+                    activeWorkspacePath={workspacePath}
+                    activeWorkspaceIdentity={workspaceIdentity}
+                    activeTaskId={activeTaskId}
+                    taskSortBy={taskSortBy}
+                    taskViewMode={remoteTaskViewMode}
+                    collapsedWorkspaceKeys={collapsedRemoteWorkspaceKeys}
+                    renderBeforePinnedTasks={workspaceTaskToolbar}
+                    archivedActionsContainer={archivedActionsContainer}
+                    onToggleWorkspaceCollapsed={(workspaceKey) => {
+                      setCollapsedRemoteWorkspaceKeys((current) =>
+                        toggleCollapsedWorkspaceKey(current, workspaceKey),
+                      );
+                    }}
+                    onWorkspaceGroupKeysChange={(workspaceKeys) => {
+                      setCollapsedRemoteWorkspaceKeys((current) =>
+                        pruneCollapsedWorkspaceKeys(current, workspaceKeys),
+                      );
+                    }}
+                    onSelectTask={onSelectTask}
+                    onTaskOpen={onWebRemoteTaskOpen}
+                    onCrossWorkspaceSwitchingChange={onWebRemoteTaskSwitchingChange}
+                  />
+                ) : taskViewMode === "archived" ? (
                   <WorkspaceArchivedTasksFlatSection
                     actionsContainer={archivedActionsContainer}
                     workspaceTabs={workspaceTabs}
