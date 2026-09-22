@@ -422,6 +422,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     expandedSize: "30%",
     rememberExpandedSize: true,
   });
+  const mobileOverlaySidePanePanelRef = useRef<PanelImperativeHandle | null>(null);
+  const mobileOverlaySidePanePanelElementRef = useRef<HTMLDivElement | null>(null);
   const {
     panelRef: sidePanePanelRef,
     panelElementRef: sidePanePanelElementRef,
@@ -1449,76 +1451,83 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       });
     }
   }, [activeTaskId, workspaceKey]);
-  const renderSidePanePanel = () => (
-    <AnimatedSidePanePanel
-      services={services}
-      isDesktop={isDesktop}
-      isWindowsDesktop={isWindowsDesktop}
-      frameClassName={resolveWorkspaceShellWindowChromeClass({
-        isMacDesktop,
-        isWindowsDesktop,
-        isLinuxDesktop,
-        macOSMajorVersion: desktopWindowChromeState?.macOSMajorVersion,
-        isWindowsMaximized: desktopWindowChromeState?.isMaximized ?? false,
-        supportsNativeRoundedCorners:
-          desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
-      })}
-      showWindowControls={usesInlineWindowControls}
-      isVisible={isSidePaneVisible}
-      onCloseSidePane={handleToggleSidePane}
-      toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
-      sidePaneState={sidePaneState}
-      recentClosedSidePaneTabs={recentClosedSidePaneTabs}
-      isBrowserOpen={isBrowserOpen}
-      supportsEmbeddedBrowser={supportsEmbeddedBrowser}
-      workspaceAbsPath={workspaceAbsPath}
-      workspaceIdentity={workspaceIdentity}
-      workspaceRemoteSessionId={workspaceRemoteSessionId}
-      activeTaskId={activeTaskId}
-      sidePaneOwnerId={sidePaneOwnerId}
-      gitState={gitState}
-      activeGitSourceId={activeGitSourceId}
-      panelRef={sidePanePanelRef}
-      panelElementRef={sidePanePanelElementRef}
-      browserNavigationRequest={browserNavigationRequest}
-      browserRestoreUrls={browserRestoreUrls}
-      screenshotSurfaceRequest={screenshotSurfaceRequest}
-      screenshotSurfaceTabId={screenshotSurfaceTab?.id ?? null}
-      fileChangeFindActiveIndex={fileChangeFindActiveIndex}
-      fileChangeFindNavigationRequestId={fileChangeFindNavigationRequestId}
-      fileChangeFindQuery={fileChangeFindQuery}
-      onFileChangeFindMatchCountChange={onFileChangeFindMatchCountChange}
-      onCloseCodeViewer={handleCloseCodeViewer}
-      onCloseGit={handleCloseGit}
-      onActivateTab={handleActivateSidePaneTab}
-      onReorderTab={handleReorderSidePaneTab}
-      onCloseTab={handleCloseSidePaneTab}
-      onCloseOtherTabs={handleCloseOtherSidePaneTabs}
-      onCloseAllTabs={handleCloseAllSidePaneTabs}
-      onReopenClosedTab={handleReopenClosedSidePaneTab}
-      onOpenBrowserTab={handleOpenBrowserTab}
-      onOpenWhiteboard={handleOpenWhiteboard}
-      onOpenDeveloperTools={handleOpenDeveloperTools}
-      onOpenTerminalTab={handleOpenTerminalTab}
-      onOpenReviewTab={handleToggleGit}
-      onOpenSelectionSideConversation={handleOpenSelectionSideConversationLauncher}
-      onRevealGitFileInTree={handleRevealGitFileInTree}
-      onOpenBrowserUrl={handleOpenBrowserUrl}
-      onOpenCodeViewer={handleOpenCodeViewer}
-      onOpenFileLink={handleOpenMarkdownFileLink}
-      onOpenBackgroundBash={handleOpenBackgroundBash}
-      onOpenSubagentSession={handleOpenSubagentSession}
-      onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
-      onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
-      onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
-      onOpenWorkflowRun={handleOpenWorkflowRun}
-      onRefreshGit={handleRefreshGit}
-      onBrowserNavigationRequestHandled={handleBrowserNavigationRequestHandled}
-      onBrowserUrlChange={handleBrowserUrlChange}
-      onBrowserPageMetadataChange={handleBrowserPageMetadataChange}
-      onSelectGitSource={setGitSelectedSourceId}
-    />
-  );
+  const renderSidePanePanel = (options?: { mobileOverlay?: boolean }) => {
+    const mobileOverlay = options?.mobileOverlay === true;
+    return (
+      <AnimatedSidePanePanel
+        services={services}
+        isDesktop={isDesktop}
+        isWindowsDesktop={isWindowsDesktop}
+        frameClassName={resolveWorkspaceShellWindowChromeClass({
+          isMacDesktop,
+          isWindowsDesktop,
+          isLinuxDesktop,
+          macOSMajorVersion: desktopWindowChromeState?.macOSMajorVersion,
+          isWindowsMaximized: desktopWindowChromeState?.isMaximized ?? false,
+          supportsNativeRoundedCorners:
+            desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
+        })}
+        showWindowControls={!mobileOverlay && usesInlineWindowControls}
+        isVisible={mobileOverlay ? isSidePaneOpen : isSidePaneVisible}
+        onCloseSidePane={handleToggleSidePane}
+        toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
+        sidePaneState={sidePaneState}
+        recentClosedSidePaneTabs={recentClosedSidePaneTabs}
+        isBrowserOpen={isBrowserOpen}
+        supportsEmbeddedBrowser={supportsEmbeddedBrowser}
+        workspaceAbsPath={workspaceAbsPath}
+        workspaceIdentity={workspaceIdentity}
+        workspaceRemoteSessionId={workspaceRemoteSessionId}
+        activeTaskId={activeTaskId}
+        sidePaneOwnerId={sidePaneOwnerId}
+        gitState={gitState}
+        activeGitSourceId={activeGitSourceId}
+        panelRef={mobileOverlay ? mobileOverlaySidePanePanelRef : sidePanePanelRef}
+        panelElementRef={
+          mobileOverlay ? mobileOverlaySidePanePanelElementRef : sidePanePanelElementRef
+        }
+        browserNavigationRequest={browserNavigationRequest}
+        browserRestoreUrls={browserRestoreUrls}
+        screenshotSurfaceRequest={mobileOverlay ? null : screenshotSurfaceRequest}
+        screenshotSurfaceTabId={mobileOverlay ? null : (screenshotSurfaceTab?.id ?? null)}
+        mobileOverlay={mobileOverlay}
+        mobileStacked={webRemoteControlWorkspaceSwitcher != null}
+        fileChangeFindActiveIndex={fileChangeFindActiveIndex}
+        fileChangeFindNavigationRequestId={fileChangeFindNavigationRequestId}
+        fileChangeFindQuery={fileChangeFindQuery}
+        onFileChangeFindMatchCountChange={onFileChangeFindMatchCountChange}
+        onCloseCodeViewer={handleCloseCodeViewer}
+        onCloseGit={handleCloseGit}
+        onActivateTab={handleActivateSidePaneTab}
+        onReorderTab={handleReorderSidePaneTab}
+        onCloseTab={handleCloseSidePaneTab}
+        onCloseOtherTabs={handleCloseOtherSidePaneTabs}
+        onCloseAllTabs={handleCloseAllSidePaneTabs}
+        onReopenClosedTab={handleReopenClosedSidePaneTab}
+        onOpenBrowserTab={handleOpenBrowserTab}
+        onOpenWhiteboard={handleOpenWhiteboard}
+        onOpenDeveloperTools={handleOpenDeveloperTools}
+        onOpenTerminalTab={handleOpenTerminalTab}
+        onOpenReviewTab={handleToggleGit}
+        onOpenSelectionSideConversation={handleOpenSelectionSideConversationLauncher}
+        onRevealGitFileInTree={handleRevealGitFileInTree}
+        onOpenBrowserUrl={handleOpenBrowserUrl}
+        onOpenCodeViewer={handleOpenCodeViewer}
+        onOpenFileLink={handleOpenMarkdownFileLink}
+        onOpenBackgroundBash={handleOpenBackgroundBash}
+        onOpenSubagentSession={handleOpenSubagentSession}
+        onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
+        onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
+        onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
+        onOpenWorkflowRun={handleOpenWorkflowRun}
+        onRefreshGit={handleRefreshGit}
+        onBrowserNavigationRequestHandled={handleBrowserNavigationRequestHandled}
+        onBrowserUrlChange={handleBrowserUrlChange}
+        onBrowserPageMetadataChange={handleBrowserPageMetadataChange}
+        onSelectGitSource={setGitSelectedSourceId}
+      />
+    );
+  };
   const sidePanePanel = renderSidePanePanel();
   const hasUpdateStatusButton =
     updateReadyVersion !== null ||
@@ -1695,7 +1704,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
               </ScopedErrorBoundary>
             </div>
           }
-          sidePaneContent={sidePanePanel}
+          sidePaneContent={renderSidePanePanel({ mobileOverlay: true })}
         />
       </DesktopWindowFrame>
     );

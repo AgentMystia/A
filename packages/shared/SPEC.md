@@ -244,8 +244,17 @@ Root 挂载隐藏宿主 + 每个 workspace 订阅
 - 没有初始列表时调用 `listWorkspaces()`。`onWorkspaceListUpdated` 整表替换快照。`refreshKey` 从 1 起再次拉取；回到首页会先加一。
 - 未归档任务参与计数。置顶和时间线服从用户的 `created | updated`，运行中或 `hasBackgroundWork` 的任务按创建时间置顶。工作区分组固定按 `updated` 排序，与发布包一致。远程且 `disconnected` 或缺 `remoteSessionId` 时禁用任务并显示重连。
 - 同一 workspace 打开任务时可选标记已读，再走现有 `onSelectTask` 和 `updateMobileViewState`。跨 workspace 把 `mobileNavigationIntent: "chat"` 交给 `switchWorkspace`。错误含 `远程工作区尚未连接` 或 `请先重连` 时回到首页。当前壳不会因切换卸载，成功后清掉切换遮罩。
-- 远控 switcher 存在时，选择任务跳过本地 tab 补开，只回到 chat 并调用已有 `handleSelectTask`。窄屏 header 复用 `simplifyForNarrowRemote`。侧栏面板复用现有 `AnimatedSidePanePanel`，不另造 `mobileOverlay` 分支。
+- 远控 switcher 存在时，选择任务跳过本地 tab 补开，只回到 chat 并调用已有 `handleSelectTask`。窄屏 header 复用 `simplifyForNarrowRemote`。
 - Switcher 的构造不在 renderer 里，本层不实现第二套会话所有者。没有 switcher 时保持桌面壳。
+
+### 远控侧栏的窄屏布局
+
+发布包 `AnimatedSidePanePanel` 接受 `mobileOverlay` 与 `mobileStacked`。这两个标志只由 `WorkspaceShellLayout` 决定，面板不另读 switcher，也不另存一份已打开状态。
+
+- `mobileStacked` 等于 switcher 是否存在。窄屏样式挂在 `max-md:` 上，桌面宽度仍是左右分栏。
+- 手机壳（switcher 且 `(max-width: 767px)`）把侧栏渲染成 `mobileOverlay`。这时不用可调整面板：尺寸为 100%，可见性直接是 `isSidePaneOpen`，窗口控件和截图 surface 关闭。外框不写 `data-workspace-side-frame`，也不套桌面圆角。面板引用用壳上单独的 overlay ref，不复用桌面 `useAnimatedResizablePanel` 的 ref。
+- 有 switcher 但不是 overlay 时，可调整面板在窄屏改为 `max-md:!h-[min(45dvh,24rem)]`、顶边框，并隐藏分隔条。外框去掉圆角和边框，宽度拉满。
+- 粗指针窄屏 `(max-width: 767px) and (hover: none) and (pointer: coarse)` 由侧栏面板自己订阅。overlay 或该视口为真时不提供辅助对话入口。overlay 时预览重内容保持挂载。
 
 ### 桌面远控导航收起
 
