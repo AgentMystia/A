@@ -147,6 +147,7 @@ import type {
   ZCodeTaskIndexTerminalEvent,
 } from "./zcodeTaskIndexSyncer.js";
 import { readModelTrajectory } from "./modelTrajectory.js";
+import { parentToolUseIdFromToolPayload } from "./claudeParentToolUseId.js";
 import { errorAttributionSchema, type CommandPayloadMap } from "@zcode/shared/zcode-protocol-v4";
 import {
   assertV4CommandAckOk,
@@ -4915,12 +4916,6 @@ function isCurrentBackgroundAgentLaunchAcknowledgement(content: string): boolean
 
 function isSubagentDispatchToolName(toolName: string | undefined): boolean {
   return toolName === "Agent" || toolName === "Task";
-}
-
-function parentToolUseIdFromToolPayload(payload: Record<string, unknown>): string | null {
-  // ZCode Protocol 发送的父级字段叫 parentToolCallId；
-  // UI stream 模型统一消费 parentToolUseId，必须在服务投影层完成一次性归一。
-  return stringValue(payload.parentToolUseId) ?? stringValue(payload.parentToolCallId) ?? null;
 }
 
 function normalizeToolResultContent(

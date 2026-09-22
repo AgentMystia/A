@@ -56,6 +56,7 @@ import type { OffPeakClientConfig } from "./codingPlanSubscription.js";
 import {
   BIGMODEL_PROVIDER_ID,
   BUILTIN_MODEL_PROVIDER_IDS,
+  CODING_PLAN_SECURITY_VERIFICATION_REQUIRED,
   CODING_PLAN_SYSTEM_BUSY,
   buildRuntimeZCodeApiUrl,
   isZaiCodingPlanProviderId,
@@ -1450,7 +1451,7 @@ function resolveClientPlatformKey(): string {
   return `${process.platform}-${process.arch}`;
 }
 
-function normalizeRemoteErrorMessage(
+export function normalizeRemoteErrorMessage(
   msg: string | undefined,
   providerId: CodingPlanSubscriptionProviderId,
   code?: number,
@@ -1459,8 +1460,16 @@ function normalizeRemoteErrorMessage(
   if (message && isUnrenderableRemoteErrorMessage(message)) {
     return CODING_PLAN_SYSTEM_BUSY;
   }
+  // 发布包把安全验证文案收成稳定错误码，避免把网关提示原样展示到支付页。
+  if (message && isSecurityVerificationMessage(message)) {
+    return CODING_PLAN_SECURITY_VERIFICATION_REQUIRED;
+  }
   const providerName = resolveCodingPlanProviderName(providerId);
   return message || `${providerName} request failed${code ? `: ${code}` : ""}`;
+}
+
+export function isSecurityVerificationMessage(message: string): boolean {
+  return message.includes("请完成安全验证") || /security verification/i.test(message);
 }
 
 async function readCodingPlanApiJson<T>(

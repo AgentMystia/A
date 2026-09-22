@@ -98,6 +98,9 @@ cancel / invalidateWorkspaceClient
   → delete pending；cancelled emitter 已存在才 fire
 ```
 
+- Coding Plan 远端错误先把 HTML/WAF 收成 `coding_plan_system_busy`。原文包含 `请完成安全验证` 或匹配 `/security verification/i` 时返回 `coding_plan_security_verification_required`，不再把验证文案原样抛出。
+- `parentToolUseIdFromToolPayload` 先读 `parentToolUseId`、再读 `parentToolCallId`。两者都没有时读 `_meta.claudeCode.parentToolUseId`。空字符串不当作 id。
+
 ```text
 createLocalServices
   ├── marketing-touch + cloud-content   （仅本机 Host）
