@@ -2445,7 +2445,8 @@ export type ZCodeProviderRuntimeHeadersResponse = z.infer<
 // ── 官方 Server MCP 鉴权──
 // Agent 进程不是用户身份权威：它把 (pluginId, mcpKey, targetOrigin) 报给 host，由 host
 // 解析当前 Coding Plan 凭证并回传本次请求的身份头。请求侧不含任何秘密。
-// 与 interaction/requestProviderRuntimeHeaders 同类：Agent 发起、host 自动响应、零 UI。
+// 官方 MCP 身份头仍由 host 自动响应、零 UI。
+// interaction/requestProviderRuntimeHeaders 只对非 Start Plan 自动应答；Start Plan 交给 Renderer。
 export const zcodeOfficialMcpAuthHeadersRequestParamsSchema = z
   .object({
     requestId: nonEmptyString,

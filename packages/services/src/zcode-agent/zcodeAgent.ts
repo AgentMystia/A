@@ -17,6 +17,8 @@ import type {
   ModelSelection,
   ZCodeSessionImportHistory,
   ZCodePermissionRequestParams,
+  ZCodeProviderRuntimeHeadersCancelled,
+  ZCodeProviderRuntimeHeadersRequestParams,
   AgentLaneResourceSample,
   ZCodeMcpTelemetryEvent,
   ZCodeMcpResourceSample,
@@ -336,6 +338,17 @@ export interface ZCodeAgentRespondSessionRuntimePreferencesParams {
     | { status: "failed"; message: string };
 }
 
+export interface ZCodeAgentRespondProviderRuntimeHeadersParams extends ZCodeAgentSessionTarget {
+  requestId: string;
+  response:
+    | {
+        headersApplied: true;
+        runtimeProviderHeaders?: Record<string, string>;
+        errorMessage?: string;
+      }
+    | { headersApplied: false; errorMessage?: string };
+}
+
 export interface ZCodeAgentSessionSubscribeParams extends ZCodeAgentSessionTarget {
   deliveryKind: ZCodeDeliveryKind;
   afterSeq?: number;
@@ -546,6 +559,10 @@ export type ZCodeAgentServiceEvent =
       requestId: string;
       response: ZCodeUserInputResponse;
     }
+  | {
+      type: "providerRuntimeHeaders.request";
+      request: ZCodeProviderRuntimeHeadersRequestParams;
+    }
   | { type: "snapshot"; snapshot: ZCodeSessionStateSnapshot };
 
 export interface ZCodeAgentAppRuntimePreferences {
@@ -708,6 +725,18 @@ export interface IZCodeAgentService {
     params: ZCodeAgentRespondSessionRuntimePreferencesParams,
   ): Promise<void>;
   onDynamicSessionRuntimePreferencesRequest(): Event<ZCodeAgentSessionRuntimePreferencesRequest>;
+  respondProviderRuntimeHeaders(
+    params: ZCodeAgentRespondProviderRuntimeHeadersParams,
+  ): Promise<void>;
+  onDynamicProviderRuntimeHeadersRequest(
+    params: ZCodeAgentSessionTarget,
+  ): Event<ZCodeProviderRuntimeHeadersRequestParams>;
+  onDynamicWorkspaceProviderRuntimeHeadersRequest(
+    params: ZCodeAgentWorkspaceTarget,
+  ): Event<ZCodeProviderRuntimeHeadersRequestParams>;
+  onDynamicWorkspaceProviderRuntimeHeadersCancelled(
+    params: ZCodeAgentWorkspaceTarget,
+  ): Event<ZCodeProviderRuntimeHeadersCancelled>;
   /**
    * CLI 进程级资源样本，带 services 打的 lane 标签（CLI 自己不知道 lane）。
    * 使用 dynamic event 避免 RPC 服务在无人订阅时缓冲周期事件；

@@ -1729,6 +1729,9 @@ export function createZCodeTaskServiceAdapter(
       return;
     }
 
+    // Start Plan 验证码由 Renderer 订阅 agent service。发布包不把它投影成 task 流。
+    if (event.type === "providerRuntimeHeaders.request") return;
+
     if (event.type === "session.event") {
       recordAgentModelNetworkTelemetry(event.event);
       if (event.event.type === "turn.started") {
