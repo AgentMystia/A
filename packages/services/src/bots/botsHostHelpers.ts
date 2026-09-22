@@ -5,6 +5,7 @@ import {
   isFeishuBotProvider,
   type BotActor,
   type BotDraftOptions,
+  type ZCodeBotDeliveryTarget,
   type BotWorkspaceRef,
   type ModelSelection,
   type TraceId,
@@ -104,17 +105,16 @@ export function deriveSessionTitle(
 }
 
 /** 发布包 host `resolveAutomationBotDeliveryTarget`。 */
-export function resolveAutomationBotDeliveryTarget(actor: BotActor): {
-  provider: BotActor["provider"];
-  botId: string;
-  providerUserId: string;
-  chatType?: BotActor["chatType"];
-} | undefined {
+export function resolveAutomationBotDeliveryTarget(
+  actor: BotActor,
+): ZCodeBotDeliveryTarget | undefined {
   if (actor.provider !== "feishu" && actor.provider !== "lark" && actor.provider !== "weixin") {
     return undefined;
   }
   const providerUserId = actor.chatId?.trim() || actor.providerUserId.trim();
-  if (!providerUserId) {
+  // 发布包会返回缺省 chatType，JSON 序列化会丢掉该字段，strict schema 随后拒绝整条 prompt。
+  // 没有 private|group 时不发送投递目标。
+  if (!providerUserId || (actor.chatType !== "private" && actor.chatType !== "group")) {
     return undefined;
   }
   return {

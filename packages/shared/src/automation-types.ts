@@ -1,5 +1,6 @@
 import type { ZCodeTaskMode } from "./zcode-task-types-core.js";
 import type { ModelSelection } from "./model-selection.js";
+import type { ZCodeBotDeliveryTarget } from "./zcode-protocol/index.js";
 
 // ---- 定时任务(Automation)领域类型 ----
 // automation / automation_runs 存 tasks-index.sqlite。
@@ -157,6 +158,8 @@ export interface ZCodeAutomationCreateParams {
   workspaceIdentity?: string;
   /** 当前会话内创建时由 runtime 注入，模型不可控。 */
   targetTaskId?: string;
+  /** 创建时写入 automations.bot_delivery_target；后续只由 getBotDeliveryTarget 读取。 */
+  botDeliveryTarget?: ZCodeBotDeliveryTarget;
   recurring: boolean;
   maxRuns?: number;
   endAt?: number;

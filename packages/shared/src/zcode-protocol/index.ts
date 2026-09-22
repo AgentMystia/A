@@ -1727,6 +1727,17 @@ export const zcodeBrowserAmbientContextSchema = z
   .strict();
 export type ZCodeBrowserAmbientContext = z.infer<typeof zcodeBrowserAmbientContextSchema>;
 
+/** 发布包 host/scheduler schema `ar` / `cf`：飞书、Lark、微信的机器人投递目标。 */
+export const zcodeBotDeliveryTargetSchema = z
+  .object({
+    provider: z.enum(["feishu", "lark", "weixin"]),
+    botId: z.string().trim().min(1),
+    providerUserId: z.string().trim().min(1),
+    chatType: z.enum(["private", "group"]),
+  })
+  .strict();
+export type ZCodeBotDeliveryTarget = z.infer<typeof zcodeBotDeliveryTargetSchema>;
+
 export const zcodeSessionSendParamsSchema = z
   .object({
     sessionId: nonEmptyString,
@@ -1742,6 +1753,7 @@ export const zcodeSessionSendParamsSchema = z
     automationId: nonEmptyString.optional(),
     offPeakTaskId: nonEmptyString.optional(),
     offPeakRunType: z.enum(["init", "resume"]).optional(),
+    botDeliveryTarget: zcodeBotDeliveryTargetSchema.optional(),
     toolDenylist: z.array(nonEmptyString).optional(),
   })
   .strict()
@@ -3376,6 +3388,7 @@ export const zcodeAutomationCreateParamsSchema = z
     modelSelection: modelSelectionSchema.optional(),
     mode: zcodeTaskModeSchema.optional(),
     targetTaskId: nonEmptyString.optional(),
+    botDeliveryTarget: zcodeBotDeliveryTargetSchema.optional(),
     recurring: z.boolean().optional(),
     maxRuns: z.number().int().positive().optional(),
     // 会话侧自定义重复 carrier：每 N 分钟/小时/天/周/月/年均通过此字段归一化为权威 scheduleRule，

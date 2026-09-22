@@ -58,6 +58,7 @@ import type {
   ZCodeSessionSubagentsResult,
   ZCodeStateUpdatedNotification,
   ZCodeTaskClientMode,
+  ZCodeBotDeliveryTarget,
   ZCodeBrowserAmbientContext,
   ZCodeWorkspacePresentation,
   ZCodeWorkspaceGenerateTextResult,
@@ -266,6 +267,8 @@ export interface ZCodeAgentSendPromptParamsBase extends ZCodeAgentSessionTarget 
   expectedProviderRevision?: string;
   runtimeProviderHeaders?: Record<string, string>;
   toolDenylist?: string[];
+  /** 发布包 session/send 与 v4 sendText 的可选机器人投递目标。 */
+  botDeliveryTarget?: ZCodeBotDeliveryTarget;
 }
 
 export type ZCodeAgentSendPromptParams = ZCodeAgentSendPromptParamsBase &

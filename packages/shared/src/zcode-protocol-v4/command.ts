@@ -20,6 +20,7 @@ import {
   requestWorkspaceHookReviewTargetSchema,
 } from "./workspace-hook-review.js";
 import {
+  zcodeBotDeliveryTargetSchema,
   zcodeBrowserAmbientContextSchema,
   zcodeProtocolMcpServerSchema,
 } from "../zcode-protocol/index.js";
@@ -103,6 +104,7 @@ export const commandPayloadSchemas = {
       automationId: z.string().min(1).optional(),
       offPeakTaskId: z.string().min(1).optional(),
       offPeakRunType: z.enum(["init", "resume"]).optional(),
+      botDeliveryTarget: zcodeBotDeliveryTargetSchema.optional(),
       // 定时任务会话的后续用户输入也必须保持 turn-scoped 工具面隔离；不能借用
       // automationId，否则会把普通用户输入误标成一次 automation 派发。
       toolDisallowlist: z.array(z.string().min(1)).optional(),

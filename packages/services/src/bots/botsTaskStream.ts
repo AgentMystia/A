@@ -26,7 +26,7 @@ import {
   resolveSupportedDraftMode,
   toBotTaskProvider,
 } from "./botsDraft.js";
-import { createBotTraceId } from "./botsHostHelpers.js";
+import { createBotTraceId, resolveAutomationBotDeliveryTarget } from "./botsHostHelpers.js";
 import { createOutbound } from "./botsOutbound.js";
 import type { BotProvider } from "./botsTypes.js";
 import { broadcastTaskListChange } from "./botsBroadcast.js";
@@ -246,6 +246,7 @@ export function sendPromptInBackground(
     NonNullable<BotInboundTaskRuntime["zcodeTaskService"]>["sendPrompt"]
   >[0]["modelSelection"],
 ): void {
+  const botDeliveryTarget = resolveAutomationBotDeliveryTarget(actor);
   resolveZCodeTaskServiceForContext(runtime, context)
     .then((service) =>
       service.sendPrompt({
@@ -253,6 +254,7 @@ export function sendPromptInBackground(
         traceId,
         content,
         attachments: attachments.length > 0 ? (attachments as never) : undefined,
+        ...(botDeliveryTarget ? { botDeliveryTarget } : {}),
         modelSelection,
       }),
     )

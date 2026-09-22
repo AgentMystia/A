@@ -254,6 +254,10 @@ export {
   CLAIM_STALE_MS,
   computeRetryAt,
 } from "./session/automationRepo.js";
+export {
+  parseStoredBotDeliveryTarget,
+  watchCronRunBotDelivery,
+} from "./session/botDeliveryTarget.js";
 export { AutomationService, InvalidCronExprError } from "./session/automationService.js";
 // 闲时任务与 automation 同库不同表；类型/常量全独立。
 export { OffPeakTaskRepo, OFF_PEAK_CLAIM_STALE_MS } from "./session/offPeakTaskRepo.js";

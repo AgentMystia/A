@@ -33,6 +33,7 @@ import type {
   ZCodePermissionResponse,
   ModelSelection,
   ZCodeBackgroundTurnAttribution,
+  ZCodeBotDeliveryTarget,
 } from "@zcode/shared";
 import type {
   SessionMessageDeliveryResult,
@@ -255,6 +256,7 @@ export interface IZCodeTaskService {
       modelSelection?: CommandPayloadMap["sendText"]["modelSelection"];
       /** 单次执行约束与动态鉴权；仅 idle start-now 接受，不进入普通队列。 */
       modelExecution?: CommandPayloadMap["sendText"]["modelExecution"];
+      botDeliveryTarget?: ZCodeBotDeliveryTarget;
     } & ZCodeBackgroundTurnAttribution,
   ): Promise<void>;
 

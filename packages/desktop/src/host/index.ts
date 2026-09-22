@@ -39,6 +39,7 @@ import {
   ISettingService,
   IWindowControllerService,
   IConversationShareService,
+  IBotsService,
   IZCodeAgentService,
   IZCodeTaskService,
   IZCodeSessionService,
@@ -53,6 +54,7 @@ import {
   disposeServiceResources,
   disposeServiceResourcesAndWait,
   AutomationRepo,
+  watchCronRunBotDelivery,
   OffPeakTaskRepo,
   OffPeakTaskService,
   createServiceLogger,
@@ -915,6 +917,26 @@ async function dispatchCronRun(request: CronRunDispatchRequest): Promise<{
         modelSelection: submissionModelSelection,
         mode: request.mode,
       });
+    }
+    const botsService = targetServices.getOptional(IBotsService);
+    if (botsService) {
+      try {
+        await watchCronRunBotDelivery({
+          automationId: request.automationId,
+          workspaceKey,
+          workspacePath: request.workspacePath,
+          ...(request.workspaceIdentity ? { workspaceIdentity: request.workspaceIdentity } : {}),
+          taskId: task.taskId,
+          repo: cronAutomationRepo,
+          botsService,
+        });
+      } catch (error) {
+        // 订阅失败不取消已创建的 cron run；发布包只记录 provider=unknown。
+        logger.warn(
+          `automation Bot delivery subscription failed automation=${request.automationId} provider=unknown`,
+          error,
+        );
+      }
     }
     trackedKey = cronRunSubscriptionKey(task.taskId, promptTraceId);
     trackCronRunOutcome({
