@@ -36,6 +36,7 @@ import {
   mergeElicitationFormValues,
   parseElicitationFormValues,
   parseElicitationResponseValue,
+  createPendingElicitationSchema,
   readElicitationAnswerValues,
   resolveElicitationQuestionValue,
   toggleElicitationCustomAnswerExpanded,
@@ -149,11 +150,28 @@ async function createElicitationReply(
   pending: PendingElicitation,
   locale: BotMessageLocale,
 ): Promise<BotOutboundMessage[]> {
+  // 发布包 host `createElicitationReply`：飞书卡片读取这份 pending 快照，不另存第二份问答状态。
+  const schema = createPendingElicitationSchema(pending);
   return createSelectionReply(
     runtime,
     actor,
     createBotElicitationSelection(pending, locale),
     locale,
+    {
+      elicitation: {
+        requestId: pending.requestId,
+        taskId: pending.taskId,
+        runId: pending.runId,
+        currentQuestionIndex: pending.currentQuestionIndex,
+        questions: pending.questions,
+        answers: pending.answers,
+        status: "pending",
+        ...(pending.expandedCustomAnswerQuestionIndexes?.length
+          ? { expandedCustomAnswerQuestionIndexes: pending.expandedCustomAnswerQuestionIndexes }
+          : {}),
+        ...(schema ? { schema } : {}),
+      },
+    },
   );
 }
 

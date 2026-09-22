@@ -55,7 +55,8 @@ function formatSelectionCommand(selection: BotSelection, optionId: string): stri
   return `/${selection.action.replace(".set", "")} ${optionId}`;
 }
 
-function buildFeishuButtonElement(input: {
+/** 发布包 host `buildFeishuButtonElement`。 */
+export function buildFeishuButtonElement(input: {
   text: string;
   type: string;
   command: string;
@@ -68,6 +69,38 @@ function buildFeishuButtonElement(input: {
     behaviors: [
       { type: "callback", value: { command: input.command, zcodeCardText: input.originalText } },
     ],
+  };
+}
+
+/** 发布包 host `buildFeishuStreamingToolPanel`。 */
+export function buildFeishuStreamingToolPanel(
+  summaries: readonly string[],
+  options: { expanded: boolean; title: string },
+): Record<string, unknown> | null {
+  const lines = summaries.map((item) => item.trim()).filter((item) => item.length > 0);
+  if (lines.length === 0) {
+    return null;
+  }
+  return {
+    tag: "collapsible_panel",
+    expanded: options.expanded,
+    background_color: "grey-50",
+    border: { color: "grey", corner_radius: "8px" },
+    padding: "8px 8px 8px 8px",
+    header: {
+      title: { tag: "plain_text", content: `🛠️ ${options.title} (${lines.length})` },
+      vertical_align: "center",
+      padding: "8px 8px 8px 8px",
+      icon: {
+        tag: "standard_icon",
+        token: "down-small-ccm_outlined",
+        color: "grey",
+        size: "16px 16px",
+      },
+      icon_position: "right",
+      icon_expanded_angle: -180,
+    },
+    elements: [{ tag: "markdown", content: formatFeishuCardMarkdownContent(lines.join("\n")) }],
   };
 }
 
@@ -151,23 +184,13 @@ export function buildFeishuStreamingCardPayload(
       }
       continue;
     }
-    const summaries = block.summaries.map((item) => item.trim()).filter((item) => item.length > 0);
-    if (summaries.length === 0) {
-      continue;
-    }
-    elements.push({
-      tag: "collapsible_panel",
+    const panel = buildFeishuStreamingToolPanel(block.summaries, {
       expanded: block.expanded ?? state.status === "running",
-      header: {
-        title: {
-          tag: "plain_text",
-          content: `🛠️ ${block.title?.trim() || formatBotMessage(state.locale, "streamingToolSummaries")} (${summaries.length})`,
-        },
-      },
-      elements: [
-        { tag: "markdown", content: formatFeishuCardMarkdownContent(summaries.join("\n")) },
-      ],
+      title: block.title?.trim() || formatBotMessage(state.locale, "streamingToolSummaries"),
     });
+    if (panel) {
+      elements.push(panel);
+    }
   }
   if (elements.length === 0) {
     elements.push({ tag: "markdown", content: " " });
@@ -206,12 +229,4 @@ export function splitFeishuStreamingCardStates(
     blocks,
     status: index === groups.length - 1 ? state.status : "sealed",
   }));
-}
-
-export function buildFeishuElicitationCardPayload(
-  outbound: BotProviderOutbound,
-): Record<string, unknown> {
-  return outbound.elicitation
-    ? buildFeishuInteractiveCardPayload(outbound)
-    : buildFeishuInteractiveCardPayload(outbound);
 }

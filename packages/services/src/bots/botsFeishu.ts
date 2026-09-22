@@ -3,12 +3,12 @@ import { fetchBotProviderJson } from "./botsHttp.js";
 import { isRecord } from "./botsJson.js";
 import type { BotCredentialLoader, BotProvider } from "./botsTypes.js";
 import {
-  buildFeishuElicitationCardPayload,
   buildFeishuInteractiveCardPayload,
   buildFeishuStreamingCardPayload,
   splitFeishuStreamingCardStates,
   splitFeishuText,
 } from "./botsFeishuCards.js";
+import { buildFeishuElicitationCardPayload } from "./botsFeishuElicitationCard.js";
 import {
   addFeishuTypingReaction,
   deleteFeishuInteractiveMessage,

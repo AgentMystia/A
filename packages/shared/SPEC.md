@@ -77,7 +77,8 @@ renderer hook → ProxyChannel → Host 单例
 - `updateLiveStatusProgress` 只写 `createBotsService` 持有的一张 `liveStatusProgress` map。`agent_message_chunk` / `agent_thought_chunk` 按 kind 拼接并保留尾部 1000 字；`tool_call` / `tool_call_update` 覆盖为工具进度。终态删除该 task，`disposeAllAndWait` 清空整张 map。`buildStatusText` 在 active task 缺失 meta 或 `running` 时读取这张 map，否则回退 `readLatestTaskProgress`；耗时来自 snapshot，不另建缓存。
 - `createAssistantReplyBlocks` 调用已有 `buildZCodeAssistantPresentation`。`summary_changes` 只取最新正文；`assistant_toolcalls_changes` 再附上 map 里的工具调用；有文件的 `changeSummary` 始终追加。`watchTaskStream` 的 parts、assistant buffer、tool map 与已回复 tool id 只活在该次订阅闭包，不写入 bot-state。
 - 非 `summary_changes` 且非 `streaming_card` 时，`extractBotAssistantResponseMessages(force=false)` 不发出 partial；工具事件与终态用 `force=true`。终态若没有已发送内容也没有格式化块，发送 “Task completed.” / “任务已完成。”。
-- 飞书 `streaming_card` 同步的时限是发布包常量：最小间隔 `kle=1000`、请求超时 `Ple=15000`、重试基数 `Cle=1000`、熔断次数 `ble=3`。卡片块只属于该次订阅。进行中的 AbortController 放进 service 的 abort set，`disposeAllAndWait` 以 `Bot service disposed.` 中止。不另造第二套卡片状态。
+- 飞书 `streaming_card` 同步的时限是发布包常量：最小间隔 `kle=1000`、请求超时 `Ple=15000`、重试基数 `Cle=1000`、熔断次数 `ble=3`。卡片块只属于该次订阅。进行中的 AbortController 放进 service 的 abort set，`disposeAllAndWait` 以 `Bot service disposed.` 中止。不另造第二套卡片状态。工具摘要块是 `buildFeishuStreamingToolPanel`：灰色折叠面板，标题为 `🛠️ ${title} (${count})`。
+- 进行中的 elicitation 回复带上发布包 `createElicitationReply` 的 `elicitation` 快照（`status: "pending"`、questions、answers、可选 expanded indexes 与 plan schema）。飞书卡片在该字段存在时走 `buildFeishuElicitationCardPayload`，否则回退普通交互卡片。已回答题目写成 markdown；当前题用选项按钮、自定义按钮和带 token 的 form（命令 `/elicitation <token> __form__:`）。卡片回调若命令含 `__form__:`，用 `form_value.answer` 重写成同一命令。应用名先读 appId，失败再读 `me`，并回退 i18n 名称。文本消息在没有 `text` 时读 post 的标题与内容；附件 kind 按 image/audio/video/file 归一。
 
 ```text
 createLocalServices

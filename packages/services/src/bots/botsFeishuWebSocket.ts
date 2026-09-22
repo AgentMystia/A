@@ -1,4 +1,9 @@
-import type { BotConfigEntry, BotInboundMessage, BotOutboundMessage, BotProviderOutbound } from "@zcode/shared";
+import type {
+  BotConfigEntry,
+  BotInboundMessage,
+  BotOutboundMessage,
+  BotProviderOutbound,
+} from "@zcode/shared";
 import {
   FEISHU_APP_ID_PATTERN,
   FEISHU_WS_OPEN_STATE,
@@ -7,10 +12,8 @@ import {
 } from "./botsConstants.js";
 import { isRecord } from "./botsJson.js";
 import type { BotCredentialLoader } from "./botsTypes.js";
-import {
-  buildFeishuElicitationCardPayload,
-  buildFeishuInteractiveCardPayload,
-} from "./botsFeishuCards.js";
+import { buildFeishuInteractiveCardPayload } from "./botsFeishuCards.js";
+import { buildFeishuElicitationCardPayload } from "./botsFeishuElicitationCard.js";
 import { getFeishuDomainProvider } from "./botsFeishuUrls.js";
 import { readFeishuAppSecret } from "./botsFeishuToken.js";
 
@@ -21,7 +24,11 @@ export function createFeishuWebSocketEventHandlers(input: {
   const { bot, onPayload } = input;
   return {
     "im.message.receive_v1": async (payload) => {
-      await onPayload({ botId: bot.id, zcodeProvider: bot.provider, ...(isRecord(payload) ? payload : { payload }) });
+      await onPayload({
+        botId: bot.id,
+        zcodeProvider: bot.provider,
+        ...(isRecord(payload) ? payload : { payload }),
+      });
     },
     "im.message.reaction.created_v1": async () => undefined,
     "card.action.trigger": async (payload) => {
@@ -35,7 +42,9 @@ export function createFeishuWebSocketEventHandlers(input: {
         return {
           card: {
             type: "raw",
-            data: reply.elicitation ? buildFeishuElicitationCardPayload(reply) : buildFeishuInteractiveCardPayload(reply),
+            data: reply.elicitation
+              ? buildFeishuElicitationCardPayload(reply)
+              : buildFeishuInteractiveCardPayload(reply),
           },
         };
       }
@@ -79,7 +88,9 @@ export async function startFeishuBotWebSocket(input: {
     throw new Error("Feishu WebSocket startup aborted.");
   }
   const dispatcher = new sdk.EventDispatcher({});
-  dispatcher.register(createFeishuWebSocketEventHandlers({ bot: input.bot, onPayload: input.onPayload }));
+  dispatcher.register(
+    createFeishuWebSocketEventHandlers({ bot: input.bot, onPayload: input.onPayload }),
+  );
   return new Promise((resolve, reject) => {
     let started = false;
     let finished = false;
@@ -168,7 +179,9 @@ export async function startFeishuBotWebSocket(input: {
       resolve({ close: closeClient, terminated });
     }, FEISHU_WS_READY_POLL_MS);
     startupTimer = setTimeout(() => {
-      fail(new Error(`Feishu WebSocket startup timed out after ${FEISHU_WS_STARTUP_TIMEOUT_MS}ms.`));
+      fail(
+        new Error(`Feishu WebSocket startup timed out after ${FEISHU_WS_STARTUP_TIMEOUT_MS}ms.`),
+      );
     }, FEISHU_WS_STARTUP_TIMEOUT_MS);
     input.signal?.addEventListener("abort", handleAbort, { once: true });
     if (input.signal?.aborted) {

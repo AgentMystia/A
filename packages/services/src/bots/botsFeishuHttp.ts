@@ -25,13 +25,23 @@ export async function sendFeishuInteractiveCard(
     {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify({ receive_id: receiveId, msg_type: "interactive", content: JSON.stringify(card) }),
+      body: JSON.stringify({
+        receive_id: receiveId,
+        msg_type: "interactive",
+        content: JSON.stringify(card),
+      }),
       signal,
     },
   );
   const payload = result.payload ?? {};
   if (!result.ok || payload.code !== 0) {
-    throw createFeishuMessageError("send interactive message", result.status, payload, result.responseLogId, receiveIdType);
+    throw createFeishuMessageError(
+      "send interactive message",
+      result.status,
+      payload,
+      result.responseLogId,
+      receiveIdType,
+    );
   }
   const data = isRecord(payload.data) ? payload.data : null;
   return typeof data?.message_id === "string" ? data.message_id : null;
@@ -55,7 +65,12 @@ export async function updateFeishuInteractiveMessage(
   );
   const payload = result.payload ?? {};
   if (!result.ok || payload.code !== 0) {
-    throw createFeishuMessageError("update streaming card", result.status, payload, result.responseLogId);
+    throw createFeishuMessageError(
+      "update streaming card",
+      result.status,
+      payload,
+      result.responseLogId,
+    );
   }
 }
 
@@ -73,7 +88,10 @@ export async function deleteFeishuInteractiveMessage(
   }
   const payload = result.payload ?? {};
   if (payload.code !== 0) {
-    throw new Error((typeof payload.msg === "string" ? payload.msg : "") || "Feishu recall interaction card failed.");
+    throw new Error(
+      (typeof payload.msg === "string" ? payload.msg : "") ||
+        "Feishu recall interaction card failed.",
+    );
   }
 }
 
@@ -103,7 +121,9 @@ export async function addFeishuTypingReaction(
   }
   const payload = result.payload ?? {};
   if (payload.code !== 0) {
-    throw new Error((typeof payload.msg === "string" ? payload.msg : "") || "Feishu add typing reaction failed.");
+    throw new Error(
+      (typeof payload.msg === "string" ? payload.msg : "") || "Feishu add typing reaction failed.",
+    );
   }
   const data = isRecord(payload.data) ? payload.data : null;
   if (typeof data?.reaction_id === "string") {
@@ -134,7 +154,10 @@ export async function deleteFeishuTypingReaction(
   }
   const payload = result.payload ?? {};
   if (payload.code !== 0) {
-    throw new Error((typeof payload.msg === "string" ? payload.msg : "") || "Feishu delete typing reaction failed.");
+    throw new Error(
+      (typeof payload.msg === "string" ? payload.msg : "") ||
+        "Feishu delete typing reaction failed.",
+    );
   }
   typingReactions.delete(key);
 }
@@ -152,7 +175,12 @@ export async function downloadFeishuAttachment(
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), FEISHU_ATTACHMENT_TIMEOUT_MS);
   try {
-    const kind = attachment.kind === "image" ? "image" : attachment.kind === "video" ? "media" : attachment.kind;
+    const kind =
+      attachment.kind === "image"
+        ? "image"
+        : attachment.kind === "video"
+          ? "media"
+          : attachment.kind;
     const response = await fetch(
       `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages/${encodeURIComponent(context.providerMessageId)}/resources/${encodeURIComponent(attachment.providerFileId)}?type=${kind}`,
       { headers: { authorization: `Bearer ${token}` }, signal: abort.signal },
@@ -170,6 +198,48 @@ export async function downloadFeishuAttachment(
   }
 }
 
+/** 发布包 host `resolveFeishuAppDisplayName`。 */
+export function resolveFeishuAppDisplayName(payload: Record<string, unknown>): string | null {
+  const data = isRecord(payload.data) ? payload.data : null;
+  const app = isRecord(data?.app) ? data.app : null;
+  const appName = typeof app?.app_name === "string" ? app.app_name.trim() : "";
+  if (appName) {
+    return appName;
+  }
+  const primary = typeof app?.primary_language === "string" ? app.primary_language.trim() : "";
+  const i18n = Array.isArray(app?.i18n) ? app.i18n.filter(isRecord) : [];
+  const primaryName = i18n.find((item) => item.i18n_key === primary)?.name;
+  const primaryTrimmed = typeof primaryName === "string" ? primaryName.trim() : "";
+  if (primaryTrimmed) {
+    return primaryTrimmed;
+  }
+  const fallback = i18n.find((item) => typeof item.name === "string" && item.name.trim());
+  return typeof fallback?.name === "string" ? fallback.name.trim() : null;
+}
+
+/** 发布包 host `fetchFeishuAppDisplayName`。 */
+export async function fetchFeishuAppDisplayName(
+  bot: BotConfigEntry,
+  token: string,
+  appId: string,
+): Promise<string | null> {
+  const result = await fetchBotProviderJson<Record<string, unknown>>(
+    `${getFeishuBaseUrl(bot)}/open-apis/application/v6/applications/${appId}?lang=zh_cn`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  if (!result.ok) {
+    throw new Error(`Feishu get application info failed app=${appId}: HTTP ${result.status}`);
+  }
+  const payload = result.payload ?? {};
+  if (payload.code !== 0) {
+    throw new Error(
+      (typeof payload.msg === "string" && payload.msg) ||
+        `Feishu get application info failed app=${appId}.`,
+    );
+  }
+  return resolveFeishuAppDisplayName(payload);
+}
+
 export async function readFeishuAppDisplayName(
   bot: BotConfigEntry,
   deps: BotCredentialLoader,
@@ -181,13 +251,20 @@ export async function readFeishuAppDisplayName(
   if (!token) {
     return null;
   }
-  const result = await fetchBotProviderJson<Record<string, unknown>>(
-    `${getFeishuBaseUrl(bot)}/open-apis/application/v6/applications/${bot.feishuAppId}?lang=zh_cn`,
-    { headers: { authorization: `Bearer ${token}` } },
-  );
-  const data = isRecord(result.payload?.data) ? result.payload.data : null;
-  const app = isRecord(data?.app) ? data.app : null;
-  return typeof app?.app_name === "string" ? app.app_name.trim() : null;
+  let firstError: unknown;
+  try {
+    const name = await fetchFeishuAppDisplayName(bot, token, bot.feishuAppId);
+    if (name?.trim()) {
+      return name;
+    }
+  } catch (error) {
+    firstError = error;
+  }
+  try {
+    return await fetchFeishuAppDisplayName(bot, token, "me");
+  } catch (error) {
+    throw firstError ?? error;
+  }
 }
 
 export type { BotProviderOutbound };
