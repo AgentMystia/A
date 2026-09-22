@@ -8,6 +8,7 @@ import type {
 import { BOT_FORCED_MODE, DEFAULT_DRAFT_PROVIDER } from "./botsConstants.js";
 import {
   formatBotModelSelectionValue,
+  resolveProviderModeIdFromConfigOptions,
   getConfigCommandMissingMessageId,
   getNativeModelProviderId,
   parseBotModelOptionValue,
@@ -153,16 +154,20 @@ export function readConfigSelectCurrentLabel(
   );
 }
 
+/** 发布包 host `resolveSupportedDraftMode`：别名能对上时仍返回调用方原始 modeId。 */
 export function resolveSupportedDraftMode(
   options: ZCodeConfigOption[],
   modeId: string | undefined,
-  _provider: string,
+  provider: string,
 ): string | undefined {
-  if (!modeId) {
-    return undefined;
-  }
-  const values = findSelectConfigOption(options, "mode")?.options?.map((item) => item.value) ?? [];
-  return values.includes(modeId) ? modeId : undefined;
+  if (!modeId) return undefined;
+  return resolveProviderModeIdFromConfigOptions({
+    configOptions: options,
+    modeId,
+    provider,
+  })
+    ? modeId
+    : undefined;
 }
 
 export function readCurrentActiveTaskModel(

@@ -6,6 +6,7 @@ import {
   type BotActor,
   type BotDraftOptions,
   type ZCodeBotDeliveryTarget,
+  type ZCodeConfigOption,
   type BotWorkspaceRef,
   type ModelSelection,
   type TraceId,
@@ -14,6 +15,83 @@ import { DEFAULT_DRAFT_PROVIDER } from "./botsConstants.js";
 import type { BotSelection, BotSelectionOption } from "./botsTypes.js";
 
 const ZCODE_TASK_PROVIDERS = ["codex", "claude", "opencode", "gemini", "glm"] as const;
+const PERSISTED_SESSION_MODES = new Set([
+  "default",
+  "yolo",
+  "plan",
+  "edit",
+  "acceptEdits",
+  "auto",
+  "dontAsk",
+  "bypassPermissions",
+  "autoEdit",
+  "build",
+]);
+
+function readTrimmedString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/** 发布包 host `getModeConfigOption`：只认 category=mode 的 select。 */
+export function getModeConfigOption(
+  options: ZCodeConfigOption[],
+): ZCodeConfigOption | undefined {
+  return options.find((option) => option.category === "mode" && option.type === "select");
+}
+
+/** 发布包 host `normalizePersistedSessionMode`。 */
+export function normalizePersistedSessionMode(
+  modeId: string | undefined,
+  provider: string | undefined,
+): string | undefined {
+  const mode = readTrimmedString(modeId);
+  if (!mode) return undefined;
+  if (PERSISTED_SESSION_MODES.has(mode)) return mode;
+  switch (mode) {
+    case "read-only":
+    case "read_only":
+      return "plan";
+    case "auto_edit":
+    case "auto-edit":
+    case "autoEdit":
+    case "accept_edits":
+    case "accept-edits":
+      return "acceptEdits";
+    case "full-auto":
+    case "full_auto":
+      return "yolo";
+    case "agent":
+      return provider === "codex" ? "default" : undefined;
+    case "agent-full-access":
+    case "agent_full_access":
+    case "full-access":
+    case "full_access":
+      return "bypassPermissions";
+    default:
+      return undefined;
+  }
+}
+
+/** 发布包 host `resolveProviderModeIdFromConfigOptions`。 */
+export function resolveProviderModeIdFromConfigOptions(input: {
+  configOptions: ZCodeConfigOption[];
+  modeId: string | undefined;
+  provider: string | undefined;
+}): string | undefined {
+  const modeId = readTrimmedString(input.modeId);
+  if (!modeId) return undefined;
+  const options = getModeConfigOption(input.configOptions)?.options ?? [];
+  const exact = options.find((option) => option.value === modeId);
+  if (exact) return exact.value;
+  const normalized = normalizePersistedSessionMode(modeId, input.provider);
+  return normalized
+    ? options.find(
+        (option) => normalizePersistedSessionMode(option.value, input.provider) === normalized,
+      )?.value
+    : undefined;
+}
 
 export type BotTaskProvider = (typeof ZCODE_TASK_PROVIDERS)[number];
 

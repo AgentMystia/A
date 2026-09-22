@@ -7,6 +7,8 @@ import type { BotConfigEntry, BotProviderId } from "@zcode/shared";
 
 const LOCK_HELD_TTL_MS = 30_000;
 const LEASE_TOUCH_MS = 10_000;
+/** 发布包 `sle`：删除锁目录遇到占用时的重试间隔。 */
+const BOT_RUNTIME_LOCK_CLEANUP_RETRY_MS = [100, 250, 500];
 
 export interface BotRuntimeLock {
   release(): Promise<void>;
@@ -16,8 +18,27 @@ function isNotFound(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
+}
+
 export function isBotRuntimeLockConflictError(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST";
+  // 发布包 rename 冲突还包括目录非空、目标已是目录，以及 Windows 的 EPERM。
+  // 只认 EEXIST 会在这些竞争里直接抛错，而不是按过期租约回收。
+  return (
+    isNodeError(error) &&
+    (error.code === "EEXIST" ||
+      error.code === "ENOTEMPTY" ||
+      error.code === "EISDIR" ||
+      error.code === "EPERM")
+  );
+}
+
+export function isBotRuntimeLockCleanupRetryable(error: unknown): boolean {
+  return (
+    isNodeError(error) &&
+    (error.code === "EPERM" || error.code === "EBUSY" || error.code === "ENOTEMPTY")
+  );
 }
 
 export function getBotRuntimeLockPath(kind: string, key: string): string {
@@ -59,12 +80,25 @@ function isProcessAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    return typeof error === "object" && error !== null && "code" in error && error.code === "EPERM";
+    return isNodeError(error) && error.code === "EPERM";
   }
 }
 
 async function removeBotRuntimeLockPath(path: string): Promise<void> {
-  await rm(path, { recursive: true, force: true });
+  // 发布包 removeBotRuntimeLockPath：占用中的锁目录按 100/250/500ms 重试。
+  // 不重试时 Windows 的 EPERM/EBUSY 会让已获得的租约在 finally 里丢失。
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rm(path, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const delayMs = BOT_RUNTIME_LOCK_CLEANUP_RETRY_MS[attempt];
+      if (!isBotRuntimeLockCleanupRetryable(error) || delayMs === undefined) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
 }
 
 /** 发布包 host `acquireBotRuntimeLock`：pending 目录 rename 成 lock，冲突时看租约是否过期。 */
@@ -129,7 +163,7 @@ export async function acquireBotRuntimeLock(
         },
       };
     } finally {
-      await removeBotRuntimeLockPath(pending).catch(() => undefined);
+      await removeBotRuntimeLockPath(pending);
     }
   }
   return null;

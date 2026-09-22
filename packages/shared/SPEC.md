@@ -80,6 +80,7 @@ renderer hook → ProxyChannel → Host 单例
 - 飞书 `streaming_card` 同步的时限是发布包常量：最小间隔 `kle=1000`、请求超时 `Ple=15000`、重试基数 `Cle=1000`、熔断次数 `ble=3`。卡片块只属于该次订阅。进行中的 AbortController 放进 service 的 abort set，`disposeAllAndWait` 以 `Bot service disposed.` 中止。不另造第二套卡片状态。工具摘要块是 `buildFeishuStreamingToolPanel`：灰色折叠面板，标题为 `🛠️ ${title} (${count})`。
 - 进行中的 elicitation 回复带上发布包 `createElicitationReply` 的 `elicitation` 快照（`status: "pending"`、questions、answers、可选 expanded indexes 与 plan schema）。飞书卡片在该字段存在时走 `buildFeishuElicitationCardPayload`，否则回退普通交互卡片。已回答题目写成 markdown；当前题用选项按钮、自定义按钮和带 token 的 form（命令 `/elicitation <token> __form__:`）。卡片回调若命令含 `__form__:`，用 `form_value.answer` 重写成同一命令。应用名先读 appId，失败再读 `me`，并回退 i18n 名称。文本消息在没有 `text` 时读 post 的标题与内容；附件 kind 按 image/audio/video/file 归一。
 - `bot_delivery_target` 只在 automation create 时写入。公开 automation 对象不携带它。唯一读取是 `AutomationRepo.getBotDeliveryTarget`，非法 JSON 或 schema 不匹配返回 `undefined`。`dispatchCronRun` 在 `trackCronRunOutcome` 与 `sendPrompt` 之前调用 `watchCronRunBotDelivery`；订阅失败只打日志，不取消派发。机器人消息把 `resolveAutomationBotDeliveryTarget` 放进 `sendPrompt`，session/send 与 v4 `sendText` 都带可选 `botDeliveryTarget`。没有 `chatType` 的目标不发送，因为发布包 schema 要求 `private` 或 `group`。
+- 机器人运行锁的删除按发布包重试 `EPERM` / `EBUSY` / `ENOTEMPTY`，间隔 100ms、250ms、500ms。rename 冲突还包括 `ENOTEMPTY`、`EISDIR`、`EPERM`。草稿 mode 只认 `category=mode` 的 select；别名能解析时 `resolveSupportedDraftMode` 仍返回调用方原始 modeId。
 
 ```text
 createLocalServices
