@@ -6,8 +6,8 @@ import {
   PUBLISHED_AX_TEXT_ROLES,
   PUBLISHED_KEY_NAMES,
 } from "./helper-published-ax-tables.js";
+import { PUBLISHED_AX_NATIVE_BINDING } from "./helper-published-ax-native.js";
 import {
-  PUBLISHED_AX_NATIVE_BINDING,
   PUBLISHED_AX_ROLE_MAP,
   PUBLISHED_AX_VALUE_ROLES,
   PUBLISHED_DESKTOP_APP_IDS,

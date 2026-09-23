@@ -7,7 +7,16 @@ import "./helper-published-ax-page.js";
 import "./helper-published-temp-scan.js";
 import "./helper-published-temp-read.js";
 import "./helper-published-temp-limit.js";
+// 128MiB 上限和它前面的 execFileSync / platform 必须是独立模块，不能并进方法表。
+import "./helper-published-temp-spawn.js";
+import "./helper-published-ceiling-imports.js";
+import "./helper-published-byte-ceiling.js";
 import "./helper-published-ax-roles.js";
+// 原生绑定路径和它后面的空 import 在角色映射之后、PiP schema 之前。
+import "./helper-published-ax-native.js";
+import "./helper-published-temp-fs.js";
+import "./helper-published-temp-realpath.js";
+import "./helper-published-temp-require.js";
 import "./pip-session-schema.js";
 
 // 发布包在加载 CuaHelperError 的同一条链上保留这些常量。
@@ -62,9 +71,6 @@ const BROKER_METHODS = [
 
 export const BROKER_METHOD_SET = new Set(BROKER_METHODS);
 export const BROKER_MAX_FRAME_BYTES = 16 * 1024 * 1024;
-// 发布包在 AX role 表前保留的未引用 128MiB 上限。放在这条 side-effect 链上才会留在
-// main、host、scheduler。它不是 content bundle cache。
-export const PUBLISHED_UNUSED_BYTE_CEILING = 128 * 1024 * 1024;
 
 const BROKER_NOT_ACCEPTING = "broker_not_accepting";
 const PERMISSION_REFRESH_IN_PROGRESS = "permission_refresh_in_progress";

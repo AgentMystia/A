@@ -1,6 +1,5 @@
-import { join } from "node:path";
-
 // 发布包把角色映射放在 mkdtemp 残留后面。这里没有 flattener 实现。
+// 原生绑定路径在后面的 helper-published-ax-native.js，不写在这张表里。
 
 export const PUBLISHED_AX_ROLE_MAP = Object.freeze({
   Button: "button",
@@ -44,6 +43,3 @@ export const PUBLISHED_AX_VALUE_AND_SLIDER_ROLES = new Set([
 ]);
 
 export const PUBLISHED_DESKTOP_APP_IDS = Object.freeze(["dev.zcode.app", "dev.zcode.app.preview"]);
-
-// 发布包只留下 join 的结果。createRequire / existsSync 那组未使用的 import 会被当前 esbuild 删掉。
-export const PUBLISHED_AX_NATIVE_BINDING = join("build", "Release", "ax_native.node");

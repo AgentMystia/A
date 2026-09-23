@@ -11,7 +11,12 @@ import {
 import { HELPER_TOOLS } from "./helper-tools.js";
 
 const PS_ARGS = ["-awwxo", "pid=,ppid=,uid=,command="];
-const HELPER_EXECUTABLE_NAME = HELPER_APP_NAME.replace(/\.app$/u, "");
+
+// 顶层 replace 会被 esbuild 当成副作用。main / scheduler 摇掉这些函数后仍留下
+// `\.app$` 和合并的 execFile import。发布包这两条链没有这份残留，所以替换写在函数里。
+function helperExecutableName() {
+  return HELPER_APP_NAME.replace(/\.app$/u, "");
+}
 
 export function standaloneHelperCandidatePaths(env = process.env) {
   const root = resolveCuaHelperInstallRoot(env);
@@ -30,7 +35,7 @@ export function resolveHelperAppPath(candidates) {
 }
 
 export function helperExecutablePathForApp(appPath) {
-  return join(appPath, "Contents", "MacOS", HELPER_EXECUTABLE_NAME);
+  return join(appPath, "Contents", "MacOS", helperExecutableName());
 }
 
 export function standaloneHelperExecutablePaths(env = process.env) {
@@ -113,7 +118,7 @@ function commandHasExactFlagValue(command, flag, value) {
 
 function commandMayStartWithHelperBundleExecutable(command) {
   if (!command.startsWith("/")) return false;
-  const marker = `/Contents/MacOS/${HELPER_EXECUTABLE_NAME}`;
+  const marker = `/Contents/MacOS/${helperExecutableName()}`;
   let index = command.indexOf(marker);
   while (index > 0) {
     const end = index + marker.length;
