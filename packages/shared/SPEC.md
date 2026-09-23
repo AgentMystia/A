@@ -473,6 +473,10 @@ key = mobileConnected 且 activeWorkspaceKey、activeTaskId 都非空
 - `CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID` 仍是 `claude-plugins-official`。同一对象上的 `$comment` 保留「默认个人市场」说明。
 - 营销失败弹窗的说明节点再写 `data-slot="alert-description"`。
 
+### 草稿 provider 记忆
+
+`startDraft` 收到 provider 时，先归一成 ZCode provider。非空结果写入 `localStorage` 键 `zcode-last-agent-provider`，写入前再归一一次。`localStorage` 不可用时跳过写入。会话状态仍只留在 session store。
+
 ### 对话遥测 parity 用例
 
 发布包 styles 在模块初始化时建好 `TDP01`–`TDP19` 用例表，并在桌面且 `VITE_ZCODE_E2E_STORE_BRIDGE=1` 时把 `window.__zcodeConversationTelemetryParityE2E` 设为 `{ variant: "current", run }`。这张表不拥有会话遥测；每次 `run` 只创建当次的 `ConversationTelemetrySupervisor`，结束时 flush 并 dispose。
