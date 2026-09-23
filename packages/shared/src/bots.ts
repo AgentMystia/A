@@ -7,6 +7,12 @@ export const ALL_WORKSPACES = "*" as const;
 /** 发布包 host 绑定码默认 TTL。 */
 export const BOT_BIND_CODE_TTL_MS = 30_000;
 
+/** 发布包任务列表广播频道。host 与 renderer 都引用这一份。 */
+export const BOT_TASK_LIST_CHANNEL = "bots:task";
+
+/** 发布包任务流广播频道。每条流事件先走这里，再走列表频道。 */
+export const BOT_TASK_STREAM_CHANNEL = "bots:task-stream";
+
 /** 发布包不允许这些 provider 的启用 bot 共享同一 credential。 */
 export const BOT_POLLING_PROVIDERS = ["telegram", "feishu", "lark"] as const;
 

@@ -1,12 +1,17 @@
-import type { BotRuntimeState, ZCodeStreamEvent } from "@zcode/shared";
+import {
+  BOT_TASK_LIST_CHANNEL,
+  BOT_TASK_STREAM_CHANNEL,
+  type BotRuntimeState,
+  type ZCodeStreamEvent,
+} from "@zcode/shared";
 import type { BotInboundTaskRuntime } from "./botsInboundRuntime.js";
+
+export { BOT_TASK_LIST_CHANNEL, BOT_TASK_STREAM_CHANNEL };
 
 /**
  * 发布包 chunk 把频道导出为 JK/YK，host 绑定为 LT/FT。
  * 已恢复代码误用 bots:task-list；列表变更必须走 bots:task，每条流事件走 bots:task-stream。
  */
-export const BOT_TASK_LIST_CHANNEL = "bots:task";
-export const BOT_TASK_STREAM_CHANNEL = "bots:task-stream";
 
 /** 发布包 host `broadcastTaskListChange`。 */
 export async function broadcastTaskListChange(
