@@ -89,18 +89,20 @@ export type RemoteAssetDirs = Pick<
 >;
 type LocalRuntimeEnv = Record<string, string | undefined>;
 
+// 发布包的 docker 动态 chunk 与 acknowledged relay 共用入口集合。
+// 直接动态 import("@zcode/server/remote") 会把 RemoteServiceAccess 留在 docker chunk，relay 留在 index。
 export async function isDockerDaemonAvailable(): Promise<boolean> {
-  const { isDockerAvailable } = await import("@zcode/server/remote");
+  const { isDockerAvailable } = await import("./remoteRuntimeDynamicEntry.js");
   return isDockerAvailable();
 }
 
 export async function listAvailableWSLDistros() {
-  const { listWSLDistros } = await import("@zcode/server/remote");
+  const { listWSLDistros } = await import("./remoteRuntimeDynamicEntry.js");
   return listWSLDistros();
 }
 
 export async function listAvailableDockerContainers() {
-  const { listDockerContainers } = await import("@zcode/server/remote");
+  const { listDockerContainers } = await import("./remoteRuntimeDynamicEntry.js");
   return listDockerContainers();
 }
 

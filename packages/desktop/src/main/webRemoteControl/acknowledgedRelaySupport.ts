@@ -1,4 +1,14 @@
-import { WEB_REMOTE_CONTROL_RPC_LIMITS, type WebRemoteControlRpcIdentity } from "@zcode/shared";
+import { RemoteServiceAccess } from "@zcode/client";
+import {
+  WEB_REMOTE_CONTROL_RPC_LIMITS,
+  WebRemoteControlRelayPayloadSerializer,
+  type WebRemoteControlRpcIdentity,
+} from "@zcode/shared";
+
+// 发布包把 RemoteServiceAccess、payload serializer 和 acknowledged relay 打进同一个 main chunk。
+// index 会加载本模块；docker 动态入口通过 relay 工厂再到达这里。这两处引用只保住模块边，调用会被摇掉。
+void RemoteServiceAccess;
+void WebRemoteControlRelayPayloadSerializer;
 
 export interface AcknowledgedRelayFault {
   reasonCode: string;
