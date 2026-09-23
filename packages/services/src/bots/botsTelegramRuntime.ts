@@ -10,7 +10,11 @@ import {
 import { fetchBotProvider, fetchBotProviderJson, waitFor } from "./botsHttp.js";
 import { isRecord } from "./botsJson.js";
 import { acquireTelegramPollingLock } from "./botsLocks.js";
-import { assertBotCallbackSucceeded, createBotConnectionFingerprint, createLatestRuntimeRefreshQueue } from "./botsQueue.js";
+import {
+  assertBotCallbackSucceeded,
+  createBotConnectionFingerprint,
+  createLatestRuntimeRefreshQueue,
+} from "./botsQueue.js";
 import type { BotProvider, BotRuntimeStatusSink } from "./botsTypes.js";
 
 export function createTelegramChannelRuntime(options: {
@@ -23,7 +27,10 @@ export function createTelegramChannelRuntime(options: {
   readConfig: () => Promise<BotsConfig>;
   readTelegramOffset: (botId: string) => Promise<number | undefined>;
   writeTelegramOffset: (botId: string, offset: number) => Promise<void>;
-  processProviderCallback: (provider: "telegram", payload: unknown) => Promise<BotProviderCallbackResult>;
+  processProviderCallback: (
+    provider: "telegram",
+    payload: unknown,
+  ) => Promise<BotProviderCallbackResult>;
 }): {
   dispose: () => Promise<void>;
   refresh: (config?: BotsConfig) => Promise<void>;
@@ -31,19 +38,27 @@ export function createTelegramChannelRuntime(options: {
   stopPolling: (botId: string) => Promise<void>;
   syncCommands: (bot: BotConfigEntry) => Promise<void>;
 } {
-  const sessions = new Map<string, { controller: AbortController; fingerprint: string; done: Promise<void> }>();
+  const sessions = new Map<
+    string,
+    { controller: AbortController; fingerprint: string; done: Promise<void> }
+  >();
   const queue = createLatestRuntimeRefreshQueue();
 
   async function syncCommands(bot: BotConfigEntry): Promise<void> {
     if (options.runBackgroundTasks !== false) {
       await options.telegramProvider.syncCommands?.(bot).catch((error) => {
-        options.logger.warn(undefined, `sync Telegram commands failed bot=${bot.id}: ${error instanceof Error ? error.message : String(error)}`);
+        options.logger.warn(
+          undefined,
+          `sync Telegram commands failed bot=${bot.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       });
     }
   }
 
   async function pollBot(bot: BotConfigEntry, signal: AbortSignal): Promise<void> {
-    const token = bot.credentialRef ? await options.credentialService.load(bot.credentialRef) : null;
+    const token = bot.credentialRef
+      ? await options.credentialService.load(bot.credentialRef)
+      : null;
     if (!token?.trim()) {
       options.statusSink.setRuntimeStatus({
         botId: bot.id,
@@ -107,7 +122,11 @@ export function createTelegramChannelRuntime(options: {
         });
         while (!signal.aborted) {
           const offset = await options.readTelegramOffset(bot.id);
-          const result = await fetchBotProviderJson<{ ok?: boolean; result?: unknown[]; description?: string }>(
+          const result = await fetchBotProviderJson<{
+            ok?: boolean;
+            result?: unknown[];
+            description?: string;
+          }>(
             `https://api.telegram.org/bot${token}/getUpdates`,
             {
               method: "POST",
@@ -132,7 +151,10 @@ export function createTelegramChannelRuntime(options: {
                   : `Telegram getUpdates failed: HTTP ${result.status}`,
               offset,
             });
-            await waitFor(result.status === 409 ? BOT_CONFLICT_RETRY_MS : BOT_RUNTIME_ERROR_RETRY_MS, signal);
+            await waitFor(
+              result.status === 409 ? BOT_CONFLICT_RETRY_MS : BOT_RUNTIME_ERROR_RETRY_MS,
+              signal,
+            );
             continue;
           }
           if (result.payload?.ok !== true || !Array.isArray(result.payload.result)) {
@@ -140,7 +162,8 @@ export function createTelegramChannelRuntime(options: {
               botId: bot.id,
               provider: "telegram",
               status: "error",
-              message: result.payload?.description ?? "Telegram getUpdates returned an invalid response.",
+              message:
+                result.payload?.description ?? "Telegram getUpdates returned an invalid response.",
               offset,
             });
             await waitFor(BOT_RUNTIME_ERROR_RETRY_MS, signal);
@@ -153,8 +176,12 @@ export function createTelegramChannelRuntime(options: {
             if (signal.aborted) {
               return;
             }
-            const updateId = isRecord(update) && typeof update.update_id === "number" ? update.update_id : null;
-            const callback = await options.processProviderCallback("telegram", { botId: bot.id, update });
+            const updateId =
+              isRecord(update) && typeof update.update_id === "number" ? update.update_id : null;
+            const callback = await options.processProviderCallback("telegram", {
+              botId: bot.id,
+              update,
+            });
             assertBotCallbackSucceeded("Telegram", callback);
             if (updateId !== null) {
               await options.writeTelegramOffset(bot.id, updateId + 1);
@@ -184,7 +211,10 @@ export function createTelegramChannelRuntime(options: {
         await waitFor(BOT_RUNTIME_ERROR_RETRY_MS, signal);
       } finally {
         await lock.release().catch((error) => {
-          options.logger.debug(undefined, `release Telegram polling lock failed bot=${bot.id}: ${error instanceof Error ? error.message : String(error)}`);
+          options.logger.debug(
+            undefined,
+            `release Telegram polling lock failed bot=${bot.id}: ${error instanceof Error ? error.message : String(error)}`,
+          );
         });
       }
     }
@@ -225,7 +255,10 @@ export function createTelegramChannelRuntime(options: {
     const session = { controller, fingerprint, done: Promise.resolve() };
     session.done = pollBot(bot, controller.signal)
       .catch((error) => {
-        options.logger.warn(undefined, `Telegram polling stopped unexpectedly bot=${bot.id}: ${error instanceof Error ? error.message : String(error)}`);
+        options.logger.warn(
+          undefined,
+          `Telegram polling stopped unexpectedly bot=${bot.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       })
       .finally(() => {
         if (sessions.get(bot.id) === session) {
@@ -246,13 +279,32 @@ export function createTelegramChannelRuntime(options: {
     sessions.set(bot.id, session);
   }
 
-  async function reconcile(config: BotsConfig | undefined, isCurrent: () => boolean): Promise<void> {
+  // 发布包 keepNames 落在具名函数上。对象方法缩写不会留下这些名字。
+  async function getConnectionFingerprint(bot: BotConfigEntry): Promise<string> {
+    const credential = bot.credentialRef
+      ? await options.credentialService.load(bot.credentialRef)
+      : null;
+    return createBotConnectionFingerprint([
+      bot.provider,
+      bot.credentialRef ?? "",
+      credential ?? "",
+    ]);
+  }
+
+  async function reconcile(
+    config: BotsConfig | undefined,
+    isCurrent: () => boolean,
+  ): Promise<void> {
     await options.ensureBotStorageMigrated();
     const current = config ?? (await options.readConfig());
     if (!isCurrent()) {
       return;
     }
-    const enabled = new Set(current.bots.filter((bot) => bot.provider === "telegram" && bot.enabled && bot.credentialRef).map((bot) => bot.id));
+    const enabled = new Set(
+      current.bots
+        .filter((bot) => bot.provider === "telegram" && bot.enabled && bot.credentialRef)
+        .map((bot) => bot.id),
+    );
     for (const botId of sessions.keys()) {
       if (!enabled.has(botId) && (await stopPolling(botId), !isCurrent())) {
         return;
@@ -264,10 +316,16 @@ export function createTelegramChannelRuntime(options: {
         if (!isCurrent()) {
           return;
         }
-        const credential = await options.credentialService.load(bot.credentialRef);
-        const fingerprint = createBotConnectionFingerprint([bot.provider, bot.credentialRef ?? "", credential ?? ""]);
+        const fingerprint = await getConnectionFingerprint(bot);
+        if (!isCurrent()) {
+          return;
+        }
         const existing = sessions.get(bot.id);
-        if (existing && existing.fingerprint !== fingerprint && (await stopPolling(bot.id), !isCurrent())) {
+        if (
+          existing &&
+          existing.fingerprint !== fingerprint &&
+          (await stopPolling(bot.id), !isCurrent())
+        ) {
           return;
         }
         startPolling(bot, fingerprint);
@@ -284,30 +342,34 @@ export function createTelegramChannelRuntime(options: {
     }
   }
 
-  const refresh = (config?: BotsConfig) => queue.enqueue((isCurrent) => reconcile(config, isCurrent));
-  return {
-    async dispose() {
-      queue.invalidate();
-      const running = [...sessions.values()];
-      for (const session of running) {
-        session.controller.abort();
+  function refresh(config?: BotsConfig): Promise<void> {
+    return queue.enqueue((isCurrent) => reconcile(config, isCurrent));
+  }
+
+  function scheduleRefresh(config?: BotsConfig): void {
+    if (options.runBackgroundTasks !== false) {
+      refresh(config).catch((error) => {
+        options.logger.warn(
+          undefined,
+          `refresh Telegram polling failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    }
+  }
+
+  async function dispose(): Promise<void> {
+    queue.invalidate();
+    const running = [...sessions.values()];
+    for (const session of running) {
+      session.controller.abort();
+    }
+    await Promise.allSettled(running.map((session) => session.done));
+    for (const [botId, session] of sessions) {
+      if (running.includes(session)) {
+        sessions.delete(botId);
       }
-      await Promise.allSettled(running.map((session) => session.done));
-      for (const [botId, session] of sessions) {
-        if (running.includes(session)) {
-          sessions.delete(botId);
-        }
-      }
-    },
-    refresh,
-    scheduleRefresh(config) {
-      if (options.runBackgroundTasks !== false) {
-        refresh(config).catch((error) => {
-          options.logger.warn(undefined, `refresh Telegram polling failed: ${error instanceof Error ? error.message : String(error)}`);
-        });
-      }
-    },
-    stopPolling,
-    syncCommands,
-  };
+    }
+  }
+
+  return { dispose, refresh, scheduleRefresh, stopPolling, syncCommands };
 }
