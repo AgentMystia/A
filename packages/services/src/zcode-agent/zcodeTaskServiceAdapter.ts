@@ -1,7 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- 迁移期需要在一个门面里集中维护旧 task projection 到 ZCode session 的协议适配。 */
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -1265,7 +1264,9 @@ export function createZCodeTaskServiceAdapter(
     ].find((candidate) => existsSync(candidate));
     if (!filePath) return null;
     try {
-      const parsed = safeParseLegacyTaskSessionFile(JSON.parse(await readFile(filePath, "utf-8")));
+      // 发布包用 readFileSync 读第一份已存在的 snapshot，不用 fs/promises 的 readFile。
+      const raw = JSON.parse(readFileSync(filePath, "utf-8"));
+      const parsed = safeParseLegacyTaskSessionFile(raw);
       if (!parsed.success) {
         logger.warn(
           undefined,
