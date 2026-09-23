@@ -53,6 +53,23 @@ test("endpoint origin follows the published production and test channels", () =>
   );
 });
 
+test("omitted runtime env stays on the production channel and ignores process.env", () => {
+  const previousBase = process.env.ZCODE_BASE_URL;
+  const previousBigModel = process.env.BIGMODEL_API_BASE_URL;
+  process.env.ZCODE_BASE_URL = "https://from-process.example";
+  process.env.BIGMODEL_API_BASE_URL = "https://bigmodel-process.example";
+  try {
+    assert.equal(resolveRuntimeZCodeEndpointOrigin(), "https://zcode.z.ai");
+    assert.equal(resolveBigModelApiOrigin(), "https://bigmodel.cn");
+    assert.equal(resolveRuntimeZCodeEndpointOrigin(process.env), "https://from-process.example");
+  } finally {
+    if (previousBase === undefined) delete process.env.ZCODE_BASE_URL;
+    else process.env.ZCODE_BASE_URL = previousBase;
+    if (previousBigModel === undefined) delete process.env.BIGMODEL_API_BASE_URL;
+    else process.env.BIGMODEL_API_BASE_URL = previousBigModel;
+  }
+});
+
 test("bigmodel and zai origins use the published channel defaults", () => {
   assert.equal(resolveBigModelApiOrigin({ ZCODE_ENV: "test" }), "https://dev.bigmodel.cn");
   assert.equal(

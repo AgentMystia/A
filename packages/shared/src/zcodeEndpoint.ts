@@ -155,9 +155,8 @@ export function resolveZCodeEndpointOrigin(options?: {
   return DEFAULT_ZCODE_TEST_ENDPOINT_ORIGIN;
 }
 
-export function resolveRuntimeZCodeEnv(
-  env: RuntimeZCodeEndpointEnv = readProductEndpointEnv(),
-): ZCodeEnv {
+export function resolveRuntimeZCodeEnv(env: RuntimeZCodeEndpointEnv = {}): ZCodeEnv {
+  // 发布包缺省 env 是空对象。省略参数不读 process.env，避免把端点白名单打进每个 bundle。
   // 产品身份仅用于既有展示与安装标识，不参与地址解析。
   return env.ZCODE_ENV?.trim().toLowerCase() === "test" ? "test" : "production";
 }
@@ -172,15 +171,14 @@ function readScopedProductEnvValue(
 }
 
 export function resolveRuntimeZCodeEndpointOrigin(
-  env: RuntimeZCodeEndpointEnv = readProductEndpointEnv(),
+  env: RuntimeZCodeEndpointEnv = {},
   options?: { overrideOrigin?: string | null },
 ): string {
   const channel = resolveRuntimeZCodeEnv(env);
-  const scopedBase = readScopedProductEnvValue(
+  // 发布包把 ZCODE 通道键内联成三元，不走 ZAI 的 scoped helper。
+  const scopedBase = readRuntimeEnvValue(
     env,
-    channel,
-    "ZCODE_TEST_BASE_URL",
-    "ZCODE_PRODUCTION_BASE_URL",
+    channel === "production" ? "ZCODE_PRODUCTION_BASE_URL" : "ZCODE_TEST_BASE_URL",
   );
   return resolveZCodeEndpointOrigin({
     env: channel,
@@ -193,28 +191,22 @@ export function resolveRuntimeZCodeEndpointOrigin(
 }
 
 export function buildRuntimeZCodeEndpointUrls(
-  env: RuntimeZCodeEndpointEnv = readProductEndpointEnv(),
+  env: RuntimeZCodeEndpointEnv = {},
 ): ZCodeEndpointUrls {
   return buildZCodeEndpointUrls(resolveRuntimeZCodeEndpointOrigin(env));
 }
 
-export function buildRuntimeZCodeApiUrl(
-  env: RuntimeZCodeEndpointEnv = readProductEndpointEnv(),
-  path: string,
-): string {
+export function buildRuntimeZCodeApiUrl(env: RuntimeZCodeEndpointEnv = {}, path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${resolveRuntimeZCodeEndpointOrigin(env)}${normalizedPath}`;
 }
 
-export function resolveBigModelApiOrigin(
-  env: RuntimeBigModelApiEnv = readProductEndpointEnv(),
-): string {
+export function resolveBigModelApiOrigin(env: RuntimeBigModelApiEnv = {}): string {
   const channel = resolveRuntimeZCodeEnv(env);
-  const scoped = readScopedProductEnvValue(
+  // 发布包把 BigModel 通道键内联成三元，不走 ZAI 的 scoped helper。
+  const scoped = readRuntimeEnvValue(
     env,
-    channel,
-    "BIGMODEL_TEST_API_BASE_URL",
-    "BIGMODEL_PRODUCTION_API_BASE_URL",
+    channel === "production" ? "BIGMODEL_PRODUCTION_API_BASE_URL" : "BIGMODEL_TEST_API_BASE_URL",
   );
   const fallback =
     channel === "production" ? DEFAULT_BIGMODEL_API_ORIGIN : DEFAULT_BIGMODEL_TEST_API_ORIGIN;
@@ -223,30 +215,21 @@ export function resolveBigModelApiOrigin(
   );
 }
 
-export function buildBigModelApiUrl(
-  env: RuntimeBigModelApiEnv = readProductEndpointEnv(),
-  path: string,
-): string {
+export function buildBigModelApiUrl(env: RuntimeBigModelApiEnv = {}, path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${resolveBigModelApiOrigin(env)}${normalizedPath}`;
 }
 
-export function buildBigModelCodingPlanPersonalManageUrl(
-  env: RuntimeBigModelApiEnv = readProductEndpointEnv(),
-): string {
+export function buildBigModelCodingPlanPersonalManageUrl(env: RuntimeBigModelApiEnv = {}): string {
   // 管理页与业务 API 共用显式 origin，避免把已登录账号带到另一个部署。
   return buildBigModelApiUrl(env, "/coding-plan/personal/overview");
 }
 
-export function buildBigModelCodingPlanTeamManageUrl(
-  env: RuntimeBigModelApiEnv = readProductEndpointEnv(),
-): string {
+export function buildBigModelCodingPlanTeamManageUrl(env: RuntimeBigModelApiEnv = {}): string {
   return buildBigModelApiUrl(env, "/coding-plan/team/plans");
 }
 
-export function resolveZaiOAuthOrigin(
-  env: RuntimeZaiEndpointEnv = readProductEndpointEnv(),
-): string {
+export function resolveZaiOAuthOrigin(env: RuntimeZaiEndpointEnv = {}): string {
   const channel = resolveRuntimeZCodeEnv(env);
   const scoped = readScopedProductEnvValue(
     env,
@@ -261,9 +244,7 @@ export function resolveZaiOAuthOrigin(
   );
 }
 
-export function resolveZaiBusinessBaseUrl(
-  env: RuntimeZaiEndpointEnv = readProductEndpointEnv(),
-): string {
+export function resolveZaiBusinessBaseUrl(env: RuntimeZaiEndpointEnv = {}): string {
   const channel = resolveRuntimeZCodeEnv(env);
   const scoped = readScopedProductEnvValue(
     env,
@@ -278,9 +259,7 @@ export function resolveZaiBusinessBaseUrl(
   );
 }
 
-export function resolveZaiOAuthClientId(
-  env: RuntimeZaiEndpointEnv = readProductEndpointEnv(),
-): string {
+export function resolveZaiOAuthClientId(env: RuntimeZaiEndpointEnv = {}): string {
   const channel = resolveRuntimeZCodeEnv(env);
   const scoped = readScopedProductEnvValue(
     env,
@@ -303,23 +282,17 @@ export function buildZaiOAuthUrl(origin: string, path: string): string {
   return `${normalizeZCodeEndpointOrigin(origin)}${normalizedPath}`;
 }
 
-export function buildRuntimeZaiOAuthUrl(
-  env: RuntimeZaiEndpointEnv = readProductEndpointEnv(),
-  path: string,
-): string {
+export function buildRuntimeZaiOAuthUrl(env: RuntimeZaiEndpointEnv = {}, path: string): string {
   return buildZaiOAuthUrl(resolveZaiOAuthOrigin(env), path);
 }
 
-export function buildRuntimeZaiBusinessUrl(
-  env: RuntimeZaiEndpointEnv = readProductEndpointEnv(),
-  path: string,
-): string {
+export function buildRuntimeZaiBusinessUrl(env: RuntimeZaiEndpointEnv = {}, path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${resolveZaiBusinessBaseUrl(env)}${normalizedPath}`;
 }
 
 export function resolveRuntimeProductEndpointConfig(
-  env: RuntimeProductEndpointEnv = readProductEndpointEnv(),
+  env: RuntimeProductEndpointEnv = {},
 ): RuntimeProductEndpointConfig {
   const zcodeEnv = resolveRuntimeZCodeEnv(env);
   const zcodeEndpointOrigin = resolveRuntimeZCodeEndpointOrigin(env);

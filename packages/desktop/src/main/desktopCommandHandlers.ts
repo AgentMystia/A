@@ -5,12 +5,12 @@ import { app, BrowserWindow, dialog, session, shell } from "electron";
 import type { MessageBoxOptions } from "electron";
 import {
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+  DEFAULT_ZCODE_TEST_ENDPOINT_ORIGIN,
   DesktopCommandIds,
   PlatformChannels,
   type AppSettings,
   type DesktopCommandId,
   type Locale,
-  resolveRuntimeZCodeEndpointOrigin,
   ZCODE_ENV,
   ZCODE_PRODUCT_FLAVOR,
   buildZCodeEndpointUrls,
@@ -634,7 +634,8 @@ export async function executeDesktopCommand(options: {
       return;
     case DesktopCommandIds.SetZCodeEndpointTest:
       await setZCodeEndpointOverride({
-        value: options.zcodeEndpointEnvBaseOrigin ?? resolveRuntimeZCodeEndpointOrigin(),
+        // 发布包测试菜单固定写入测试 origin，不读本地 base，也不调用运行时解析。
+        value: DEFAULT_ZCODE_TEST_ENDPOINT_ORIGIN,
         settingService: options.settingService,
         onZCodeEndpointChanged: options.onZCodeEndpointChanged,
         logger: options.logger,
