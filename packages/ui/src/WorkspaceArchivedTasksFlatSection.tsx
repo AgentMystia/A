@@ -14,6 +14,7 @@ import { logger } from "@/logger.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
+import { isMobileActiveTask } from "@/web-remote/mobileActiveTaskKey.js";
 import { applyTaskQueryCacheMutation } from "@/store/taskQueryCacheStore.js";
 import { removeTaskFromTaskCaches } from "@/lib/taskListMetaSync.js";
 import { TaskListRemoteSyncHint } from "@/TaskListRemoteSyncHint.js";
@@ -26,6 +27,7 @@ export function WorkspaceArchivedTasksFlatSection({
   activeWorkspacePath,
   activeWorkspaceIdentity,
   activeTaskId,
+  mobileActiveTaskKey,
   sortBy,
   actionsContainer,
   onSelectTask,
@@ -34,6 +36,7 @@ export function WorkspaceArchivedTasksFlatSection({
   activeWorkspacePath: string;
   activeWorkspaceIdentity?: string;
   activeTaskId: string | null;
+  mobileActiveTaskKey: string | null;
   sortBy: "created" | "updated";
   actionsContainer?: HTMLElement | null;
   onSelectTask: (
@@ -141,7 +144,7 @@ export function WorkspaceArchivedTasksFlatSection({
           const deleteLabel = intl.formatMessage({ id: "taskList.delete" });
           // archived 平铺列表同样是跨 workspace 视图，选中态要按 workspaceKey 隔离。
           const isActive = workspaceKey === activeWorkspaceKey && task.taskId === activeTaskId;
-          const isMobileActive = false;
+          const isMobileActive = isMobileActiveTask(mobileActiveTaskKey, workspaceKey, task.taskId);
           const taskKey = `${workspaceKey}:${task.taskId}`;
           const isDeleting = deletingTaskKeys.has(taskKey);
 

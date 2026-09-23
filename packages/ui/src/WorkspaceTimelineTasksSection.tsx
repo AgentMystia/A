@@ -10,6 +10,7 @@ import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { getTaskTimelineGroupMessage, groupTaskTimelineItems } from "@/lib/taskTimelineGroups.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
+import { isMobileActiveTask } from "@/web-remote/mobileActiveTaskKey.js";
 import { compareZCodeTaskListItems } from "@/lib/taskListOrdering.js";
 import { buildWorkspaceServiceLookup } from "@/lib/workspaceServiceResolver.js";
 import { logger } from "@/logger.js";
@@ -47,6 +48,7 @@ export function WorkspaceTimelineTasksSection({
   groupByDate = true,
   taskRowVariant = "timeline",
   emptyMessage,
+  mobileActiveTaskKey,
   onSelectTask,
 }: {
   workspaceTabs: WorkspaceTabState[];
@@ -57,6 +59,7 @@ export function WorkspaceTimelineTasksSection({
   groupByDate?: boolean;
   taskRowVariant?: "default" | "timeline";
   emptyMessage?: string;
+  mobileActiveTaskKey: string | null;
   onSelectTask: (
     targetWorkspacePath: string,
     taskId: string,
@@ -708,6 +711,11 @@ export function WorkspaceTimelineTasksSection({
                             buildTaskWorkspaceKey(item.workspacePath, item.workspaceIdentity) ===
                               activeWorkspaceKey && item.taskId === activeTaskId
                           }
+                          isMobileActive={isMobileActiveTask(
+                            mobileActiveTaskKey,
+                            buildTaskWorkspaceKey(item.workspacePath, item.workspaceIdentity),
+                            item.taskId,
+                          )}
                           onSelectTask={handlers.onSelectTask}
                           onArchiveTaskInline={handlers.onArchiveTaskInline}
                           onCancelArchiveConfirm={handleCancelArchiveConfirm}

@@ -439,6 +439,22 @@ normalizeZCodeUiError
 - 不写 `--composer-model-max-width`。模型触发器在 icon 态使用固定尺寸类。供应商标前缀类是 `composer-provider-prefix inline`。
 - 抄回时保留 compact 的原值，`icon` 不能被写成 `true`。
 
+### 手机正在查看的任务
+
+桌面侧栏从 `useWebRemoteControlStatus` 派生 `mobileActiveTaskKey`。手机视图仍由 Main 的远控运行时拥有；侧栏和任务行都不另存一份当前任务。
+
+```text
+enabled = isDesktop && 远控功能开关
+status = useWebRemoteControlStatus({ enabled })
+key = mobileConnected 且 activeWorkspaceKey、activeTaskId 都非空
+  ? `${activeWorkspaceKey}:${activeTaskId}`
+  : null
+行标记 = key === `${buildTaskWorkspaceKey(path, identity)}:${taskId}`
+```
+
+- 归档平铺、分组行、置顶、时间线和工作区任务列表只做这一次比较。不相等时不写 `data-mobile-active-task="true"`，归档行也不挂手机标记。
+- 手机已连接，且去掉首尾空白后的任务不在对应 workspace 分页结果里时，侧栏对当前 workspace 调用一次 `bumpTaskListVersion`。刷新目标是侧栏当前 workspace。同一 `${trimmedWorkspaceKey}:${trimmedTaskId}` 不重复刷新；任务进入分页或连接断开后清除记录。
+
 ### 对话遥测 parity 用例
 
 发布包 styles 在模块初始化时建好 `TDP01`–`TDP19` 用例表，并在桌面且 `VITE_ZCODE_E2E_STORE_BRIDGE=1` 时把 `window.__zcodeConversationTelemetryParityE2E` 设为 `{ variant: "current", run }`。这张表不拥有会话遥测；每次 `run` 只创建当次的 `ConversationTelemetrySupervisor`，结束时 flush 并 dispose。

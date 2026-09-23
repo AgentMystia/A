@@ -120,6 +120,12 @@ import { getWorkspaceKey } from "@/lib/workspaceKey.js";
 import type { WebRemoteControlMobileSwitcher } from "@/web-remote/mobile/webRemoteControlMobileTypes.js";
 import { WebRemoteControlTaskIndex } from "@/web-remote/task-index/WebRemoteControlTaskIndex.js";
 import {
+  resolveMobileActiveTaskKey,
+  resolveMobileActiveTaskListRefresh,
+} from "@/web-remote/mobileActiveTaskKey.js";
+import { useWebRemoteControlStatus } from "@/web-remote/useWebRemoteControlStatus.js";
+import { useWebRemoteControlFeatureEnabled } from "@/web-remote/webRemoteControlFeature.js";
+import {
   pruneCollapsedWorkspaceKeys,
   toggleCollapsedWorkspaceKey,
 } from "@/web-remote/task-index/webRemoteControlTaskIndexModel.js";
@@ -683,6 +689,43 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       ),
     [workspaceTaskLists.groups],
   );
+  const webRemoteControlFeatureEnabled = useWebRemoteControlFeatureEnabled();
+  const webRemoteControlStatus = useWebRemoteControlStatus({
+    enabled: isDesktop && webRemoteControlFeatureEnabled,
+  });
+  const mobileActiveTaskKey = useMemo(
+    () => resolveMobileActiveTaskKey(webRemoteControlStatus),
+    [webRemoteControlStatus.mobileConnected, webRemoteControlStatus.mobileViewState],
+  );
+  const mobileActiveTaskRefreshKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const view = webRemoteControlStatus.mobileViewState;
+    const visibleWorkspaceKey = view?.activeWorkspaceKey?.trim() ?? "";
+    const visibleTaskId = view?.activeTaskId?.trim() ?? "";
+    const decision = resolveMobileActiveTaskListRefresh({
+      mobileConnected: webRemoteControlStatus.mobileConnected,
+      activeWorkspaceKey: view?.activeWorkspaceKey,
+      activeTaskId: view?.activeTaskId,
+      taskIsVisible:
+        workspaceTaskGroupByKey
+          .get(visibleWorkspaceKey)
+          ?.items.some((item) => item.taskId === visibleTaskId) ?? false,
+      lastRefreshKey: mobileActiveTaskRefreshKeyRef.current,
+    });
+    mobileActiveTaskRefreshKeyRef.current = decision.nextRefreshKey;
+    if (!decision.refresh) {
+      return;
+    }
+    // 手机正在看的任务不在当前分页时，发布包用侧栏当前 workspace 把任务列表版本加一。
+    bumpTaskListVersion(workspacePath, workspaceIdentity);
+  }, [
+    bumpTaskListVersion,
+    webRemoteControlStatus.mobileConnected,
+    webRemoteControlStatus.mobileViewState,
+    workspaceIdentity,
+    workspacePath,
+    workspaceTaskGroupByKey,
+  ]);
   const handleShowMoreWorkspaceTasks = useCallback((workspaceKey: string) => {
     setWorkspaceTaskVisibleLimitByKey((current) =>
       increaseWorkspaceTaskVisibleLimit(current, workspaceKey),
@@ -1431,6 +1474,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                   activeWorkspacePath={workspacePath}
                   activeWorkspaceIdentity={workspaceIdentity}
                   activeTaskId={activeTaskId}
+                  mobileActiveTaskKey={mobileActiveTaskKey}
                   taskSortBy={taskSortBy}
                   onSelectTask={handleTaskRowSelect}
                   onOpenFileTree={(target) => {
@@ -1472,6 +1516,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                     activeWorkspacePath={workspacePath}
                     activeWorkspaceIdentity={workspaceIdentity}
                     activeTaskId={activeTaskId}
+                    mobileActiveTaskKey={mobileActiveTaskKey}
                     sortBy={taskSortBy}
                     onSelectTask={onSelectTask}
                   />
@@ -1481,6 +1526,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                     activeWorkspacePath={workspacePath}
                     activeWorkspaceIdentity={workspaceIdentity}
                     activeTaskId={activeTaskId}
+                    mobileActiveTaskKey={mobileActiveTaskKey}
                     onSelectTask={onSelectTask}
                     onCreateTask={onCreateTask}
                     onOpenFileTree={(target) => {
@@ -1501,6 +1547,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                     activeWorkspacePath={workspacePath}
                     activeWorkspaceIdentity={workspaceIdentity}
                     activeTaskId={activeTaskId}
+                    mobileActiveTaskKey={mobileActiveTaskKey}
                     taskSortBy={taskSortBy}
                     onSelectTask={handleTaskRowSelect}
                   />
@@ -1632,6 +1679,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                                             taskListLiveWorkflowCount={
                                               taskGroup?.liveWorkflowCount ?? 0
                                             }
+                                            mobileActiveTaskKey={mobileActiveTaskKey}
                                             workspaceKey={workspaceKey}
                                             onShowMoreWorkspaceTasks={handleShowMoreWorkspaceTasks}
                                             reconnectingRemoteWorkspaceKeys={
@@ -1718,6 +1766,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                                 emptyMessage={intl.formatMessage({
                                   id: "workspaceSidebar.noConversations",
                                 })}
+                                mobileActiveTaskKey={mobileActiveTaskKey}
                                 onSelectTask={handleTaskRowSelect}
                               />
                             </WorkspacePurposeSection>
