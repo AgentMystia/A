@@ -3,17 +3,12 @@ import { mkdir, readFile, rename, rm, stat, utimes, writeFile } from "node:fs/pr
 import { dirname, join } from "node:path";
 import { getAppConfigDir } from "../paths.js";
 import { BOT_RUNTIME_LOCKS_DIRECTORY_NAME } from "./botsPaths.js";
+import {
+  BOT_RUNTIME_LOCK_CLEANUP_RETRY_MS,
+  LEASE_TOUCH_MS,
+  LOCK_HELD_TTL_MS,
+} from "./botsQueue.js";
 import type { BotConfigEntry, BotProviderId } from "@zcode/shared";
-
-// 发布包把 10 秒等待和下面的锁租约打成同一条 var，三处 elsewhere 引用绑定而不是内联 1e4。
-// const 会被 esbuild 折成字面量，所以这里必须是 var。
-// oxlint-disable-next-line eslint(no-var) -- 见上；改成 const 会让 host index 多出两处 1e4
-export var TELEGRAM_ELSEWHERE_WAIT_MS = 10_000;
-
-const LOCK_HELD_TTL_MS = 30_000;
-const LEASE_TOUCH_MS = 10_000;
-/** 发布包 `sle`：删除锁目录遇到占用时的重试间隔。 */
-const BOT_RUNTIME_LOCK_CLEANUP_RETRY_MS = [100, 250, 500];
 
 export interface BotRuntimeLock {
   release(): Promise<void>;

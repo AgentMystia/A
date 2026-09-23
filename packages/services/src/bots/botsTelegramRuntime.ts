@@ -8,11 +8,12 @@ import {
 } from "./botsConstants.js";
 import { fetchBotProvider, fetchBotProviderJson, waitFor } from "./botsHttp.js";
 import { isRecord } from "./botsJson.js";
-import { acquireTelegramPollingLock, TELEGRAM_ELSEWHERE_WAIT_MS } from "./botsLocks.js";
+import { acquireTelegramPollingLock } from "./botsLocks.js";
 import {
   assertBotCallbackSucceeded,
   createBotConnectionFingerprint,
   createLatestRuntimeRefreshQueue,
+  TELEGRAM_ELSEWHERE_WAIT_MS,
 } from "./botsQueue.js";
 import type { BotProvider, BotRuntimeStatusSink } from "./botsTypes.js";
 

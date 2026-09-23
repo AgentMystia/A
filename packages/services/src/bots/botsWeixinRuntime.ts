@@ -2,11 +2,12 @@ import type { BotConfigEntry, BotsConfig, BotProviderCallbackResult } from "@zco
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 import { BOT_RUNTIME_ERROR_RETRY_MS } from "./botsConstants.js";
 import { waitFor } from "./botsHttp.js";
-import { acquireWeixinPollingLock, TELEGRAM_ELSEWHERE_WAIT_MS } from "./botsLocks.js";
+import { acquireWeixinPollingLock } from "./botsLocks.js";
 import {
   assertBotCallbackSucceeded,
   createBotConnectionFingerprint,
   createLatestRuntimeRefreshQueue,
+  TELEGRAM_ELSEWHERE_WAIT_MS,
 } from "./botsQueue.js";
 import type { BotRuntimeStatusSink } from "./botsTypes.js";
 import { getWeixinUpdates } from "./botsWeixin.js";

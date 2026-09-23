@@ -8,11 +8,12 @@ import {
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 import { BOT_RUNTIME_ERROR_RETRY_MS } from "./botsConstants.js";
 import { waitFor, waitForAbort } from "./botsHttp.js";
-import { acquireFeishuWebSocketLock, TELEGRAM_ELSEWHERE_WAIT_MS } from "./botsLocks.js";
+import { acquireFeishuWebSocketLock } from "./botsLocks.js";
 import {
   assertBotCallbackSucceeded,
   createBotConnectionFingerprint,
   createLatestRuntimeRefreshQueue,
+  TELEGRAM_ELSEWHERE_WAIT_MS,
 } from "./botsQueue.js";
 import type { BotRuntimeStatusSink } from "./botsTypes.js";
 import { startFeishuBotWebSocket } from "./botsFeishuWebSocket.js";
