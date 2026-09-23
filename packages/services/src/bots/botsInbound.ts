@@ -249,6 +249,71 @@ export function createInboundHandlers(deps: {
     return { ok: true, config: nextConfig, bot: nextBot, user: nextBot, context, locale };
   }
 
+  // 发布包 keepNames 落在具名函数上。对象方法不会留下这些 inbound 命令名。
+  async function handleHelp(message: BotInboundMessage): Promise<BotOutboundMessage[]> {
+    const authorized = await withAuthorizedContext(message, "help");
+    return authorized.ok
+      ? replies(message.actor, buildHelpText(authorized.locale, authorized.bot))
+      : authorized.reply;
+  }
+
+  async function handleStatus(message: BotInboundMessage): Promise<BotOutboundMessage[]> {
+    const authorized = await withAuthorizedContext(message, "status");
+    return authorized.ok
+      ? createStatusReplyImpl(message.actor, authorized.context, authorized.locale)
+      : authorized.reply;
+  }
+
+  async function handleReconnect(message: BotInboundMessage): Promise<BotOutboundMessage[]> {
+    return handleBotReconnect({
+      message,
+      authorized: await withAuthorizedContext(message, "workspace"),
+      remoteWorkspaceService: deps.remoteWorkspaceService,
+      isRemoteConnected,
+      persistContext,
+      createStatusReply: createStatusReplyImpl,
+      replies,
+      reconnectInFlight: deps.reconnectInFlight,
+      reconnectCooldown: deps.reconnectCooldown,
+      reconnectDelivery: deps.reconnectDelivery ?? new Map(),
+    });
+  }
+
+  async function handleWeixinFirstActivation(
+    message: BotInboundMessage,
+    commandType: string,
+  ): Promise<BotOutboundMessage[] | null> {
+    if (message.actor.provider !== "weixin" || commandType !== "message") {
+      return null;
+    }
+    const state = await deps.repo.readState();
+    const existing = state.bots[message.botId];
+    if (
+      existing?.weixinActivatedAt ||
+      existing?.draftOptions ||
+      existing?.activeTaskId ||
+      existing?.pendingPermissionOptions ||
+      existing?.pendingElicitation
+    ) {
+      return null;
+    }
+    const authorized = await withAuthorizedContext(message, "help");
+    if (!authorized.ok) {
+      return authorized.reply;
+    }
+    if (authorized.context.weixinActivatedAt) {
+      return null;
+    }
+    await persistContext({ ...authorized.context, weixinActivatedAt: Date.now() });
+    return replies(
+      message.actor,
+      [
+        copy(authorized.locale, "weixinActivatedWelcome"),
+        buildHelpText(authorized.locale, authorized.bot),
+      ].join("\n\n"),
+    );
+  }
+
   return {
     readMessageLocale,
     withAuthorizedContext,
@@ -269,32 +334,9 @@ export function createInboundHandlers(deps: {
         replies,
       });
     },
-    async handleHelp(message) {
-      const authorized = await withAuthorizedContext(message, "help");
-      return authorized.ok
-        ? replies(message.actor, buildHelpText(authorized.locale, authorized.bot))
-        : authorized.reply;
-    },
-    async handleStatus(message) {
-      const authorized = await withAuthorizedContext(message, "status");
-      return authorized.ok
-        ? createStatusReplyImpl(message.actor, authorized.context, authorized.locale)
-        : authorized.reply;
-    },
-    async handleReconnect(message) {
-      return handleBotReconnect({
-        message,
-        authorized: await withAuthorizedContext(message, "workspace"),
-        remoteWorkspaceService: deps.remoteWorkspaceService,
-        isRemoteConnected,
-        persistContext,
-        createStatusReply: createStatusReplyImpl,
-        replies,
-        reconnectInFlight: deps.reconnectInFlight,
-        reconnectCooldown: deps.reconnectCooldown,
-        reconnectDelivery: deps.reconnectDelivery ?? new Map(),
-      });
-    },
+    handleHelp,
+    handleStatus,
+    handleReconnect,
     async handleUnknown(message, name) {
       return replies(
         message.actor,
@@ -348,37 +390,7 @@ export function createInboundHandlers(deps: {
       });
       return createStatusReplyImpl(message.actor, authorized.context, authorized.locale);
     },
-    async handleWeixinFirstActivation(message, commandType) {
-      if (message.actor.provider !== "weixin" || commandType !== "message") {
-        return null;
-      }
-      const state = await deps.repo.readState();
-      const existing = state.bots[message.botId];
-      if (
-        existing?.weixinActivatedAt ||
-        existing?.draftOptions ||
-        existing?.activeTaskId ||
-        existing?.pendingPermissionOptions ||
-        existing?.pendingElicitation
-      ) {
-        return null;
-      }
-      const authorized = await withAuthorizedContext(message, "help");
-      if (!authorized.ok) {
-        return authorized.reply;
-      }
-      if (authorized.context.weixinActivatedAt) {
-        return null;
-      }
-      await persistContext({ ...authorized.context, weixinActivatedAt: Date.now() });
-      return replies(
-        message.actor,
-        [
-          copy(authorized.locale, "weixinActivatedWelcome"),
-          buildHelpText(authorized.locale, authorized.bot),
-        ].join("\n\n"),
-      );
-    },
+    handleWeixinFirstActivation,
   };
 }
 
