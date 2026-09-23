@@ -1200,6 +1200,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     },
     [handleSelectTask, workspaceAbsPath, workspaceIdentity],
   );
+  // 远控 switcher 存在即进入紧凑会话。窄屏 header 的 simplifyForNarrowRemote 仍另算视口。
+  const isWebRemoteControlShell = webRemoteControlWorkspaceSwitcher != null;
   // 草稿态 composer contextHeader：workspace 切换菜单 +
   // Git 分支切换器，与旧 ChatView 空态 contextHeaderContent 同构。壳级能力
   // （workspaceTabs / 远程连接回调）在此闭合，pane 只收 ReactNode。
@@ -1211,6 +1213,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           workspacePath={workspaceAbsPath}
           workspaceIdentity={workspaceIdentity}
           isWindowsDesktop={isWindowsDesktop}
+          compactForRemoteControl={isWebRemoteControlShell}
           workspaceTabs={workspaceTabs}
           onSelectWorkspace={(workspaceTab) =>
             handleStartDraftInWorkspaceInChat(
@@ -1242,6 +1245,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
             gitSummary={gitState.summary}
             dirtyFileCount={gitDirtyFileCount}
             onRefreshGit={handleRefreshGit}
+            compactForRemoteControl={isWebRemoteControlShell}
             className="px-0 pt-0"
             popoverClassName="w-72"
             branchListClassName="max-h-48"
@@ -1263,6 +1267,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       gitDirtyFileCount,
       gitState.summary,
       handleRefreshGit,
+      isWebRemoteControlShell,
       handleSelectConversationWorkspace,
       handleStartDraftInWorkspaceInChat,
       isWindowsDesktop,
@@ -1313,6 +1318,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
               path: target.path,
               workspaceIdentity: target.workspaceIdentity,
               workspaceRemoteSessionId: target.workspaceRemoteSessionId,
+              compactForRemoteControl: isWebRemoteControlShell,
             })
           ) {
             handleOpenBrowserUrl(toFileUrl(target.path));
@@ -1396,6 +1402,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       handleOpenBrowserUrl,
       handleOpenCodeViewer,
       intl,
+      isWebRemoteControlShell,
       openFileTreeRequest,
       services.fileService,
       workspaceReadOnlyReason,
@@ -1552,7 +1559,6 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     () => [workspaceKey, isSidebarVisible],
     [workspaceKey, isSidebarVisible],
   );
-  const isWebRemoteControlShell = webRemoteControlWorkspaceSwitcher != null;
   const [webRemoteTaskSwitching, setWebRemoteTaskSwitching] = useState(false);
   const handleWebRemoteTaskSwitchingChange = useCallback((switching: boolean) => {
     setWebRemoteTaskSwitching(switching);
@@ -1655,20 +1661,17 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                 variant="panel"
                 className="h-full"
               >
-                <V4WorkspaceChatArea
+                <V4ChatPane
                   readOnly={Boolean(workspaceReadOnlyReason)}
-                  foregroundEnabled={isWorkspaceVisible}
                   workspacePath={workspaceAbsPath}
                   workspaceIdentity={workspaceIdentity}
                   isDesktop={isDesktop === true}
-                  remoteSessionId={workspaceRemoteSessionId}
+                  compactForRemoteControl={isWebRemoteControlShell}
                   sessionId={activeTaskId}
-                  activeSelectionSideChatSessionId={activeSelectionSideChatSessionId}
                   provider={activeTaskProvider ?? undefined}
                   onSessionCreated={handleV4SessionCreated}
                   onSessionDeleted={handleV4SessionDeleted}
                   draftComposerHeader={draftComposerHeader}
-                  onPrimaryDraftDropTargetControllerChange={setDraftHeaderDropTargetController}
                   gitSummary={gitState.summary}
                   gitDirtyFileCount={gitDirtyFileCount}
                   activeTaskChangeSummary={activeTaskChangeSummary}
@@ -1678,15 +1681,16 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                   onSummaryPanelVariantOverrideChange={onSummaryPanelVariantOverrideChange}
                   onRefreshGit={handleRefreshGit}
                   onOpenGitReview={handleOpenGitReview}
-                  onPaneActiveSessionChange={handlePaneActiveSessionChange}
                   onOpenBrowserUrl={handleOpenBrowserUrl}
                   onOpenAutomationsMain={handleOpenAutomations}
                   onOpenCodeViewer={handleOpenCodeViewer}
+                  onAutoOpenAssistantPptx={
+                    isDesktop && !isWebRemoteControlShell ? handleAutoOpenAssistantPptx : undefined
+                  }
                   onOpenBackgroundBash={handleOpenBackgroundBash}
                   onOpenSubagentSession={handleOpenSubagentSession}
                   onOpenSubagentDirectory={handleOpenSubagentDirectory}
                   onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
-                  onOpenSelectionSideChat={handleOpenSelectionSideChat}
                   onOpenPlanDetail={handleOpenPlanDetail}
                   onOpenWorkflowRun={handleOpenWorkflowRun}
                   onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
@@ -2093,6 +2097,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                               workspaceIdentity={workspaceIdentity}
                               isDesktop={isDesktop === true}
                               remoteSessionId={workspaceRemoteSessionId}
+                              compactForRemoteControl={isWebRemoteControlShell}
                               sessionId={activeTaskId}
                               activeSelectionSideChatSessionId={activeSelectionSideChatSessionId}
                               provider={activeTaskProvider ?? undefined}
@@ -2118,7 +2123,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                               onOpenAutomationsMain={handleOpenAutomations}
                               onOpenCodeViewer={handleOpenCodeViewer}
                               onAutoOpenAssistantPptx={
-                                isDesktop ? handleAutoOpenAssistantPptx : undefined
+                                isDesktop && !isWebRemoteControlShell
+                                  ? handleAutoOpenAssistantPptx
+                                  : undefined
                               }
                               onOpenBackgroundBash={handleOpenBackgroundBash}
                               onOpenSubagentSession={handleOpenSubagentSession}

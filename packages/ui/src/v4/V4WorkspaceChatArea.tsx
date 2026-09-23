@@ -75,6 +75,7 @@ interface V4WorkspaceChatAreaProps {
   /** Settings 等覆盖层打开时为 false，隐藏 Pane 不得消费一次性 Composer 请求。 */
   foregroundEnabled?: boolean;
   remoteSessionId?: string;
+  compactForRemoteControl?: boolean;
   /** primary pane 绑定的 CLI session（既有选择态 activeTaskId）；null = draft。 */
   sessionId: string | null;
   activeSelectionSideChatSessionId?: string | null;
@@ -146,6 +147,7 @@ export function V4WorkspaceChatArea({
   readOnly = false,
   foregroundEnabled = true,
   remoteSessionId,
+  compactForRemoteControl = false,
   sessionId,
   activeSelectionSideChatSessionId = null,
   provider,
@@ -268,6 +270,7 @@ export function V4WorkspaceChatArea({
       ...(workspaceIdentity ? { workspaceIdentity } : {}),
       ...(remoteSessionId ? { remoteSessionId } : {}),
       isDesktop,
+      compactForRemoteControl,
       readOnly,
       sessionId: primaryPaneSessionId,
       // primaryPaneSessionId 在 active task 被 split pane 接管时会刻意置空，
@@ -316,6 +319,7 @@ export function V4WorkspaceChatArea({
       workspaceIdentity,
       remoteSessionId,
       isDesktop,
+      compactForRemoteControl,
       readOnly,
       primaryPaneSessionId,
       activeSelectionSideChatSessionId,

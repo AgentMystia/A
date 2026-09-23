@@ -1279,7 +1279,9 @@ const UserInputRowView = memo(function UserInputRowView({
       <MessageActions
         className={cn(
           "mt-1",
-          "opacity-0 transition-opacity group-hover/user-row:opacity-100 focus-within:opacity-100",
+          context.compactForRemoteControl
+            ? "opacity-100"
+            : "opacity-0 transition-opacity group-hover/user-row:opacity-100 focus-within:opacity-100",
         )}
       >
         <CopyRowAction
@@ -1307,6 +1309,7 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   entityId,
   text,
   createdAt,
+  compactForRemoteControl = false,
   feedback = null,
   hookInvocations,
   sessionId,
@@ -1319,6 +1322,7 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   entityId?: string;
   text: string;
   createdAt: number;
+  compactForRemoteControl?: boolean;
   feedback?: AssistantMessageFeedback | null;
   hookInvocations?: readonly HookInvocationRow[];
   sessionId?: string | null;
@@ -1340,7 +1344,9 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   });
   const forkLabel = intl.formatMessage({ id: "chat.message.fork" });
   const timeLabel = formatMessageTimeLabel(createdAt, locale, intl);
-  const resolveTooltip = (label: string): string | undefined => label;
+  // 远控没有 hover，tooltip 会挡操作；紧凑模式只保留 aria-label。
+  const resolveTooltip = (label: string): string | undefined =>
+    compactForRemoteControl ? undefined : label;
 
   useEffect(() => {
     setLocalFeedback(feedback);
@@ -1557,6 +1563,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
             onOpenFileLink={context.onOpenFileLink}
             autoOpenPptxKey={previewCardsAutoOpenKey}
             onAutoOpenPptx={context.onAutoOpenAssistantPptx}
+            compactForRemoteControl={context.compactForRemoteControl}
           />
         </div>
       ) : null}
@@ -1574,9 +1581,12 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           onFork={onFork}
           onRetry={onRetry}
           onFeedbackChange={onFeedbackChange}
+          compactForRemoteControl={context.compactForRemoteControl}
           className={cn(
             "mt-1",
-            "opacity-0 transition-opacity group-hover/assistant-row:opacity-100 focus-within:opacity-100",
+            context.compactForRemoteControl
+              ? "opacity-100"
+              : "opacity-0 transition-opacity group-hover/assistant-row:opacity-100 focus-within:opacity-100",
           )}
         />
       ) : null}

@@ -248,6 +248,11 @@ function getUnitHeightCacheKey(unit: ConversationTurnRenderUnit | undefined): st
 
 interface ConversationTimelineProps {
   rows: readonly ConversationRow[];
+  /**
+   * 发布包时间线签名保留该标志。空态间距实际读 compactEmptyStateWithDock，
+   * 二者由 SessionPane 写成同一个值。
+   */
+  compactForRemoteControl?: boolean;
   /** CLI 权威 queue 中等待 model-step 注入的 guide；只改变 renderer 落位。 */
   pendingGuides?: readonly QueueItem[];
   /** runtime memory 状态，只交给当前 live turn，不进入历史虚拟列表。 */
@@ -351,6 +356,7 @@ interface ConversationTimelineProps {
  */
 function ConversationTimelineImpl({
   rows,
+  compactForRemoteControl = false,
   pendingGuides = EMPTY_PENDING_GUIDES,
   apiRetry = null,
   totalCount,
@@ -387,6 +393,8 @@ function ConversationTimelineImpl({
   shareSelection,
   hideTurnNavigator = false,
 }: ConversationTimelineProps) {
+  // 压缩后这条语句会消失，签名里的 compactForRemoteControl 仍留在发布包时间线函数上。
+  void compactForRemoteControl;
   const { intl } = useZCodeIntl();
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerSlotRef = useRef<HTMLDivElement>(null);

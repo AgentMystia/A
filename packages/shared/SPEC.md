@@ -288,6 +288,27 @@ Root 挂载隐藏宿主 + 每个 workspace 订阅
 - 个人市场 id `claude-plugins-official` 的分组标题使用 `settings.plugins.marketplace.claudeCodePlugins`。它不是官方市场，也不恢复已下线的 pluginNames 精选名单。列表分组 memo 和市场源对话框都无条件格式化这条文案。该 id 排在官方市场之后，不能移除，刷新失败也不展示。
 - `CLAUDE_UNKNOWN_COMMAND` 在「没有可用模型」之后、provider business 文案之前解析。消息匹配 `Claude Code 未知命令 <command>（参数：<args>）。` 时分别使用 `zcode.error.CLAUDE_UNKNOWN_COMMAND` 与 `_WITH_ARGS`。解析失败则显示原始 message，不再走后续本地化。
 
+### 远控紧凑会话
+
+`compactForRemoteControl` 只由 `WorkspaceShellLayout` 写成 `webRemoteControlWorkspaceSwitcher != null`。它和窄屏 header 的 `simplifyForNarrowRemote`（switcher 且 `(max-width: 767px)`）不是同一个标志。会话、草稿头和预览卡只读这个布尔，不另存一份远控状态。
+
+```text
+WorkspaceShellLayout
+  compactForRemoteControl = switcher != null
+    → 草稿头、文件链接、桌面 V4WorkspaceChatArea、手机 V4ChatPane
+AnimatedSidePanePanel.mobileOverlay
+  → 子会话侧栏的 compactForRemoteControl
+SessionPane 写入行上下文，并把同一值传给时间线 compactEmptyStateWithDock
+```
+
+- 手机壳的会话列用单 pane `V4ChatPane`。桌面分栏仍用 `V4WorkspaceChatArea`。两边都收到壳上的同一个标志。
+- 子会话侧栏的 compact 等于该面板的 `mobileOverlay`。桌面远控侧栏保持原来的 hover 操作栏；只有手机 overlay 收紧子会话。
+- 问候字号在 compact 时固定 20px，不再按标题宽度在 20–30 之间适配。时间线同时把该标志传给 `compactEmptyStateWithDock`。
+- 本地 HTML 不再交给系统浏览器。预览卡关闭「用其他应用打开」。localhost 与 html 引用在候选阶段丢掉，html 引用也不再为了卡片去拉本轮文件变更。
+- 用户行、助手行和轮尾操作栏改为常显 `opacity-100`。助手复制、反馈和分叉在 compact 时不传 tooltip。
+- 草稿头的分支按钮只留图标：`size-8 px-0`，不渲染分支名和 chevron。workspace chip 从 `max-w-[15rem]` 收成 `max-w-44`。
+- 完成态 PPTX 自动打开只在桌面且不是 compact 时交给现有壳层处理。
+
 ### 对话遥测 parity 用例
 
 发布包 styles 在模块初始化时建好 `TDP01`–`TDP19` 用例表，并在桌面且 `VITE_ZCODE_E2E_STORE_BRIDGE=1` 时把 `window.__zcodeConversationTelemetryParityE2E` 设为 `{ variant: "current", run }`。这张表不拥有会话遥测；每次 `run` 只创建当次的 `ConversationTelemetrySupervisor`，结束时 flush 并 dispose。

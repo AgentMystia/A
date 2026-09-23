@@ -21,6 +21,7 @@ interface UseAssistantPreviewCardsForAssistantTextRowParams {
   latestAssistantTextRow?: AssistantTextRow;
   workspacePath: string;
   workspaceHomePath?: string;
+  compactForRemoteControl?: boolean;
   fileChangesTarget: ConversationRowTarget | null;
   fileChangesState?: ConversationFileChangesState;
   fetchFileChanges?: (
@@ -49,6 +50,7 @@ export function useAssistantPreviewCardsForAssistantTextRow({
   latestAssistantTextRow,
   workspacePath,
   workspaceHomePath,
+  compactForRemoteControl,
   fileChangesTarget,
   fileChangesState,
   fetchFileChanges,
@@ -67,8 +69,11 @@ export function useAssistantPreviewCardsForAssistantTextRow({
         : [],
     [canBuildCards, turnText, workspaceHomePath, workspacePath],
   );
+  // 远控紧凑模式没有本地 HTML 运行环境。html 引用不触发本轮文件变更拉取，避免空结果占住卡片名额。
   const needsFileChanges = fileReferences.some(
-    (reference) => reference.kind === "markdown" || reference.kind === "html",
+    (reference) =>
+      reference.kind === "markdown" ||
+      (reference.kind === "html" && compactForRemoteControl !== true),
   );
   const target = useMemo<ConversationRowTarget | null>(
     () =>
@@ -130,8 +135,17 @@ export function useAssistantPreviewCardsForAssistantTextRow({
         ? buildAssistantPreviewCardsFromReferences(turnText, workspacePath, fileReferences, {
             changedFilePaths,
             homePath: workspaceHomePath,
+            suppressWebRemoteCards: compactForRemoteControl === true,
           })
         : [],
-    [canBuildCards, changedFilePaths, fileReferences, turnText, workspaceHomePath, workspacePath],
+    [
+      canBuildCards,
+      changedFilePaths,
+      compactForRemoteControl,
+      fileReferences,
+      turnText,
+      workspaceHomePath,
+      workspacePath,
+    ],
   );
 }

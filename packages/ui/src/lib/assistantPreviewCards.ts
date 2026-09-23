@@ -139,9 +139,12 @@ export function shouldOpenAssistantHtmlInBrowser(params: {
   path: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
+  compactForRemoteControl?: boolean;
 }): boolean {
+  // 远控没有可交给系统浏览器打开的本地 HTML 运行环境，紧凑模式一律留在应用内预览。
   return (
     isAssistantPreviewHtmlPath(params.path) &&
+    params.compactForRemoteControl !== true &&
     !params.workspaceIdentity?.trim() &&
     !params.workspaceRemoteSessionId
   );
