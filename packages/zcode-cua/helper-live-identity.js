@@ -1,14 +1,19 @@
 import { execFile } from "node:child_process";
-import { isAbsolute, join, relative } from "node:path";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 
 import { CuaHelperError } from "./broker.js";
 import { DEV_CUA_HELPER_BUNDLE_ID } from "./broker-helper-constants.js";
+import { execFileText } from "./helper-exec-file-text.js";
 import {
   isCuaLocalDevelopmentRuntime,
   EXPECTED_CUA_HELPER_TEAM_ID,
 } from "./helper-install-plan.js";
-import { listUnixSocketOwnerPids } from "./helper-process-evidence.js";
+import {
+  helperExecutablePathForApp,
+  parsePsProcessRows,
+  rowLooksLikeHelperProcess,
+} from "./helper-process-evidence.js";
 import { HELPER_TOOLS } from "./helper-tools.js";
 
 const SAFE_CODE_SIGNING_TOKEN = /^[A-Za-z0-9.-]+$/;
@@ -21,25 +26,63 @@ export class CuaHelperLiveProcessIdentityError extends CuaHelperError {
   }
 }
 
-function messageOf(error) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function execFileText(command, args) {
-  return new Promise((resolveText, rejectText) => {
-    execFile(command, args, { encoding: "utf8" }, (error, stdout, stderr) => {
-      if (error) {
-        rejectText(
-          new Error(
-            `${command} ${args.join(" ")} failed: ${messageOf(error)}${stderr ? ` ${stderr}` : ""}`,
-          ),
-        );
+export function listUnixSocketOwnerPids(socketPath) {
+  return new Promise((resolveOwners, rejectOwners) => {
+    const args = ["-n", "-P", "-Fpcfn", "--", socketPath];
+    execFile(HELPER_TOOLS.lsof, args, { encoding: "utf8" }, (error, stdout, stderr) => {
+      const pids = [...stdout.matchAll(/^p([0-9]+)$/gmu)]
+        .map((match) => Number(match[1]))
+        .filter((pid) => Number.isInteger(pid) && pid > 1);
+      if (!error) {
+        resolveOwners(pids);
         return;
       }
-      resolveText({ stdout, stderr });
+      const code = error.code;
+      if (
+        (code === 1 || code === "1") &&
+        pids.length === 0 &&
+        (!existsSync(socketPath) || stderr.trim().length === 0)
+      ) {
+        resolveOwners([]);
+        return;
+      }
+      rejectOwners(
+        new Error(
+          `${HELPER_TOOLS.lsof} ${args.join(" ")} failed: ${error.message}${stderr ? `\n${stderr}` : ""}`,
+        ),
+      );
     });
   });
 }
+
+export function listProcesses() {
+  return execFileText(HELPER_TOOLS.ps, ["-awwxo", "pid=,ppid=,uid=,command="]).then(({ stdout }) =>
+    parsePsProcessRows(stdout),
+  );
+}
+
+const defaultLiveIdentityDependencies = {
+  listUnixSocketOwnerPids,
+  async verifyProcessCodeSignature(pid, requirement) {
+    await execFileText(HELPER_TOOLS.codesign, [
+      "--verify",
+      "--strict",
+      `-R=${requirement}`,
+      String(pid),
+    ]);
+  },
+  async readProcessHostingPaths(pid) {
+    const { stdout, stderr } = await execFileText(HELPER_TOOLS.codesign, [
+      "--hosting",
+      String(pid),
+    ]);
+    return `${stdout}\n${stderr}`
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .filter((line) => isAbsolute(line));
+  },
+  canonicalize: realpathSync,
+};
 
 export function resolveCuaHelperLiveCodeRequirement(input) {
   const bundleId = input.expectedBundleId.trim();
@@ -68,29 +111,6 @@ export function resolveCuaHelperLiveCodeRequirement(input) {
   return `anchor apple generic and identifier "${bundleId}" and certificate leaf[subject.OU] = "${teamId}"`;
 }
 
-const defaultLiveIdentityDependencies = {
-  listUnixSocketOwnerPids,
-  async verifyProcessCodeSignature(pid, requirement) {
-    await execFileText(HELPER_TOOLS.codesign, [
-      "--verify",
-      "--strict",
-      `-R=${requirement}`,
-      String(pid),
-    ]);
-  },
-  async readProcessHostingPaths(pid) {
-    const { stdout, stderr } = await execFileText(HELPER_TOOLS.codesign, [
-      "--hosting",
-      String(pid),
-    ]);
-    return `${stdout}\n${stderr}`
-      .split(/\r?\n/u)
-      .map((line) => line.trim())
-      .filter((line) => isAbsolute(line));
-  },
-  canonicalize: realpathSync,
-};
-
 function isHostedInside(contentsMacos, candidate, canonicalize) {
   try {
     const realCandidate = canonicalize(candidate);
@@ -104,6 +124,69 @@ function isHostedInside(contentsMacos, candidate, canonicalize) {
   } catch {
     return false;
   }
+}
+
+const discoverDependencies = {
+  listUnixSocketOwnerPids,
+  listProcesses,
+  currentUid: () => (typeof process.getuid === "function" ? process.getuid() : null),
+  canonicalize: realpathSync,
+};
+
+export async function discoverCuaHelperLaunchProcesses(
+  target,
+  dependencies = discoverDependencies,
+) {
+  const uid = dependencies.currentUid();
+  if (uid === null) return { state: "unknown", pids: [], detail: "current uid is unavailable" };
+  let socketOwners = [];
+  let socketError = null;
+  try {
+    socketOwners = [...new Set(await dependencies.listUnixSocketOwnerPids(target.socketPath))];
+  } catch (error) {
+    socketError = (error instanceof Error ? error.message : String(error))
+      .split(target.socketPath)
+      .join("<socket>");
+  }
+  let rows;
+  try {
+    rows = await dependencies.listProcesses();
+  } catch (error) {
+    const detail = (error instanceof Error ? error.message : String(error))
+      .split(target.socketPath)
+      .join("<socket>");
+    return { state: "unknown", pids: [], detail: `process inspection failed: ${detail}` };
+  }
+  const apps = [target.helperAppPath];
+  try {
+    apps.push(dependencies.canonicalize(target.helperAppPath));
+  } catch {
+    // 安装路径本身仍参与比对。
+  }
+  const executables = [...new Set(apps.map(helperExecutablePathForApp))];
+  const observed = rows
+    .filter((row) => rowLooksLikeHelperProcess(row, uid, executables, target.socketPath))
+    .map((row) => row.pid);
+  if (observed.length > 0) {
+    const owners = new Set(socketOwners);
+    return {
+      state: "observed",
+      pids: [...new Set(observed)].sort(
+        (left, right) => Number(owners.has(right)) - Number(owners.has(left)),
+      ),
+      ...(socketError ? { detail: `socket inspection failed: ${socketError}` } : {}),
+    };
+  }
+  if (socketOwners.length > 0) {
+    return {
+      state: "unknown",
+      pids: [],
+      detail: "random Helper socket still has an owner whose exact launch argv is unverified",
+    };
+  }
+  return socketError
+    ? { state: "unknown", pids: [], detail: `socket inspection failed: ${socketError}` }
+    : { state: "absent", pids: [] };
 }
 
 export async function verifyCuaHelperLiveProcessIdentity(
@@ -164,7 +247,11 @@ export async function verifyCuaHelperLiveProcessIdentity(
       { cause: error },
     );
   }
-  const contentsMacos = join(dependencies.canonicalize(input.helperAppPath), "Contents", "MacOS");
+  const contentsMacos = resolve(
+    dependencies.canonicalize(input.helperAppPath),
+    "Contents",
+    "MacOS",
+  );
   if (
     !hostingPaths.some((path) => isHostedInside(contentsMacos, path, dependencies.canonicalize))
   ) {

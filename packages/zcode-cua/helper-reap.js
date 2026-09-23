@@ -1,17 +1,15 @@
-import { realpathSync } from "node:fs";
-
 import { brokerRuntimeDir } from "./helper-broker-runtime.js";
 import {
   addCanonicalPathAliases,
   defaultIsProcessAlive,
   defaultListProcesses,
   extractFlagValue,
+  MAX_REAP_PER_RUN,
   messageOf,
+  realpathSync,
   rowLooksLikeHelperProcess,
   standaloneHelperExecutablePaths,
 } from "./helper-process-evidence.js";
-
-const MAX_REAP_PER_RUN = 32;
 
 function isPathWithinDir(path, directory) {
   if (path === directory) return true;

@@ -1,4 +1,4 @@
-import { join } from "./helper-published-launch-bindings.js";
+import { existsSync, join } from "./helper-published-launch-bindings.js";
 
 import { CuaHelperError } from "./broker.js";
 import {
@@ -92,6 +92,24 @@ export function recognizedCuaHelperInstallRoots(env = process.env) {
     join(base, "dev"),
     ...CUA_HELPER_INSTALL_VARIANTS.map((variant) => join(base, variant)),
   ];
+}
+
+// 发布包把候选路径和 existsSync 查找放在安装计划模块。进程证据模块只留
+// execFileSync，不能再从这里把 existsSync 带回去。
+export function standaloneHelperCandidatePaths(env = process.env) {
+  const root = resolveCuaHelperInstallRoot(env);
+  return root ? [join(root, resolveHelperAppName(env))] : [];
+}
+
+export function productHelperCandidatePaths(env = process.env) {
+  return standaloneHelperCandidatePaths(env);
+}
+
+export function resolveHelperAppPath(candidates) {
+  for (const candidate of candidates) {
+    if (candidate && existsSync(candidate)) return candidate;
+  }
+  return null;
 }
 
 export function normalizeHelperPlatform(value) {

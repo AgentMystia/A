@@ -6,7 +6,7 @@ import {
   defaultKillProcess,
   defaultTerminationDelay,
 } from "./helper-launch.js";
-import { discoverCuaHelperLaunchProcesses } from "./helper-process-evidence.js";
+import { discoverCuaHelperLaunchProcesses } from "./helper-live-identity.js";
 import { publishCuaBrokerRefreshMarker } from "./helper-refresh-marker.js";
 
 const PERMISSION_REFRESH_TERM_GRACE_MS = 10_000;

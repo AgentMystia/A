@@ -1,7 +1,10 @@
 import { CuaHelperError } from "./broker.js";
 import { CuaHelperHost } from "./helper-host.js";
 import { createCuaHelperInstaller } from "./helper-install-stage.js";
-import { resolveExpectedCuaHelperBundleId } from "./helper-install-plan.js";
+import {
+  productHelperCandidatePaths,
+  resolveExpectedCuaHelperBundleId,
+} from "./helper-install-plan.js";
 import { createLaunchServicesLauncher } from "./helper-launch.js";
 import {
   injectPermissionBrokerAgentMcpServers,
@@ -10,8 +13,6 @@ import {
   isPotentialZCodeCuaAgentMcpServer,
   omitUnbrokeredZCodeCuaAgentMcpServers,
 } from "./helper-mcp-server.js";
-import { productHelperCandidatePaths } from "./helper-process-evidence.js";
-
 const RECOVERY_WAIT_MS = 10_000;
 // 纯构造：未调用产品 Host 的进程要能把这个模块整段摇掉。
 const recoveryState = /* @__PURE__ */ new WeakMap();

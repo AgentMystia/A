@@ -10,6 +10,7 @@ import {
   isUnsignedHelperLocalDevRequested,
   PACKAGED_CUA_HELPER_VERSION,
   resolveCuaHelperInstallVariant,
+  resolveHelperAppPath,
 } from "./helper-install-plan.js";
 import {
   cleanupCuaHelperBrokerLaunchGuard,
@@ -20,7 +21,6 @@ import {
   CuaHelperLiveProcessIdentityError,
   verifyCuaHelperLiveProcessIdentity,
 } from "./helper-live-identity.js";
-import { resolveHelperAppPath } from "./helper-process-evidence.js";
 import { createTransportReservation } from "./helper-reservation.js";
 
 export function attachCuaHelperStart(CuaHelperHost) {

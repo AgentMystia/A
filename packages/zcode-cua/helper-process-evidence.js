@@ -1,55 +1,34 @@
-import { execFile, execFileSync } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { join } from "node:path";
+
+export { realpathSync };
 
 import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "./broker-helper-constants.js";
 import {
   recognizedCuaHelperInstallRoots,
-  resolveCuaHelperInstallRoot,
-  resolveHelperAppName,
+  standaloneHelperCandidatePaths,
 } from "./helper-install-plan.js";
 import { HELPER_TOOLS } from "./helper-tools.js";
 
+// 发布包把单次回收上限和 ps 参数写成同一条 var。异步 listProcesses 另有一份字面量。
+export const MAX_REAP_PER_RUN = 32;
 const PS_ARGS = ["-awwxo", "pid=,ppid=,uid=,command="];
 
-// 顶层 replace 会被 esbuild 当成副作用。main / scheduler 摇掉这些函数后仍留下
-// `\.app$` 和合并的 execFile import。发布包这两条链没有这份残留，所以替换写在函数里。
-function helperExecutableName() {
-  return HELPER_APP_NAME.replace(/\.app$/u, "");
-}
-
-export function standaloneHelperCandidatePaths(env = process.env) {
-  const root = resolveCuaHelperInstallRoot(env);
-  return root ? [join(root, resolveHelperAppName(env))] : [];
-}
-
-export function productHelperCandidatePaths(env = process.env) {
-  return standaloneHelperCandidatePaths(env);
-}
-
-export function resolveHelperAppPath(candidates) {
-  for (const candidate of candidates) {
-    if (candidate && existsSync(candidate)) return candidate;
-  }
-  return null;
-}
-
-export function helperExecutablePathForApp(appPath) {
-  return join(appPath, "Contents", "MacOS", helperExecutableName());
-}
-
 export function standaloneHelperExecutablePaths(env = process.env) {
+  // 顶层 replace 会在 main / scheduler 摇掉函数后留下 `\.app$`。发布包在三个函数里各写一次。
+  const executableName = HELPER_APP_NAME.replace(/\.app$/u, "");
   const standalone = standaloneHelperCandidatePaths(env);
   const rooted = recognizedCuaHelperInstallRoots(env).flatMap((root) => [
     join(root, HELPER_APP_NAME),
     join(root, DEV_HELPER_APP_NAME),
   ]);
   return [...new Set([...standalone, ...rooted])].map((appPath) =>
-    helperExecutablePathForApp(appPath),
+    join(appPath, "Contents", "MacOS", executableName),
   );
 }
 
-function parsePsProcessRows(text) {
+export function parsePsProcessRows(text) {
   const rows = [];
   for (const line of text.split("\n")) {
     const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/u.exec(line);
@@ -64,10 +43,6 @@ function parsePsProcessRows(text) {
 
 export function defaultListProcesses() {
   return parsePsProcessRows(execFileSync(HELPER_TOOLS.ps, PS_ARGS, { encoding: "utf8" }));
-}
-
-export function listProcesses() {
-  return execFileText(HELPER_TOOLS.ps, PS_ARGS).then(({ stdout }) => parsePsProcessRows(stdout));
 }
 
 export function messageOf(error) {
@@ -118,7 +93,7 @@ function commandHasExactFlagValue(command, flag, value) {
 
 function commandMayStartWithHelperBundleExecutable(command) {
   if (!command.startsWith("/")) return false;
-  const marker = `/Contents/MacOS/${helperExecutableName()}`;
+  const marker = `/Contents/MacOS/${HELPER_APP_NAME.replace(/\.app$/u, "")}`;
   let index = command.indexOf(marker);
   while (index > 0) {
     const end = index + marker.length;
@@ -126,6 +101,10 @@ function commandMayStartWithHelperBundleExecutable(command) {
     index = command.indexOf(marker, index + 1);
   }
   return false;
+}
+
+export function helperExecutablePathForApp(appPath) {
+  return join(appPath, "Contents", "MacOS", HELPER_APP_NAME.replace(/\.app$/u, ""));
 }
 
 export function createDefaultHelperPidEvidenceProvider(options = {}) {
@@ -232,108 +211,4 @@ export function rowLooksLikeHelperProcess(row, uid, executables, socketPath) {
     return false;
   }
   return socketPath ? commandHasExactFlagValue(row.command, "--socket", socketPath) : true;
-}
-
-export function listUnixSocketOwnerPids(socketPath) {
-  return new Promise((resolveOwners, rejectOwners) => {
-    const args = ["-n", "-P", "-Fpcfn", "--", socketPath];
-    execFile(HELPER_TOOLS.lsof, args, { encoding: "utf8" }, (error, stdout, stderr) => {
-      const pids = [...stdout.matchAll(/^p([0-9]+)$/gmu)]
-        .map((match) => Number(match[1]))
-        .filter((pid) => Number.isInteger(pid) && pid > 1);
-      if (!error) {
-        resolveOwners(pids);
-        return;
-      }
-      const code = error.code;
-      if (
-        (code === 1 || code === "1") &&
-        pids.length === 0 &&
-        (!existsSync(socketPath) || stderr.trim().length === 0)
-      ) {
-        resolveOwners([]);
-        return;
-      }
-      rejectOwners(
-        new Error(
-          `${HELPER_TOOLS.lsof} ${args.join(" ")} failed: ${error.message}${stderr ? `\n${stderr}` : ""}`,
-        ),
-      );
-    });
-  });
-}
-
-function execFileText(command, args) {
-  return new Promise((resolveText, rejectText) => {
-    execFile(command, args, { encoding: "utf8" }, (error, stdout, stderr) => {
-      if (error) {
-        rejectText(
-          new Error(
-            `${command} ${args.join(" ")} failed: ${messageOf(error)}${stderr ? ` ${stderr}` : ""}`,
-          ),
-        );
-        return;
-      }
-      resolveText({ stdout, stderr });
-    });
-  });
-}
-
-const discoverDependencies = {
-  listUnixSocketOwnerPids,
-  listProcesses,
-  currentUid: () => (typeof process.getuid === "function" ? process.getuid() : null),
-  canonicalize: realpathSync,
-};
-
-export async function discoverCuaHelperLaunchProcesses(
-  target,
-  dependencies = discoverDependencies,
-) {
-  const uid = dependencies.currentUid();
-  if (uid === null) return { state: "unknown", pids: [], detail: "current uid is unavailable" };
-  let socketOwners = [];
-  let socketError = null;
-  try {
-    socketOwners = [...new Set(await dependencies.listUnixSocketOwnerPids(target.socketPath))];
-  } catch (error) {
-    socketError = messageOf(error).split(target.socketPath).join("<socket>");
-  }
-  let rows;
-  try {
-    rows = await dependencies.listProcesses();
-  } catch (error) {
-    const detail = messageOf(error).split(target.socketPath).join("<socket>");
-    return { state: "unknown", pids: [], detail: `process inspection failed: ${detail}` };
-  }
-  const apps = [target.helperAppPath];
-  try {
-    apps.push(dependencies.canonicalize(target.helperAppPath));
-  } catch {
-    // 安装路径本身仍参与比对。
-  }
-  const executables = [...new Set(apps.map(helperExecutablePathForApp))];
-  const observed = rows
-    .filter((row) => rowLooksLikeHelperProcess(row, uid, executables, target.socketPath))
-    .map((row) => row.pid);
-  if (observed.length > 0) {
-    const owners = new Set(socketOwners);
-    return {
-      state: "observed",
-      pids: [...new Set(observed)].sort(
-        (left, right) => Number(owners.has(right)) - Number(owners.has(left)),
-      ),
-      ...(socketError ? { detail: `socket inspection failed: ${socketError}` } : {}),
-    };
-  }
-  if (socketOwners.length > 0) {
-    return {
-      state: "unknown",
-      pids: [],
-      detail: "random Helper socket still has an owner whose exact launch argv is unverified",
-    };
-  }
-  return socketError
-    ? { state: "unknown", pids: [], detail: `socket inspection failed: ${socketError}` }
-    : { state: "absent", pids: [] };
 }
