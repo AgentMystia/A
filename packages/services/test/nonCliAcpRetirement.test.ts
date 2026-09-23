@@ -64,7 +64,7 @@ test("current Project Memory catalog and files remain readable", async () => {
   }
 });
 
-test("opening the task index leaves retired ACP IDs and user rows untouched", async () => {
+test("opening the task index moves a distinct legacy ACP session id onto task_id", async () => {
   const dir = await mkdtemp(join(tmpdir(), "zcode-acp-index-"));
   const path = join(dir, "tasks.sqlite");
   const repo = new TaskIndexRepo(path);
@@ -84,9 +84,11 @@ test("opening the task index leaves retired ACP IDs and user rows untouched", as
     repo.close();
     const reopened = new DatabaseSync(path);
     try {
-      const row = reopened.prepare("SELECT task_id, acp_session_id FROM tasks").get();
-      assert.equal(row?.task_id, meta.taskId);
-      assert.equal(row?.acp_session_id, "session-example");
+      const row = reopened.prepare("SELECT task_id, acp_session_id FROM tasks").get() as
+        | { task_id: string; acp_session_id: string | null }
+        | undefined;
+      assert.equal(row?.task_id, "session-example");
+      assert.equal(row?.acp_session_id, null);
     } finally {
       reopened.close();
     }
