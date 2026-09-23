@@ -53,6 +53,10 @@
     "./broker/helperHealth": {
       "types": "./broker-helper-health.d.ts",
       "import": "./broker-helper-health.js"
+    },
+    "./win32-pipe-schema": {
+      "types": "./helper-win32-pipe-schema.d.ts",
+      "import": "./helper-win32-pipe-schema.js"
     }
   },
   "dependencies": {

@@ -453,6 +453,9 @@ import {
 } from "./runtime-tools/agentProxyEnv.js";
 import { ensureAppCaCert } from "./runtime-tools/appCaCert.js";
 import { buildHelperOpenArgs, isCuaLocalDevelopmentRuntime } from "@zcode/zcode-cua/broker/server";
+// 发布包在 main、host、scheduler 保留未引用的 win32 pipe schema。
+// 不能从 broker.js 加载：那条边会让 host 把 zod 拆成单独 chunk，文件数比发布包多 1。
+import "@zcode/zcode-cua/win32-pipe-schema";
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
 import { IOffPeakTaskService } from "./session/offPeakTask.js";
 import { OffPeakTaskService } from "./session/offPeakTaskService.js";
