@@ -213,6 +213,7 @@ import type {
 } from "@/v4/legacyChatViewTypes.js";
 import type { SessionLease } from "@/v4/sessionDataLayer.js";
 import { V4InteractionDialogs } from "@/v4/V4InteractionDialogs.js";
+import { scheduleMobilePlanAckReconcile } from "@/v4/mobilePlanAckReconcile.js";
 import {
   useScopedConversationTelemetryForegroundEnabled,
   useScopedConversationTelemetrySupervisor,
@@ -1008,6 +1009,20 @@ export function SessionPane({
       timers.clear();
     };
   }, [lease, sessionId]);
+  const handlePlanInteractionAccepted = useCallback(
+    (interactionId: string) => {
+      scheduleMobilePlanAckReconcile({
+        interactionId,
+        timers: mobilePlanInteractionReconcileTimersRef.current,
+        compactForRemoteControl,
+        lease,
+        sessionId,
+        workspaceIdentity,
+        workspacePath,
+      });
+    },
+    [compactForRemoteControl, lease, sessionId, workspaceIdentity, workspacePath],
+  );
   const pluginReferenceIconsEnabled =
     isSessionPluginCatalogReady(state.status, sessionId, snapshot?.sessionId) &&
     hasPluginReferenceUserRows(snapshot?.rows.window ?? []);
@@ -4558,6 +4573,9 @@ export function SessionPane({
           remoteSessionId={remoteSessionId ?? undefined}
           provider={provider}
           snapshot={snapshot}
+          onPlanInteractionAccepted={
+            compactForRemoteControl ? handlePlanInteractionAccepted : undefined
+          }
         />
       ) : null}
       {composerNode}

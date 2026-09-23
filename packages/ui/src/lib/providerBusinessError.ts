@@ -232,6 +232,38 @@ export function resolveStartPlanConcurrentLimitBannerReason(
     : "initial-busy";
 }
 
+/**
+ * 验证码拒绝在发布包里既可能是业务码 3007，也可能只剩 CAPTCHA_VERIFY_FAILED 或英文/中文短语。
+ * 这里只映射到已有 3007，不新建验证码控件。前两句按原文匹配，后三句忽略大小写。
+ */
+export function isCaptchaVerifyFailedMessage(message: string | undefined): boolean {
+  if (!message?.trim()) {
+    return false;
+  }
+  const lower = message.toLowerCase();
+  return (
+    message.includes("Captcha verification failed or the verify token was rejected.") ||
+    message.includes("verify token was rejected") ||
+    lower.includes("captcha verify failed") ||
+    lower.includes("验证码校验失败") ||
+    lower.includes("captcha verification failed")
+  );
+}
+
+export function resolveCaptchaVerifyFailedBusinessCode(
+  code: string | undefined,
+  message: string | undefined,
+): "3007" | undefined {
+  if (
+    code === "3007" ||
+    code === "CAPTCHA_VERIFY_FAILED" ||
+    isCaptchaVerifyFailedMessage(message)
+  ) {
+    return "3007";
+  }
+  return undefined;
+}
+
 /** 与 core `model-errors.ts` 中 anomaly guard 文案保持一致。 */
 export const SUSPICIOUS_EMPTY_MODEL_RESULT_MESSAGE =
   "Model returned no text, no tool calls, and no usage before completing the turn.";

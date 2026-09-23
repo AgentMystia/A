@@ -31,6 +31,7 @@ import { getProviderBusinessErrorMessageId } from "@/lib/providerBusinessError.j
 import { buildErrorFeedbackDescription } from "@/lib/errorFeedbackDraft.js";
 import {
   isSuspiciousEmptyModelResultMessage,
+  resolveCaptchaVerifyFailedBusinessCode,
   resolveOffPeakTicketExpiredBusinessCode,
 } from "@/lib/providerBusinessError.js";
 import { resolveClaudeUnknownCommandMessage } from "@/lib/claudeUnknownCommand.js";
@@ -86,7 +87,9 @@ export function resolveChatErrorBannerDisplayMessage(
   }
 
   const providerBusinessCode =
-    resolveOffPeakTicketExpiredBusinessCode(error.code, error.message) ?? error.code;
+    resolveCaptchaVerifyFailedBusinessCode(error.code, error.message) ??
+    resolveOffPeakTicketExpiredBusinessCode(error.code, error.message) ??
+    error.code;
   const providerBusinessMessageId = getProviderBusinessErrorMessageId(providerBusinessCode);
   if (providerBusinessMessageId) {
     return intl.formatMessage({ id: providerBusinessMessageId });

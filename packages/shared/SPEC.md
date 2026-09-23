@@ -386,6 +386,41 @@ appendRecord
 - `claimAnonymousRecord` 仅在登录用户还没有 entry 或 decision 时移交。先改写最后一条匿名 entry，否则改写最后一条匿名 decision。没有可移交对象时不写文件。
 - 本地任务是否存在只调用现有 `TaskIndexRepo.listTaskMetas({})`。索引在宿主装配时创建，不另建任务库。
 
+### 手机 Plan ACK 收口
+
+Plan 交互是否还在等待，只由会话投影的 `pendingInteractions` 回答。`V4InteractionDialogs` 在 exitPlanMode 已被接受时上报 interactionId，不保存恢复定时器。`SessionPane` 只在 `compactForRemoteControl` 时接收这个回调。
+
+```text
+exitPlanMode ACK accepted
+  → onPlanInteractionAccepted(interactionId)
+  → 同一 id 已有定时器则忽略
+  → 500ms 后读 lease.store.getState().snapshot
+  → pending 仍含该 id：记「手机 Plan ACK 后 pending 未收口」，并调用已有 recoverFromStaleAuthority
+  → lease 或 sessionId 变化时清掉未触发的定时器
+```
+
+- 不另建 pending 队列。非紧凑会话不注册回调。
+- workspaceKey 为 `workspaceIdentity?.trim() || workspacePath`。
+
+### 验证码业务码 3007
+
+验证码拒绝沿用已有业务码 `3007`，不新增错误所有者，也不新增验证码控件。分类把精确 code `3007`、精确 code `CAPTCHA_VERIFY_FAILED`，或 message 里的验证码失败短语，映射成 `3007`。
+
+```text
+normalizeZCodeUiError
+  → resolveCaptchaVerifyFailedBusinessCode(codeFromError ?? providerCodeFromDetail, primaryMessage)
+  → 否则 providerCodeFromDetail，再否则 codeFromError
+横幅文案
+  → 验证码码优先于闲时 3102，再退回原始 code
+遥测恢复动作
+  → 命中验证码分类则 null
+归因表
+  → CAPTCHA_VERIFY_FAILED 记 provider / auth_failed
+```
+
+- 短语按原文包含 `Captcha verification failed or the verify token was rejected.` 或 `verify token was rejected`；按小写包含 `captcha verify failed`、`验证码校验失败`、`captcha verification failed`。空白 message 不算命中。code 比较不去空白。
+- `3007` 仍无 UI 恢复动作。文案仍是 `zcode.error.providerBusiness.3007`。
+
 ### 对话遥测 parity 用例
 
 发布包 styles 在模块初始化时建好 `TDP01`–`TDP19` 用例表，并在桌面且 `VITE_ZCODE_E2E_STORE_BRIDGE=1` 时把 `window.__zcodeConversationTelemetryParityE2E` 设为 `{ variant: "current", run }`。这张表不拥有会话遥测；每次 `run` 只创建当次的 `ConversationTelemetrySupervisor`，结束时 flush 并 dispose。

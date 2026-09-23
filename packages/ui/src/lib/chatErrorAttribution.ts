@@ -82,6 +82,10 @@ const STABLE_ERROR_ATTRIBUTION: Readonly<
     source: "provider",
     reason: "rate_limited",
   },
+  CAPTCHA_VERIFY_FAILED: {
+    source: "provider",
+    reason: "auth_failed",
+  },
 };
 
 const NETWORK_FAILURE_REASONS = new Set([
