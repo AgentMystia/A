@@ -2,15 +2,23 @@ import type {
   WebRemoteControlTaskSnapshot,
   WebRemoteControlWorkspaceSnapshot,
 } from "@zcode/shared";
+import { testId, TID_TASK_ITEM } from "@zcode/shared";
+import { Loader, Pin } from "lucide-react";
+import { cn } from "@/components/lib/utils.js";
+import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
+import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { getTaskTimelineGroupMessage } from "@/lib/taskTimelineGroups.js";
 import { getWorkspaceKey } from "@/lib/workspaceKey.js";
-import { WebRemoteControlMobileTaskButton } from "@/web-remote/mobile/WebRemoteControlMobileTaskButton.js";
 import { WebRemoteControlMobileWorkspaceGroup } from "@/web-remote/mobile/WebRemoteControlMobileWorkspaceGroup.js";
 import {
   isRemoteWorkspaceDisconnected,
   mobileTaskKey,
   type MobileTaskHomeView,
 } from "@/web-remote/mobile/webRemoteControlMobileModel.js";
+import {
+  mobileTaskStatusClass,
+  mobileTaskStatusIcon,
+} from "@/web-remote/mobile/webRemoteControlMobileTaskStatus.js";
 import type { WebRemoteControlMobileSortBy } from "@/web-remote/mobile/webRemoteControlMobileTypes.js";
 
 interface IntlLike {
@@ -69,21 +77,76 @@ export function WebRemoteControlMobileTaskSections({
             {intl.formatMessage({ id: "taskList.pinnedSection" })}
           </h2>
           <ul className="space-y-1">
-            {view.pinnedTasks.map((task) => (
-              <WebRemoteControlMobileTaskButton
-                key={mobileTaskKey(task)}
-                task={task}
-                workspace={workspaceFor(task)}
-                variant="pinned"
-                disconnected={isRemoteWorkspaceDisconnected(workspaceFor(task))}
-                activeWorkspaceKey={view.activeWorkspaceKey}
-                activeTaskId={view.activeTaskId}
-                switchingTaskKey={switchingTaskKey}
-                sortBy={sortBy}
-                intl={intl}
-                onOpen={onOpenTask}
-              />
-            ))}
+            {view.pinnedTasks.map((task) => {
+              const workspace = workspaceFor(task);
+              const disconnected = isRemoteWorkspaceDisconnected(workspace);
+              const taskKey = mobileTaskKey(task);
+              const selected =
+                getWorkspaceKey(task.workspacePath, task.workspaceIdentity) ===
+                  view.activeWorkspaceKey && task.taskId === view.activeTaskId;
+              const switching = switchingTaskKey === taskKey;
+              const title = task.title || intl.formatMessage({ id: "taskList.untitled" });
+              const status = task.displayStatus ?? "idle";
+              const timestamp = sortBy === "created" ? task.createdAt : task.updatedAt;
+              const workspaceLabel =
+                workspace?.workspacePurpose === "conversation"
+                  ? intl.formatMessage({ id: "workspaceSidebar.conversationsSection" })
+                  : task.workspaceLabel || workspace?.label || task.workspacePath;
+              return (
+                <li key={taskKey}>
+                  <button
+                    type="button"
+                    data-testid={testId(TID_TASK_ITEM, task.taskId)}
+                    data-state={selected ? "selected" : "idle"}
+                    className={cn(
+                      "flex min-h-12 w-full min-w-0 items-center gap-2 rounded-lg border border-card-border bg-card px-3 py-2 text-left transition-colors disabled:cursor-wait disabled:opacity-70",
+                      selected ? "bg-selected text-foreground" : "hover:bg-surface-hover",
+                    )}
+                    disabled={switchingTaskKey !== null || disconnected}
+                    onClick={() => {
+                      if (!disconnected) onOpenTask(task);
+                    }}
+                    aria-label={intl.formatMessage({ id: "webRemoteControl.openTask" }, { title })}
+                  >
+                    <span className="relative flex size-4 shrink-0 items-center justify-center text-foreground-subtle">
+                      {switching ? (
+                        <Loader className="size-4 animate-spin" />
+                      ) : (
+                        <Pin className="size-4" />
+                      )}
+                      {!switching && task.unreadAt ? (
+                        <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />
+                      ) : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-ui-base text-foreground">{title}</span>
+                      <span className="mt-1 flex min-w-0 items-center gap-1.5 text-ui-base text-foreground-subtle">
+                        <span className="truncate">{workspaceLabel}</span>
+                        <span className="shrink-0">·</span>
+                        <span className="truncate">{formatTaskRelativeTime(timestamp, intl)}</span>
+                      </span>
+                      {task.workflowActivity ? (
+                        <TaskWorkflowRunLines
+                          activity={task.workflowActivity}
+                          isActive={selected}
+                          intl={intl}
+                          density="compact"
+                        />
+                      ) : null}
+                    </span>
+                    <span
+                      className={cn(
+                        "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-ui-xs leading-none",
+                        mobileTaskStatusClass(status),
+                      )}
+                    >
+                      {mobileTaskStatusIcon(status)}
+                      {intl.formatMessage({ id: `webRemoteControl.taskStatus.${status}` })}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}
@@ -102,21 +165,76 @@ export function WebRemoteControlMobileTaskSections({
                   {intl.formatMessage({ id: label.id }, label.values)}
                 </div>
                 <ul className="space-y-1">
-                  {group.items.map((task) => (
-                    <WebRemoteControlMobileTaskButton
-                      key={mobileTaskKey(task)}
-                      task={task}
-                      workspace={workspaceFor(task)}
-                      variant="timeline"
-                      disconnected={isRemoteWorkspaceDisconnected(workspaceFor(task))}
-                      activeWorkspaceKey={view.activeWorkspaceKey}
-                      activeTaskId={view.activeTaskId}
-                      switchingTaskKey={switchingTaskKey}
-                      sortBy={sortBy}
-                      intl={intl}
-                      onOpen={onOpenTask}
-                    />
-                  ))}
+                  {group.items.map((task) => {
+                    const workspace = workspaceFor(task);
+                    const disconnected = isRemoteWorkspaceDisconnected(workspace);
+                    const taskKey = mobileTaskKey(task);
+                    const selected =
+                      getWorkspaceKey(task.workspacePath, task.workspaceIdentity) ===
+                        view.activeWorkspaceKey && task.taskId === view.activeTaskId;
+                    const switching = switchingTaskKey === taskKey;
+                    const title = task.title || intl.formatMessage({ id: "taskList.untitled" });
+                    const status = task.displayStatus ?? "idle";
+                    const timestamp = sortBy === "created" ? task.createdAt : task.updatedAt;
+                    const workspaceLabel =
+                      workspace?.workspacePurpose === "conversation"
+                        ? intl.formatMessage({ id: "workspaceSidebar.conversationsSection" })
+                        : task.workspaceLabel || workspace?.label || task.workspacePath;
+                    return (
+                      <li key={taskKey}>
+                        <button
+                          type="button"
+                          data-testid={testId(TID_TASK_ITEM, task.taskId)}
+                          data-state={selected ? "selected" : "idle"}
+                          className={cn(
+                            "flex min-h-14 w-full min-w-0 items-center gap-2 rounded-lg border border-card-border bg-card px-3 py-2 text-left transition-colors disabled:cursor-wait disabled:opacity-70",
+                            selected ? "bg-selected text-foreground" : "hover:bg-surface-hover",
+                          )}
+                          disabled={switchingTaskKey !== null || disconnected}
+                          onClick={() => {
+                            if (!disconnected) onOpenTask(task);
+                          }}
+                        >
+                          <span className="relative flex size-4 shrink-0 items-center justify-center">
+                            {switching ? (
+                              <Loader className="size-4 animate-spin text-foreground-subtle" />
+                            ) : task.unreadAt ? (
+                              <span className="h-1.5 w-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />
+                            ) : null}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-ui-base text-foreground">
+                              {title}
+                            </span>
+                            <span className="mt-1 flex min-w-0 items-center gap-1.5 text-ui-base text-foreground-subtle">
+                              <span className="truncate">{workspaceLabel}</span>
+                              <span className="shrink-0">·</span>
+                              <span className="truncate">
+                                {formatTaskRelativeTime(timestamp, intl)}
+                              </span>
+                            </span>
+                            {task.workflowActivity ? (
+                              <TaskWorkflowRunLines
+                                activity={task.workflowActivity}
+                                isActive={selected}
+                                intl={intl}
+                                density="compact"
+                              />
+                            ) : null}
+                          </span>
+                          <span
+                            className={cn(
+                              "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-ui-xs leading-none",
+                              mobileTaskStatusClass(status),
+                            )}
+                          >
+                            {mobileTaskStatusIcon(status)}
+                            {intl.formatMessage({ id: `webRemoteControl.taskStatus.${status}` })}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               </li>
             );

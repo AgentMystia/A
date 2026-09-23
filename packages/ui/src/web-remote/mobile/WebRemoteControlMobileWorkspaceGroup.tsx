@@ -8,13 +8,21 @@ import {
   Plus,
   RefreshCw,
 } from "lucide-react";
-import type {
-  WebRemoteControlTaskSnapshot,
-  WebRemoteControlWorkspaceSnapshot,
+import {
+  testId,
+  TID_TASK_ITEM,
+  type WebRemoteControlTaskSnapshot,
+  type WebRemoteControlWorkspaceSnapshot,
 } from "@zcode/shared";
+import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
+import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
-import { WebRemoteControlMobileTaskButton } from "@/web-remote/mobile/WebRemoteControlMobileTaskButton.js";
+import { getWorkspaceKey } from "@/lib/workspaceKey.js";
+import {
+  mobileTaskStatusClass,
+  mobileTaskStatusIcon,
+} from "@/web-remote/mobile/webRemoteControlMobileTaskStatus.js";
 import {
   isRemoteWorkspaceDisconnected,
   latestTaskUpdatedAt,
@@ -176,20 +184,63 @@ export function WebRemoteControlMobileWorkspaceGroup({
               {intl.formatMessage({ id: "webRemoteControl.mobileHome.workspaceEmpty" })}
             </li>
           ) : null}
-          {group.tasks.map((task) => (
-            <WebRemoteControlMobileTaskButton
-              key={mobileTaskKey(task)}
-              task={task}
-              variant="workspace"
-              disconnected={disconnected}
-              activeWorkspaceKey={activeWorkspaceKey}
-              activeTaskId={activeTaskId}
-              switchingTaskKey={switchingTaskKey}
-              sortBy="updated"
-              intl={intl}
-              onOpen={onOpenTask}
-            />
-          ))}
+          {group.tasks.map((task) => {
+            const taskKey = mobileTaskKey(task);
+            const selected =
+              getWorkspaceKey(task.workspacePath, task.workspaceIdentity) === activeWorkspaceKey &&
+              task.taskId === activeTaskId;
+            const switching = switchingTaskKey === taskKey;
+            const title = task.title || intl.formatMessage({ id: "taskList.untitled" });
+            const status = task.displayStatus ?? "idle";
+            return (
+              <li key={taskKey}>
+                <button
+                  type="button"
+                  data-testid={testId(TID_TASK_ITEM, task.taskId)}
+                  data-state={selected ? "selected" : "idle"}
+                  className={cn(
+                    "flex min-h-12 w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors disabled:cursor-wait disabled:opacity-70",
+                    selected ? "bg-selected text-foreground" : "hover:bg-surface-hover",
+                  )}
+                  disabled={switchingTaskKey !== null || disconnected}
+                  onClick={() => {
+                    if (!disconnected) onOpenTask(task);
+                  }}
+                >
+                  <span className="relative flex size-4 shrink-0 items-center justify-center">
+                    {switching ? (
+                      <Loader className="size-4 animate-spin text-foreground-subtle" />
+                    ) : task.unreadAt ? (
+                      <span className="h-1.5 w-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />
+                    ) : null}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-ui-base text-foreground">{title}</span>
+                    <span className="mt-1 flex min-w-0 items-center gap-1.5 text-ui-base text-foreground-subtle">
+                      <span className="truncate">{formatTaskRelativeTime(task.updatedAt, intl)}</span>
+                    </span>
+                    {task.workflowActivity ? (
+                      <TaskWorkflowRunLines
+                        activity={task.workflowActivity}
+                        isActive={selected}
+                        intl={intl}
+                        density="compact"
+                      />
+                    ) : null}
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-ui-xs leading-none",
+                      mobileTaskStatusClass(status),
+                    )}
+                  >
+                    {mobileTaskStatusIcon(status)}
+                    {intl.formatMessage({ id: `webRemoteControl.taskStatus.${status}` })}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </li>

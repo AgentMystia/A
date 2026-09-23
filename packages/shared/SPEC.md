@@ -455,6 +455,15 @@ key = mobileConnected 且 activeWorkspaceKey、activeTaskId 都非空
 - 归档平铺、分组行、置顶、时间线和工作区任务列表只做这一次比较。不相等时不写 `data-mobile-active-task="true"`，归档行也不挂手机标记。
 - 手机已连接，且去掉首尾空白后的任务不在对应 workspace 分页结果里时，侧栏对当前 workspace 调用一次 `bumpTaskListVersion`。刷新目标是侧栏当前 workspace。同一 `${trimmedWorkspaceKey}:${trimmedTaskId}` 不重复刷新；任务进入分页或连接断开后清除记录。
 
+### 手机远控首页任务行
+
+置顶、时间线和工作区三处任务按钮写在各自的列表里。状态颜色和状态图标各只有一个函数，按钮本身不收成一个组件。
+
+- 置顶行写 `aria-label`。时间线和工作区行不写。
+- 置顶和时间线是带边框的卡片，高度分别是 48px 和 56px。工作区行没有边框，高度 48px，时间只用 `updatedAt`。
+- 置顶行左侧是图钉，未读点叠在图钉右上角。时间线和工作区行在未切换时用未读点作为左侧图标。
+- 三处都展示 `displayStatus`，缺省是 idle。断开的远端工作区不能打开任务。
+
 ### 对话遥测 parity 用例
 
 发布包 styles 在模块初始化时建好 `TDP01`–`TDP19` 用例表，并在桌面且 `VITE_ZCODE_E2E_STORE_BRIDGE=1` 时把 `window.__zcodeConversationTelemetryParityE2E` 设为 `{ variant: "current", run }`。这张表不拥有会话遥测；每次 `run` 只创建当次的 `ConversationTelemetrySupervisor`，结束时 flush 并 dispose。
