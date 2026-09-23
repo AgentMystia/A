@@ -11,7 +11,6 @@ import {
   buildRewardsContextInjectionScript,
   buildRewardsWebviewUrl,
   isTrustedRewardsUrl,
-  REWARDS_WEBVIEW_OVERRIDE_ENV_KEY,
   REWARDS_WEBVIEW_PARTITION,
   resolveRewardsWebviewOrigin,
   ZCODE_ENV,
@@ -56,13 +55,7 @@ function rewardsTrustOptions(env: RewardsImportMetaEnv) {
   };
 }
 
-export function RewardsProvider({
-  children,
-  desktop,
-}: {
-  children: ReactNode;
-  desktop: boolean;
-}) {
+export function RewardsProvider({ children, desktop }: { children: ReactNode; desktop: boolean }) {
   const [open, setOpen] = useState(false);
   const platform = usePlatform();
   const { locale } = useZCodeIntl();
@@ -72,9 +65,7 @@ export function RewardsProvider({
   const requestLoginEntry = useZCodeStore((state) => state.requestLoginEntry);
   const pendingLoginId = useRef<number | null>(null);
   const [systemDark, setSystemDark] = useState(() =>
-    typeof matchMedia === "function"
-      ? matchMedia("(prefers-color-scheme: dark)").matches
-      : false,
+    typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)").matches : false,
   );
 
   useEffect(() => {
@@ -128,23 +119,12 @@ export function RewardsProvider({
   return (
     <RewardsOpenContext.Provider value={() => void openRewards()}>
       {children}
-      {open ? (
-        <RewardsSurface
-          onClose={() => setOpen(false)}
-          systemDark={systemDark}
-        />
-      ) : null}
+      {open ? <RewardsSurface onClose={() => setOpen(false)} systemDark={systemDark} /> : null}
     </RewardsOpenContext.Provider>
   );
 }
 
-function RewardsSurface({
-  onClose,
-  systemDark,
-}: {
-  onClose: () => void;
-  systemDark: boolean;
-}) {
+function RewardsSurface({ onClose, systemDark }: { onClose: () => void; systemDark: boolean }) {
   const services = useOptionalServices();
   const platform = usePlatform();
   const { intl, locale } = useZCodeIntl();
@@ -159,7 +139,10 @@ function RewardsSurface({
       resolveRewardsWebviewOrigin({
         ...trust,
         env: ZCODE_ENV,
-        override: env[REWARDS_WEBVIEW_OVERRIDE_ENV_KEY],
+        override:
+          typeof env.VITE_REWARDS_WEBVIEW_ORIGIN === "string"
+            ? env.VITE_REWARDS_WEBVIEW_ORIGIN
+            : undefined,
       }),
       pageLocale,
       pageTheme,
@@ -194,9 +177,7 @@ function RewardsSurface({
         );
         injectedUserIdRef.current = activeUserId;
       }
-      const activeProvider = activeUserId
-        ? await services?.oauthService.getActiveProvider()
-        : null;
+      const activeProvider = activeUserId ? await services?.oauthService.getActiveProvider() : null;
       const provider =
         activeProvider === "zai" ? "zai" : activeProvider === "bigmodel" ? "bigmodel" : null;
       const [oauth, jwt] = provider

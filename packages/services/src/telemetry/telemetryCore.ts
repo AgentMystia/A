@@ -4,7 +4,6 @@ import {
   ZCODE_VERSION,
   ZCODE_ENV,
   ZCODE_TELEMETRY_ENABLED,
-  ZCODE_TELEMETRY_REPORT_ENDPOINT,
   buildZCodeSourceHeadersFromContext,
   rewriteZCodeEndpointUrl,
   sanitizeTelemetryEventDetail,
@@ -23,6 +22,10 @@ import { version } from "node:os";
 import { dirname, join } from "node:path";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { getAppConfigDir } from "../paths.js";
+
+// 发布包把数仓地址写成常量，并放在 session id 函数前面。
+// 不读 process.env，避免键名进入每个 bundle；也不放进 env.ts，避免和 ARMS 常量打进同一个 chunk。
+const ZCODE_TELEMETRY_REPORT_ENDPOINT = "https://zcode.z.ai/api/v1/event/report";
 
 function sessionCreateEventId(userId: string, sessionId: string): string {
   const bytes = createHash("sha256")

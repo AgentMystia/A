@@ -5,7 +5,6 @@ import type { ZCodeEnv } from "./env.js";
 export const REWARDS_WEBVIEW_PARTITION = "persist:zcode-rewards";
 export const REWARDS_CONTEXT_EVENT = "zcode-rewards-context";
 export const REWARDS_DEV_ARGUMENT = "--zcode-rewards-dev";
-export const REWARDS_WEBVIEW_OVERRIDE_ENV_KEY = "VITE_REWARDS_WEBVIEW_ORIGIN";
 
 export const REWARDS_LOCAL_STORAGE_KEYS = [
   "oauth:zai:access_token",
