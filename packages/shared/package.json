@@ -16,6 +16,8 @@
     "./node": "./src/node.ts",
     "./zcodeEndpoint": "./src/zcodeEndpoint.ts",
     "./webRemoteControlRelayPayloadSerializer": "./src/webRemoteControlRelayPayloadSerializer.ts",
+    "./botsDefaults": "./src/botsDefaults.ts",
+    "./manualClaim": "./src/manualClaim.ts",
     "./workspaceFileSearch": "./src/workspaceFileSearch.ts",
     "./workspaceFileEntriesCodec": "./src/workspaceFileEntriesCodec.ts",
     "./zcode-protocol-v4": "./src/zcode-protocol-v4/index.ts",

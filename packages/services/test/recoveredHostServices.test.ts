@@ -3,10 +3,10 @@ import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { readServerTimeMilliseconds } from "@zcode/shared/manualClaim";
 import {
   BOT_BIND_CODE_TTL_MS,
   DEFAULT_BOT_COMMAND_POLICY,
-  readServerTimeMilliseconds,
   type ApiClient,
   type AppSettings,
   type BotConfigEntry,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { createDefaultBotsConfig } from "@zcode/shared/botsDefaults";
 import {
-  createDefaultBotsConfig,
   type BotRuntimeState,
   type BotWorkspaceRef,
   type BotsConfig,

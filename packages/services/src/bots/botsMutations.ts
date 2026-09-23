@@ -1,8 +1,7 @@
+import { buildBotCredentialKey, buildBotWebhookSecretKey } from "@zcode/shared/botsDefaults";
 import {
   ALL_WORKSPACES,
   BOT_BIND_CODE_TTL_MS,
-  buildBotCredentialKey,
-  buildBotWebhookSecretKey,
   isFeishuBotProvider,
   type BotBindCodeResult,
   type BotConfigEntry,
@@ -15,7 +14,12 @@ import { createBotBindCode } from "./botsBindCode.js";
 import { FEISHU_RESOLVE_NAME_DELAYS_MS } from "./botsConstants.js";
 import { delay } from "./botsHttp.js";
 import type { BotBindCodeRecord } from "./botsInbound.js";
-import { findBot, normalizeBotConfig, normalizeAllowedWorkspaces, validateBotConfig } from "./botsNormalize.js";
+import {
+  findBot,
+  normalizeBotConfig,
+  normalizeAllowedWorkspaces,
+  validateBotConfig,
+} from "./botsNormalize.js";
 import type { BotsRepo } from "./botsRepo.js";
 import type { BotProvider } from "./botsTypes.js";
 
@@ -49,7 +53,9 @@ export function createBotsMutationApi(deps: {
         bot = { ...bot, webhookSecretRef };
       }
       if (request.credentialValue?.trim() || !bot.name.trim()) {
-        const delays = isFeishuBotProvider(bot.provider) ? FEISHU_RESOLVE_NAME_DELAYS_MS : ([0] as const);
+        const delays = isFeishuBotProvider(bot.provider)
+          ? FEISHU_RESOLVE_NAME_DELAYS_MS
+          : ([0] as const);
         let resolved: string | null = null;
         let lastError: unknown;
         for (const waitMs of delays) {
@@ -134,7 +140,10 @@ export function createBotsMutationApi(deps: {
       if (bot?.provider === "weixin") {
         await deps.stopWeixin(bot.id);
       }
-      await deps.repo.writeConfig({ ...config, bots: config.bots.filter((item) => item.id !== botId) });
+      await deps.repo.writeConfig({
+        ...config,
+        bots: config.bots.filter((item) => item.id !== botId),
+      });
       const state = await deps.repo.readState();
       delete state.bots[botId];
       await deps.repo.writeState(state);
@@ -154,7 +163,11 @@ export function createBotsMutationApi(deps: {
       const provider = deps.providers[bot.provider];
       return provider
         ? { ...(await provider.test(bot)), provider: bot.provider }
-        : { ok: false, message: `${bot.provider} is reserved for a future version.`, provider: bot.provider };
+        : {
+            ok: false,
+            message: `${bot.provider} is reserved for a future version.`,
+            provider: bot.provider,
+          };
     },
     async createBindCode(request: {
       botId: string;
@@ -173,7 +186,9 @@ export function createBotsMutationApi(deps: {
       deps.bindCodes.set(code, {
         botId,
         code,
-        allowedWorkspaces: normalizeAllowedWorkspaces(request.allowedWorkspaces ?? [ALL_WORKSPACES]),
+        allowedWorkspaces: normalizeAllowedWorkspaces(
+          request.allowedWorkspaces ?? [ALL_WORKSPACES],
+        ),
         expiresAt,
       });
       return { code, expiresAt };

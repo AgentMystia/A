@@ -133,13 +133,7 @@ export * from "./marketingTouch.js";
 export * from "./cloudContent.js";
 export * from "./outputStyle.js";
 export * from "./bots.js";
-export {
-  buildBotCredentialKey,
-  buildBotWebhookSecretKey,
-  createDefaultBotsConfig,
-} from "./botsDefaults.js";
 export { hash8, toAsciiSlug, toOpencodeModelId, toOpencodeProviderKey } from "./opencodeModelId.js";
-export { readServerTimeMilliseconds } from "./manualClaim.js";
 export type {
   ManualClaimedEntitlement,
   ManualClaimedPlan,

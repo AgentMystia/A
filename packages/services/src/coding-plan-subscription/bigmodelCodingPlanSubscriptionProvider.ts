@@ -70,11 +70,11 @@ import {
   resolveDynamicWorkflowClientConfig,
   DEFAULT_DYNAMIC_WORKFLOW_MODE,
   ZCODE_DYNAMIC_WORKFLOW_MODE_ENV,
-  readServerTimeMilliseconds,
   type ManualClaimPlanPreviews,
   type ManualClaimRequest,
   type ManualClaimResult,
 } from "@zcode/shared";
+import { readServerTimeMilliseconds } from "@zcode/shared/manualClaim";
 import type { ICredentialService } from "../credential/credential.js";
 import { readApiJson } from "../providers/api/apiJson.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";

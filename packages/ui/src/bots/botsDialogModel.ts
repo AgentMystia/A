@@ -1,10 +1,10 @@
+import { createDefaultBotsConfig } from "@zcode/shared/botsDefaults";
 import {
   ALL_WORKSPACES,
   BOT_BIND_CODE_TTL_MS,
   BOT_REPLY_MODES,
   DEFAULT_BOT_COMMAND_POLICY,
   DEFAULT_BOT_REPLY_MODE,
-  createDefaultBotsConfig,
   getSupportedBotReplyGranularities,
   normalizeBotReplyGranularity,
   type BotConfigEntry,

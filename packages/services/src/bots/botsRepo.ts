@@ -1,13 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
-import {
-  botsConfigSchema,
-  botsStateSchema,
-  createDefaultBotsConfig,
-  type BotsConfig,
-  type BotsState,
-} from "@zcode/shared";
+import { createDefaultBotsConfig } from "@zcode/shared/botsDefaults";
+import { botsConfigSchema, botsStateSchema, type BotsConfig, type BotsState } from "@zcode/shared";
 import { getAppConfigDir } from "../paths.js";
 import { importLegacyBotConfig, importLegacyBotState } from "./botsNormalize.js";
 import {
