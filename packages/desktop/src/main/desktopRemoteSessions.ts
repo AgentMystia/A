@@ -6,7 +6,6 @@ import {
   buildRemoteWorkspaceIdentity,
   buildRemoteEnvironmentKey,
   buildSshRemoteHostKey,
-  normalizeServerEndpoint,
   HostMessageTypes,
   HostResponseTypes,
   hostResponseMessageSchema,
@@ -23,6 +22,7 @@ import type {
 } from "./desktopRemoteUsageArmsTelemetry.js";
 import type { RemoteAssetDirs } from "./desktopRuntimeEnv.js";
 import { ProviderProvisioningEnvironmentCoordinator } from "./providerProvisioningEnvironmentCoordinator.js";
+import { normalizeServerRemoteUrlForComparison } from "./remoteTargetEquality.js";
 import {
   admitBotRemoteWorkspaceReconnect,
   hasRemoteWorkspaceSessionForTarget as hasAttachableRemoteWorkspaceSessionForTarget,
@@ -80,7 +80,7 @@ function buildRemoteTargetTelemetryKey(target: RemoteTarget): string {
     case "docker":
       return `docker:${target.container}`;
     case "server":
-      return `server:${normalizeServerEndpoint(target.url)}`;
+      return `server:${normalizeServerRemoteUrlForComparison(target.url)}`;
   }
 }
 

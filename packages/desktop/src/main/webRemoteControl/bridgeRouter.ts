@@ -35,7 +35,7 @@ export interface BridgeRouterState {
   signatures: Map<number, string>;
 }
 
-export function reportUsage(
+export function reportRemoteUsageEvent(
   deps: WebRemoteControlManagerDependencies,
   windowId: number,
   event: Parameters<NonNullable<WebRemoteControlManagerDependencies["reportRemoteUsageEvent"]>>[1],
@@ -181,7 +181,22 @@ function scheduleMobileDisconnectGrace(
   }, WEB_REMOTE_CONTROL_MOBILE_DISCONNECT_GRACE_MS);
 }
 
-function workspaceDimensions(runtime: WebRemoteControlRuntime): {
+export function resolveRemoteKind(
+  target: { kind: "local" | "remote"; workspaceIdentity?: string },
+  attached?: { remoteKind?: string },
+): string | undefined {
+  // 发布包只在 remote workspace 上取 kind；本地 workspace 落到函数末尾，得到 undefined。
+  if (target.kind === "remote") {
+    return (
+      attached?.remoteKind ??
+      (target.workspaceIdentity
+        ? parseRemoteWorkspaceIdentity(target.workspaceIdentity)?.kind
+        : undefined)
+    );
+  }
+}
+
+function resolveRuntimeWorkspaceDimensions(runtime: WebRemoteControlRuntime): {
   workspaceKind: string;
   remoteKind?: string;
 } {
@@ -228,13 +243,13 @@ export function mapTransportState(
   }
   if (next === "paired") {
     if (previous !== "paired") {
-      reportUsage(
+      reportRemoteUsageEvent(
         deps,
         runtime.windowId,
         buildWebRemoteControlPairResultTelemetry({
           result: "success",
           pairKind: runtime.hasEverPaired ? "reconnect" : "initial",
-          ...workspaceDimensions(runtime),
+          ...resolveRuntimeWorkspaceDimensions(runtime),
         }),
       );
     }
@@ -248,13 +263,13 @@ export function mapTransportState(
   }
   if (next === "kicked") {
     if (previous !== "kicked") {
-      reportUsage(
+      reportRemoteUsageEvent(
         deps,
         runtime.windowId,
         buildWebRemoteControlPairResultTelemetry({
           result: "failure",
           pairKind: runtime.hasEverPaired ? "reconnect" : "initial",
-          ...workspaceDimensions(runtime),
+          ...resolveRuntimeWorkspaceDimensions(runtime),
           errorCategory: "relay",
         }),
       );
@@ -274,13 +289,13 @@ export function mapTransportState(
   }
   if (next === "error") {
     if (previous !== "error") {
-      reportUsage(
+      reportRemoteUsageEvent(
         deps,
         runtime.windowId,
         buildWebRemoteControlPairResultTelemetry({
           result: "failure",
           pairKind: runtime.hasEverPaired ? "reconnect" : "initial",
-          ...workspaceDimensions(runtime),
+          ...resolveRuntimeWorkspaceDimensions(runtime),
           errorCategory: "relay",
         }),
       );

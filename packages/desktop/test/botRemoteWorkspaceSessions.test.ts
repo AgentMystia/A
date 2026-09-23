@@ -16,7 +16,11 @@ import {
   requireBotRemoteWorkspaceSessionId,
   type BotRemoteAttachmentRouteSnapshot,
 } from "../src/main/botRemoteWorkspaceSessionLookup.ts";
-import { isSameRemoteTarget } from "../src/main/remoteTargetEquality.ts";
+import {
+  isSameRemoteTarget,
+  normalizeServerRemoteUrlForComparison,
+} from "../src/main/remoteTargetEquality.ts";
+import { normalizeServerEndpoint } from "@zcode/shared";
 
 const ssh = (patch: Partial<Extract<RemoteTarget, { kind: "ssh" }>> = {}): RemoteTarget => ({
   kind: "ssh",
@@ -92,6 +96,11 @@ describe("isSameRemoteTarget", () => {
       ),
       false,
     );
+    assert.equal(
+      normalizeServerRemoteUrlForComparison("wss://cdn.example/ws/?token=a#frag"),
+      normalizeServerEndpoint("wss://cdn.example/ws/?token=a#frag"),
+    );
+    assert.equal(normalizeServerRemoteUrlForComparison("not a url///"), "not a url");
   });
 });
 

@@ -1,8 +1,29 @@
-import { normalizeServerEndpoint, type RemoteTarget } from "@zcode/shared";
+import type { RemoteTarget } from "@zcode/shared";
+
+/**
+ * 发布包 main 的 server 比较和遥测键。
+ * 规则与共享 `normalizeServerEndpoint` 相同，但正则必须是 `/g`：共享函数带 `u` 标志，给环境键和 host 使用，不能改。
+ */
+export function normalizeServerRemoteUrlForComparison(url: string): string {
+  try {
+    const parsed = new URL(url.trim());
+    if (parsed.protocol === "ws:") parsed.protocol = "http:";
+    if (parsed.protocol === "wss:") parsed.protocol = "https:";
+    parsed.hash = "";
+    parsed.search = "";
+    const normalizedPath = parsed.pathname.replace(/\/+$/g, "");
+    parsed.pathname = normalizedPath.endsWith("/ws")
+      ? normalizedPath.slice(0, -"/ws".length) || "/"
+      : normalizedPath || "/";
+    return parsed.toString().replace(/\/$/g, "");
+  } catch {
+    return url.trim().replace(/\/+$/g, "");
+  }
+}
 
 /**
  * 发布包 `isSameRemoteTarget`。
- * server 只比较 URL，规则与 `normalizeServerEndpoint` 相同，不比较 serverId、name 或 token。
+ * server 只比较 URL，不比较 serverId、name 或 token。
  */
 export function isSameRemoteTarget(left: RemoteTarget, right: RemoteTarget): boolean {
   if (left.kind !== right.kind) return false;
@@ -26,7 +47,8 @@ export function isSameRemoteTarget(left: RemoteTarget, right: RemoteTarget): boo
     case "server":
       return (
         right.kind === "server" &&
-        normalizeServerEndpoint(left.url) === normalizeServerEndpoint(right.url)
+        normalizeServerRemoteUrlForComparison(left.url) ===
+          normalizeServerRemoteUrlForComparison(right.url)
       );
   }
 }

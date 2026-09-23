@@ -72,16 +72,21 @@ export function sendWebRemoteControlStatusChangedToWindow(
   win.webContents.send(PlatformChannels.WebRemoteControlStatusChanged, status);
 }
 
-function reportStart(
+function reportRemoteUsageEventSafely(
   report: ((rendererId: number, event: TelemetryEventPayload) => void) | undefined,
   rendererId: number,
   event: TelemetryEventPayload,
 ): void {
   try {
-    report?.(rendererId, event);
+    // 发布包直接调用。未注入 reporter 时这里抛错，由 catch 吞掉，不能写成可选调用。
+    report!(rendererId, event);
   } catch {
     // 启动埋点失败不改变开启结果。
   }
+}
+
+function resolveWorkspaceKind(context: WebRemoteControlStartRequest): "remote" | "local" {
+  return context.workspaceIdentity?.trim() || context.remoteSessionId?.trim() ? "remote" : "local";
 }
 
 async function runStartOperation(input: {
@@ -92,17 +97,14 @@ async function runStartOperation(input: {
   operation: (windowId: number) => Promise<WebRemoteControlStatus>;
   reportRemoteUsageEvent?: (rendererId: number, event: TelemetryEventPayload) => void;
 }): Promise<WebRemoteControlStatus> {
-  const workspaceKind =
-    input.context.workspaceIdentity?.trim() || input.context.remoteSessionId?.trim()
-      ? "remote"
-      : "local";
+  const workspaceKind = resolveWorkspaceKind(input.context);
   const remoteKind = input.context.workspaceIdentity
     ? parseRemoteWorkspaceIdentity(input.context.workspaceIdentity)?.kind
     : undefined;
   try {
     if (input.windowId === undefined) throw new Error(input.missingWindowMessage);
     const status = await input.operation(input.windowId);
-    reportStart(
+    reportRemoteUsageEventSafely(
       input.reportRemoteUsageEvent,
       input.senderId,
       buildWebRemoteControlStartResultTelemetry({
@@ -113,7 +115,7 @@ async function runStartOperation(input: {
     );
     return status;
   } catch (error) {
-    reportStart(
+    reportRemoteUsageEventSafely(
       input.reportRemoteUsageEvent,
       input.senderId,
       buildWebRemoteControlStartResultTelemetry({

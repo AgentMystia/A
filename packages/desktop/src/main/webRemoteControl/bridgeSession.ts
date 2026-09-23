@@ -3,7 +3,6 @@ import {
   buildWebRemoteControlBridgeResultTelemetry,
   classifyRemoteUsageError,
   measureWebRemoteControlRpcRelayEnvelopeBytes,
-  parseRemoteWorkspaceIdentity,
   type WebRemoteControlAppPayload,
 } from "@zcode/shared";
 import { createAcknowledgedWebRemoteControlRelayProtocol } from "./acknowledgedRelayProtocol.js";
@@ -14,7 +13,8 @@ import {
   isCurrentBridgeRuntime,
   buildWorkspaceListResult,
   emitRuntimeStatus,
-  reportUsage,
+  reportRemoteUsageEvent,
+  resolveRemoteKind,
   type BridgeRouterState,
 } from "./bridgeRouter.js";
 import {
@@ -73,9 +73,6 @@ export async function createWorkspaceBridge(
   let attached:
     | Awaited<ReturnType<WebRemoteControlManagerDependencies["attachWorkspaceHost"]>>
     | undefined;
-  const remoteKind = target.workspaceIdentity
-    ? parseRemoteWorkspaceIdentity(target.workspaceIdentity)?.kind
-    : undefined;
   try {
     attached = await deps.attachWorkspaceHost(runtime.windowId, {
       workspacePath: target.workspacePath,
@@ -135,25 +132,25 @@ export async function createWorkspaceBridge(
     deps.logger.info(
       `[web-remote-control] workspace bridge active window=${runtime.windowId} session=${runtime.deviceSid} bridgeSession=${request.bridgeSessionId}`,
     );
-    reportUsage(
+    reportRemoteUsageEvent(
       deps,
       runtime.windowId,
       buildWebRemoteControlBridgeResultTelemetry({
         result: "success",
         workspaceKind: target.kind,
-        remoteKind: attached.remoteKind ?? remoteKind,
+        remoteKind: resolveRemoteKind(target, attached),
         entryKind: request.taskId ? "task" : "home",
       }),
     );
     return toExternalBridge(bridge);
   } catch (error) {
-    reportUsage(
+    reportRemoteUsageEvent(
       deps,
       runtime.windowId,
       buildWebRemoteControlBridgeResultTelemetry({
         result: "failure",
         workspaceKind: target.kind,
-        remoteKind: attached?.remoteKind ?? remoteKind,
+        remoteKind: resolveRemoteKind(target, attached),
         entryKind: request.taskId ? "task" : "home",
         errorCategory: classifyRemoteUsageError(error),
       }),
