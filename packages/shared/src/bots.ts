@@ -208,14 +208,6 @@ export const botsStateSchema = z
 
 export type BotsState = z.infer<typeof botsStateSchema>;
 
-export function createDefaultBotsConfig(): BotsConfig {
-  return { version: 3, bots: [] };
-}
-
-export function createDefaultBotsState(): BotsState {
-  return { version: 3, bots: {} };
-}
-
 export function isFeishuBotProvider(provider: BotProviderId): boolean {
   return provider === "feishu" || provider === "lark";
 }
@@ -235,14 +227,6 @@ export function normalizeBotReplyGranularity(
   const supported = getSupportedBotReplyGranularities(provider);
   const candidate = replyMode ?? "assistant_changes";
   return supported.includes(candidate) ? candidate : supported[0]!;
-}
-
-export function buildBotCredentialKey(botId: string): string {
-  return `bot:${botId}:credential`;
-}
-
-export function buildBotWebhookSecretKey(botId: string): string {
-  return `bot:${botId}:webhook-secret`;
 }
 
 export interface BotRuntimeStatus {

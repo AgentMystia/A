@@ -2,6 +2,11 @@ import { BIGMODEL_PROVIDER_ID, type OAuthProviderId, ZAI_PROVIDER_ID } from "./o
 import { BUILTIN_MODEL_PROVIDER_IDS, type BuiltinModelProviderId } from "./model-provider-types.js";
 import { ZCODE_ENV } from "./env.js";
 import { buildBigModelCodingPlanTeamManageUrl } from "./zcodeEndpoint.js";
+import { toAsciiSlug } from "./opencodeModelId.js";
+
+// 发布包 host big chunk 在 getModelProviderFamilySpec 之前包含 opencode model id 助手。
+// 本模块只进入那个 chunk；引用没有运行时效果，只让 esbuild 把助手放进同一组入口。
+void toAsciiSlug;
 
 export type ModelProviderFamilyId = "zai" | "bigmodel";
 export type ProviderFamilyDomain = ModelProviderFamilyId;

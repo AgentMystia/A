@@ -133,7 +133,22 @@ export * from "./marketingTouch.js";
 export * from "./cloudContent.js";
 export * from "./outputStyle.js";
 export * from "./bots.js";
-export * from "./manualClaim.js";
+export {
+  buildBotCredentialKey,
+  buildBotWebhookSecretKey,
+  createDefaultBotsConfig,
+} from "./botsDefaults.js";
+export { hash8, toAsciiSlug, toOpencodeModelId, toOpencodeProviderKey } from "./opencodeModelId.js";
+export { readServerTimeMilliseconds } from "./manualClaim.js";
+export type {
+  ManualClaimedEntitlement,
+  ManualClaimedPlan,
+  ManualClaimEntitlementPreview,
+  ManualClaimPlanPreview,
+  ManualClaimPlanPreviews,
+  ManualClaimRequest,
+  ManualClaimResult,
+} from "./manualClaim.js";
 export * from "./channels.js";
 export * from "./storage.js";
 export * from "./oauth.js";

@@ -1,13 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  hash8,
-  resolveCustomModelRuntimeModelId,
-  toAsciiSlug,
-  toOpencodeModelId,
-  toOpencodeProviderKey,
-} from "../src/bots/botsHostHelpers.js";
+import { hash8, toAsciiSlug, toOpencodeModelId, toOpencodeProviderKey } from "@zcode/shared";
+import { resolveCustomModelRuntimeModelId } from "../src/bots/botsHostHelpers.js";
 
 test("opencode runtime model ids use the published slug and FNV hash", () => {
   assert.equal(toAsciiSlug("Open Code"), "open-code");

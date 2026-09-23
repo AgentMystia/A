@@ -5,7 +5,6 @@ import {
   botsConfigSchema,
   botsStateSchema,
   createDefaultBotsConfig,
-  createDefaultBotsState,
   type BotsConfig,
   type BotsState,
 } from "@zcode/shared";
@@ -76,8 +75,9 @@ export class BotsRepo {
         v2 === undefined
           ? await readOptionalJson(join(this.configDir(), BOT_STATE_LEGACY_FILE_NAME))
           : v2;
+      // 发布包 host 没有 createDefaultBotsState。没有旧文件时直接写空状态。
       const parsed = botsStateSchema.parse(
-        legacy === undefined ? createDefaultBotsState() : importLegacyBotState(legacy),
+        legacy === undefined ? { version: 3, bots: {} } : importLegacyBotState(legacy),
       );
       await writeJson(path, parsed);
       return parsed;
