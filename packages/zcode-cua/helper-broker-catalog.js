@@ -15,7 +15,6 @@ import "./helper-published-ax-roles.js";
 // 原生绑定路径和它后面的空 import 在角色映射之后、PiP schema 之前。
 import "./helper-published-ax-native.js";
 import "./helper-published-temp-fs.js";
-import "./helper-published-temp-realpath.js";
 import "./helper-published-temp-require.js";
 import "./pip-session-schema.js";
 

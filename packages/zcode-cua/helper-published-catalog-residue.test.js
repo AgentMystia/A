@@ -44,14 +44,12 @@ test("published temp residue keeps the unused 16MiB var and does not read files"
   const ceilingImports = await import("./helper-published-ceiling-imports.js");
   const spawn = await import("./helper-published-temp-spawn.js");
   const fsResidue = await import("./helper-published-temp-fs.js");
-  const realpath = await import("./helper-published-temp-realpath.js");
   const requireResidue = await import("./helper-published-temp-require.js");
   assert.deepEqual(Object.keys(scan), []);
   assert.deepEqual(Object.keys(read), []);
   assert.deepEqual(Object.keys(ceilingImports), []);
   assert.deepEqual(Object.keys(spawn), []);
   assert.deepEqual(Object.keys(fsResidue), []);
-  assert.deepEqual(Object.keys(realpath), []);
   assert.deepEqual(Object.keys(requireResidue), []);
 });
 
