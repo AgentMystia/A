@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
 import { WebSocket, type RawData } from "ws";
-import {
-  WEB_REMOTE_CONTROL_RPC_LIMITS,
-  WebRemoteControlRelayPayloadSerializer,
-  type WebRemoteControlAppPayload,
-} from "@zcode/shared";
+import { WEB_REMOTE_CONTROL_RPC_LIMITS, type WebRemoteControlAppPayload } from "@zcode/shared";
+import { WebRemoteControlRelayPayloadSerializer } from "@zcode/shared/webRemoteControlRelayPayloadSerializer";
 import type { WebRemoteControlRelayAuthProvider } from "./auth.js";
 import {
   clearReconnectTimer,

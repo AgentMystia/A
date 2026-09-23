@@ -127,7 +127,6 @@ export * from "./webRemoteControlTelemetry.js";
 export * from "./webRemoteControlRpcLimits.js";
 export * from "./webRemoteControlRpcSchema.js";
 export * from "./webRemoteControlRpcCodec.js";
-export * from "./webRemoteControlRelayPayloadSerializer.js";
 export * from "./webRemoteControlRpcAssembler.js";
 export * from "./webRemoteControlPayload.js";
 export * from "./marketingTouch.js";
