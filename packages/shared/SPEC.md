@@ -64,7 +64,7 @@ renderer hook → ProxyChannel → Host 单例
 - 飞书 App ID 必须匹配 `/^cli_[0-9a-fA-F]{16}$/`。飞书注册走 `accounts.feishu.cn` / `accounts.larksuite.com` 的 `/oauth/v1/app/registration`，`source=node-sdk/zcode`。
 - 微信 iLink API 基址 `https://ilinkai.weixin.qq.com/ilink/bot`，注册 QR 走同一 host。
 - Telegram 命令名 workspace=`project`、thoughtLevel=`think`。绑定码 3 字节 hex 大写，默认 TTL 30s。
-- 飞书回复粒度只保留 `streaming_card`；其余 provider 去掉该粒度。
+- 飞书回复粒度只保留 `streaming_card`；其余 provider 去掉该粒度。配置 schema 的 `replyMode` 枚举重复这四个字面量：`assistant_changes`、`assistant_toolcalls_changes`、`summary_changes`、`streaming_card`。新建草稿调用 `normalizeBotReplyGranularity(provider, DEFAULT_BOT_REPLY_MODE)`；归一化在参数缺省时使用字面量 `assistant_changes`。
 - `listUserConfigOptions` 发布包 keepNames 实现返回 `[]`。`listProviderConfigOptionsForActiveTask` 只调用它。`readCurrentActiveTaskMode` 取 config `mode` 的 currentValue，否则用 task.mode。
 - 任务列表广播频道是 `bots:task`（`broadcastTaskListChange` / `broadcastTaskConfigSync`）。每条任务流事件先走 `bots:task-stream`（`broadcastTaskStreamEvent`），`task_stream_mirror_batch` 只广播批次本身，内嵌 `stream_event` 不再次广播。不得使用 `bots:task-list`。频道常量在 `bots.ts`，host 与 renderer 共用，不另写一份字符串。
 - Renderer 在 Root 注册一次 `useBotTaskBroadcast`。先匹配 `bots:task-stream`，否则匹配 `bots:task`；workspace key 必须命中当前窗口的 workspace tab。流事件的所有者是 session store：非当前任务，以及带 `workspaceIdentity` 的当前任务，才投影 runtime；没有 identity 的当前任务留给 desktop-continuous，直接丢弃这条流消息。列表事件再写 runtime、permission/elicitation、optimistic task 与 task query cache。`created` 用 force-insert membership；其它带 task 的事件不 bump 列表版本。用量合并保留同值 breakdown，并忽略非 compact 的非正 used。

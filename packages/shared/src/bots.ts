@@ -104,7 +104,12 @@ export const botConfigEntrySchema = z
     allowedWorkspaces: z.array(z.string().min(1)),
     allowedCommands: botCommandPolicySchema,
     currentOptions: botCurrentOptionsSchema,
-    replyMode: z.enum(BOT_REPLY_MODES),
+    replyMode: z.enum([
+      "assistant_changes",
+      "assistant_toolcalls_changes",
+      "summary_changes",
+      "streaming_card",
+    ]),
   })
   .strict();
 
@@ -228,7 +233,7 @@ export function normalizeBotReplyGranularity(
   replyMode?: BotReplyMode,
 ): BotReplyMode {
   const supported = getSupportedBotReplyGranularities(provider);
-  const candidate = replyMode ?? DEFAULT_BOT_REPLY_MODE;
+  const candidate = replyMode ?? "assistant_changes";
   return supported.includes(candidate) ? candidate : supported[0]!;
 }
 

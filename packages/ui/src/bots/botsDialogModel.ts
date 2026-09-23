@@ -3,6 +3,7 @@ import {
   BOT_BIND_CODE_TTL_MS,
   BOT_REPLY_MODES,
   DEFAULT_BOT_COMMAND_POLICY,
+  DEFAULT_BOT_REPLY_MODE,
   createDefaultBotsConfig,
   getSupportedBotReplyGranularities,
   normalizeBotReplyGranularity,
@@ -125,7 +126,7 @@ export function createBotDraft(provider: BotProviderId): BotConfigEntry {
     allowedWorkspaces: [ALL_WORKSPACES],
     allowedCommands: DEFAULT_BOT_COMMAND_POLICY,
     currentOptions: {},
-    replyMode: normalizeBotReplyGranularity(provider),
+    replyMode: normalizeBotReplyGranularity(provider, DEFAULT_BOT_REPLY_MODE),
   };
 }
 
