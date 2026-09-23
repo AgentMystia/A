@@ -18,23 +18,14 @@ declare const __ZCODE_ENDPOINT_ENV__: Record<string, string | undefined> | undef
 export function pickProductEndpointEnv(
   env: Record<string, string | undefined>,
 ): Record<string, string> {
+  // 通道专用键由解析函数直接读取。放进白名单会在 renderer 再复制一份字符串。
   const keys = [
     "ZCODE_BASE_URL",
     "ZCODE_ENDPOINT_ORIGIN",
-    "ZCODE_PRODUCTION_BASE_URL",
-    "ZCODE_TEST_BASE_URL",
     "BIGMODEL_API_BASE_URL",
-    "BIGMODEL_PRODUCTION_API_BASE_URL",
-    "BIGMODEL_TEST_API_BASE_URL",
     "ZAI_OAUTH_ORIGIN",
-    "ZAI_PRODUCTION_OAUTH_ORIGIN",
-    "ZAI_TEST_OAUTH_ORIGIN",
     "ZAI_BUSINESS_BASE_URL",
-    "ZAI_PRODUCTION_BUSINESS_BASE_URL",
-    "ZAI_TEST_BUSINESS_BASE_URL",
     "ZAI_OAUTH_CLIENT_ID",
-    "ZAI_PRODUCTION_OAUTH_CLIENT_ID",
-    "ZAI_TEST_OAUTH_CLIENT_ID",
     "ZAI_OAUTH_APP_ID",
   ];
   return Object.fromEntries(
