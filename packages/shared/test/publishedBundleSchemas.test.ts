@@ -2,13 +2,36 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { botsStateSchema } from "../src/bots.js";
+import { cloudContentBundleSchema } from "../src/cloudContent.js";
 import {
+  cloudDialogBundleSchema,
   cloudDialogButtonThemeSchema,
   cloudDialogPayloadSchema,
 } from "../src/cloudDialogPayload.js";
 import { marketingDeliverySchema } from "../src/marketingTouch.js";
 import { CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID } from "../src/plugin-marketplaces.js";
 import { zcodePermissionResponseSchema } from "../src/zcode-protocol-legacy-types.js";
+
+test("content bundle schema is the cloud dialog zip schema", () => {
+  assert.equal(cloudContentBundleSchema, cloudDialogBundleSchema);
+  const bundle = cloudContentBundleSchema.parse({
+    format: "zip",
+    url: "https://cdn.example/bundle.zip",
+    entry: "index.html",
+    sha256: "a".repeat(64),
+    sizeBytes: 1024,
+  });
+  assert.equal(bundle.entry, "index.html");
+  assert.equal(
+    cloudContentBundleSchema.safeParse({
+      format: "zip",
+      url: "https://user:secret@cdn.example/bundle.zip",
+      entry: "index.html",
+      sha256: "a".repeat(64),
+    }).success,
+    false,
+  );
+});
 
 test("marketing touch and cloud dialog share one button theme schema", () => {
   const popup = marketingDeliverySchema.options.find(

@@ -1,32 +1,12 @@
-import { z } from "zod";
+import { cloudDialogBundleSchema, type CloudDialogBundle } from "./cloudDialogPayload.js";
 
-const bundleUrlSchema = z
-  .string()
-  .max(4096)
-  .url()
-  .refine((value) => {
-    if (!URL.canParse(value)) {
-      return false;
-    }
-    const parsed = new URL(value);
-    return /^https?:$/u.test(parsed.protocol) && !parsed.username && !parsed.password;
-  });
+/**
+ * 发布包只保留 cloudDialogBundleSchema 这一份 zip zod。
+ * 内容租约解析同一个对象，入口是否为 html 由 Host 解包路径校验，不在这里再写 schema。
+ */
+export const cloudContentBundleSchema = cloudDialogBundleSchema;
 
-/** 发布包 host 的 zip bundle 契约。入口必须是 html。 */
-export const cloudContentBundleSchema = z.object({
-  format: z.literal("zip"),
-  url: bundleUrlSchema,
-  entry: z.string().min(1).max(240),
-  sha256: z.string().regex(/^[a-f0-9]{64}$/u),
-  sizeBytes: z
-    .number()
-    .int()
-    .positive()
-    .max(8 * 1024 * 1024)
-    .optional(),
-});
-
-export type CloudContentBundle = z.infer<typeof cloudContentBundleSchema>;
+export type CloudContentBundle = CloudDialogBundle;
 
 export interface CloudContentPrepareResult {
   leaseId: string;

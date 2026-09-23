@@ -36,7 +36,8 @@ const cloudDialogImageHeroSchema = z.object({
   fit: z.enum(["cover", "contain"]).optional(),
 });
 
-const cloudDialogBundleSchema = z.object({
+// 内容租约复用这一份。cloudContent.ts 再构造一份会在 preload 和 host 共享 chunk 各留一个 zip 对象。
+export const cloudDialogBundleSchema = z.object({
   format: z.literal("zip"),
   url: cloudDialogAssetUrlSchema,
   entry: z.string().min(1).max(240),
@@ -137,4 +138,5 @@ export const cloudDialogPayloadSchema = z
     }
   });
 
+export type CloudDialogBundle = z.infer<typeof cloudDialogBundleSchema>;
 export type CloudDialogPayloadContract = z.infer<typeof cloudDialogPayloadSchema>;
