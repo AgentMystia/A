@@ -62,13 +62,17 @@ export interface CaptchaNetworkWebRequest {
   ): void;
 }
 
-/** 发布包 `resource`。未命中的阿里云地址不记日志，也不改写 URL。 */
-export function classifyCaptchaNetworkResource(url: string): CaptchaNetworkResource | undefined {
+/**
+ * 发布包 keepName 是 `resource`。
+ * 导出名仍是 `classifyCaptchaNetworkResource`，避免再导出一份同名函数。
+ * 未命中的阿里云地址不记日志，也不改写 URL。
+ */
+function resource(url: string): CaptchaNetworkResource | undefined {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return undefined;
+    return;
   }
   const host = parsed.hostname;
   if (CAPTCHA_DEVICE_API_HOSTS.has(host)) {
@@ -101,8 +105,9 @@ export function classifyCaptchaNetworkResource(url: string): CaptchaNetworkResou
           : `/captcha-frontend/[${kind}]`,
     };
   }
-  return undefined;
 }
+
+export { resource as classifyCaptchaNetworkResource };
 
 function pruneCaptchaNetworkRequests(startedAtByRequestId: Map<number, number>, now: number): void {
   for (const [requestId, startedAt] of startedAtByRequestId) {
@@ -128,8 +133,8 @@ export function installCaptchaNetworkDiagnostics(
   webRequest.onBeforeRequest(CAPTCHA_NETWORK_URL_FILTER, (details, callback) => {
     // 诊断不能取消或改写请求。
     callback({});
-    const resource = classifyCaptchaNetworkResource(details.url);
-    if (!resource) return;
+    const classified = resource(details.url);
+    if (!classified) return;
     const now = Date.now();
     pruneCaptchaNetworkRequests(startedAtByRequestId, now);
     startedAtByRequestId.set(details.id, now);
@@ -137,21 +142,21 @@ export function installCaptchaNetworkDiagnostics(
       event: "resource.start",
       networkRequestId: details.id,
       webContentsId: details.webContentsId,
-      ...resource,
+      ...classified,
     });
   });
   const finish = (details: CaptchaNetworkRequestDetails) => {
     const startedAt = startedAtByRequestId.get(details.id);
     startedAtByRequestId.delete(details.id);
-    const resource = classifyCaptchaNetworkResource(details.url);
-    if (!resource) return;
+    const classified = resource(details.url);
+    if (!classified) return;
     const now = Date.now();
     pruneCaptchaNetworkRequests(startedAtByRequestId, now);
     logger.info("[captcha-network]", {
       event: details.error ? "resource.failed" : "resource.completed",
       networkRequestId: details.id,
       webContentsId: details.webContentsId,
-      ...resource,
+      ...classified,
       elapsedMs: startedAt === undefined ? null : now - startedAt,
       statusCode: details.statusCode ?? null,
       errorCode:
