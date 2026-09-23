@@ -1,4 +1,4 @@
-import { Loader2, RefreshCw, Copy, Lock } from "lucide-react";
+import { Loader2, QrCode, Copy, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
@@ -35,7 +35,7 @@ export function BotsBindCommandPanel({
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={onRefresh}>
-          <RefreshCw className="size-3" />
+          <QrCode className="size-3" />
           {intl.formatMessage({ id: "bots.setup.refreshBindCode" })}
         </Button>
       </div>

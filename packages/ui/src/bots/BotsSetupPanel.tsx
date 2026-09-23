@@ -1,4 +1,4 @@
-import { ExternalLink, Loader2, RefreshCw, TriangleAlert, Unlink } from "lucide-react";
+import { ExternalLink, Loader2, QrCode, TriangleAlert, Unlink } from "lucide-react";
 import { isFeishuBotProvider, type BotConfigEntry, type BotRuntimeStatus } from "@zcode/shared";
 
 import { Button } from "@/components/ui/button.js";
@@ -200,7 +200,7 @@ function renderControl(input: {
         onClick={input.weixin ? input.onStartWeixinRegistration : input.onStartFeishuRegistration}
         disabled={loading}
       >
-        {loading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+        {loading ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}
         {intl.formatMessage({ id: "bots.scanQrCode" })}
       </Button>
     );

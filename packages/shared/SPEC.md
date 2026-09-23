@@ -237,7 +237,7 @@ Root 挂载隐藏宿主 + 每个 workspace 订阅
 - 平台方法只在 `IPlatformService`：`startWebRemoteControl`、`refreshWebRemoteControlPairing`、`stopWebRemoteControl`、`getWebRemoteControlStatus`、`onWebRemoteControlStatusChanged`。Desktop preload 转到已有 main IPC。会话状态仍只由 `createWebRemoteControlManager` 写出。
 - 功能开关默认开启。footer 仅在桌面且已有 workspace 路径时挂紧凑入口。入口点击上报 `web_remote_control_entry_view`。弹窗打开时若当前 workspace 已有会话，或已有手机连接，则复用状态；`cancelled` 收成 `idle`。状态轮询 1 秒，二维码来自 `qrUrl`。
 - 失败文案按 `failure.reason` 映射。`session-conflict` 且 message 含 `kicked` 时用 kicked 文案。刷新配对前确认；停止后把本地状态收成 `idle`。
-- Bots 对话框是配置 UI 的唯一所有者。配置、运行状态和绑定码轮询都走现有 `IBotsService`。`listWorkspaceRefs` 接受当前 workspace，这样历史为空时列表仍包含正在配置的工作区。绑定码 TTL 使用 `BOT_BIND_CODE_TTL_MS`。飞书/Lark 与微信扫码注册沿用现有 begin/poll。Bots 不调用验证码。
+- Bots 对话框是配置 UI 的唯一所有者。配置、运行状态和绑定码轮询都走现有 `IBotsService`。`listWorkspaceRefs` 接受当前 workspace，这样历史为空时列表仍包含正在配置的工作区。绑定码 TTL 使用 `BOT_BIND_CODE_TTL_MS`。飞书/Lark 与微信扫码注册沿用现有 begin/poll。扫码按钮和刷新绑定码按钮使用 lucide `QrCode`，class 分别是 `size-4` 和 `size-3`；加载中仍用 `Loader2`。Bots 不调用验证码。
 - 飞书与 Lark 共用发布包 styles 里内联的 PNG。Telegram、微信、钉钉、Discord、企业微信的 `new URL` 图标没有打进 AppImage，界面改用现有 `Bot` / `Webhook` 图标，不伪造哈希文件名。钉钉只出现在新建列表里，不进入 `BotProviderId`。
 
 ### 手机远控任务首页
