@@ -13,7 +13,8 @@ import {
 import { productHelperCandidatePaths } from "./helper-process-evidence.js";
 
 const RECOVERY_WAIT_MS = 10_000;
-const recoveryState = new WeakMap();
+// 纯构造：未调用产品 Host 的进程要能把这个模块整段摇掉。
+const recoveryState = /* @__PURE__ */ new WeakMap();
 
 function recoveryStateFor(host) {
   let state = recoveryState.get(host);

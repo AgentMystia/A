@@ -19,8 +19,9 @@ export const HELPER_OPEN_TIMEOUT_MS = 10_000;
 const LAUNCHER_PID_ENV = "ZCODE_CUA_LAUNCHER_PID";
 const HELPER_LAUNCH_PATH = "/usr/bin:/bin:/usr/sbin:/sbin";
 const PREFLIGHT_TIMEOUT_MS = 8_000;
-const PREFLIGHT_STATES = new Set(["granted", "denied", "unknown"]);
-const LAUNCH_ENV_KEYS = new Set([
+// 纯构造：main 只 re-export 了启动参数函数，不能因此留下整份 open 实现。
+const PREFLIGHT_STATES = /* @__PURE__ */ new Set(["granted", "denied", "unknown"]);
+const LAUNCH_ENV_KEYS = /* @__PURE__ */ new Set([
   "HOME",
   "TMPDIR",
   "TMP",

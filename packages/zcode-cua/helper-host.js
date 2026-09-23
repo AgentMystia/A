@@ -11,6 +11,17 @@ import { createDefaultHelperPidEvidenceProvider } from "./helper-process-evidenc
 
 const SCREEN_RECORDING_PREFLIGHT_DIR = ".screen-recording-preflight";
 
+// 发布包 main/scheduler 不包含 CuaHelperHost。模块顶层挂原型会被当成副作用，
+// 只要 broker/server 被 import 就会把启动和终止实现打进这两个进程。
+let helperHostMethodsAttached = false;
+
+function ensureHelperHostMethods() {
+  if (helperHostMethodsAttached) return;
+  helperHostMethodsAttached = true;
+  attachCuaHelperTermination(CuaHelperHost);
+  attachCuaHelperStart(CuaHelperHost);
+}
+
 function mintRandomSecret() {
   return randomBytes(32).toString("hex");
 }
@@ -32,6 +43,7 @@ export class CuaHelperHost {
   stopGeneration = 0;
 
   constructor(options) {
+    ensureHelperHostMethods();
     this.options = options;
     this.collectHelperPidEvidence =
       options.collectHelperPidEvidence ??
@@ -312,6 +324,3 @@ export class CuaHelperHost {
     )(this.handle.socketPath, timeoutMs);
   }
 }
-
-attachCuaHelperTermination(CuaHelperHost);
-attachCuaHelperStart(CuaHelperHost);

@@ -3,7 +3,7 @@ import { chmod, rename, rm, writeFile } from "node:fs/promises";
 
 const DEFAULT_REFRESH_DEADLINE_MS = 30_000;
 const MAX_REFRESH_DEADLINE_MS = 120_000;
-const activeMarkers = new Map();
+const activeMarkers = /* @__PURE__ */ new Map();
 
 export function resolveZCodeCuaBrokerRefreshMarkerPath(socketPath) {
   const trimmed = socketPath.trim();
