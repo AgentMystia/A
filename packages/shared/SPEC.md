@@ -302,6 +302,7 @@ Main 重连请求
 - 任务投影分别读取 pinned、timeline、archived。对不上当前 workspace tab 的任务丢掉。`pinned` / `archived` 只在对应列表上写成 true。展示状态优先用会话 phase，draft 再退回 runtime status。三个列表按 pinned、timeline、archived 拼接后，按 updatedAt、createdAt、taskId 降序。
 - 任一列表仍在加载时不发送任务快照，并记录 `[Root] 暂缓同步 Web 远控任务快照，等待任务列表加载完成`。过早发送会用空列表覆盖 manager 里已经接受的快照。
 - 重连回调只复用现有历史重连。成功回 `{ success: true }`，失败回错误文本。Main 侧超时和校验仍由现有 `reconnectWebRemoteControlWorkspaceInRenderer` 负责。
+- Bot 远端 workspace 重连成功后，Main 只发 `BotRemoteWorkspaceReconnected`。远程历史 hook 订阅它，不另建 session，也不另存一份已接受连接。远控入口关闭或 session id 为空时直接返回。否则等待现有 session store 注册（50ms 轮询，3 秒超时），再解析规范路径。identity 优先用事件里的非空 `workspaceIdentity`，否则按路径和 target 现算。然后绑定 path/identity、`ensureWorkspaceTab`、把历史写成 connected，并刷新 pinned 与 timeline。失败只记 `[Root] Bot 远端 workspace 重连成功后同步 UI 状态失败`。
 
 发布包任务菜单在复制 session id 之后提供「前往配置」。配置路径只由 `IZCodeTaskService.getWorkspaceProviderConfigFile` 回答；菜单和 hook 不另存一份已接受路径。
 

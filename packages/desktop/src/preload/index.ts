@@ -58,6 +58,7 @@ import type {
   RendererActionTraceConfigV1,
   RendererHeapSample,
   PostUpdateReleaseNotesPayload,
+  BotRemoteWorkspaceReconnectedEvent,
   RemoteSessionClosedEvent,
   UpdateCheckResultPayload,
   UpdateStatePayload,
@@ -339,6 +340,13 @@ contextBridge.exposeInMainWorld("zcode", {
       callback(payload as RemoteSessionClosedEvent);
     ipcRenderer.on(PlatformChannels.RemoteSessionClosed, handler);
     return () => ipcRenderer.removeListener(PlatformChannels.RemoteSessionClosed, handler);
+  },
+  /** Main 在 Bot 远端 workspace 重连成功后通知当前窗口，renderer 只同步已有 session。 */
+  onBotRemoteWorkspaceReconnected: (callback: (event: BotRemoteWorkspaceReconnectedEvent) => void) => {
+    const handler = (_event: unknown, payload: unknown) =>
+      callback(payload as BotRemoteWorkspaceReconnectedEvent);
+    ipcRenderer.on(PlatformChannels.BotRemoteWorkspaceReconnected, handler);
+    return () => ipcRenderer.removeListener(PlatformChannels.BotRemoteWorkspaceReconnected, handler);
   },
   /** 检查目录是否已在其他窗口打开 */
   activateOrSetWorkspace: (path: string): Promise<{ activated: boolean }> =>

@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type {
   AppSettings,
   IPlatformService,
+  BotRemoteWorkspaceReconnectedEvent,
   RemoteSessionClosedEvent,
   RemoteWorkspaceSessionEntry,
 } from "@zcode/shared";
@@ -44,6 +45,7 @@ import {
 } from "@/root/reconnectRemoteWorkspaceHistoryEntry.js";
 import { useRemoteConnectionEntryVisibility } from "@/hooks/useRemoteConnectionEntryVisibility.js";
 import { markRemoteWorkspaceRunningTasksFailed } from "@/lib/remoteWorkspaceSessionRuntime.js";
+import { syncBotRemoteWorkspaceReconnectedUi } from "@/root/syncBotRemoteWorkspaceReconnectedUi.js";
 
 export { reconnectRemoteWorkspaceHistoryEntry };
 
@@ -1201,6 +1203,55 @@ export function useRemoteWorkspaceHistory({
       void handleRemoteWorkspaceSessionClosed(event);
     });
   }, [handleRemoteWorkspaceSessionClosed, platform]);
+
+  const handleBotRemoteWorkspaceReconnected = useCallback(
+    async (event: BotRemoteWorkspaceReconnectedEvent) => {
+      const sessionId = event.sessionId.trim();
+      if (!canUseRemoteWorkspace || !sessionId) {
+        return;
+      }
+
+      try {
+        // Main 已经完成 Bot 远端重连。这里只把当前窗口的 tab、历史和任务列表对齐到已有 session。
+        await syncBotRemoteWorkspaceReconnectedUi({
+          allowRemoteWorkspace: true,
+          event,
+          waitForRemoteWorkspaceSessionReady,
+          getRemoteWorkspaceSession,
+          resolveRemoteWorkspaceCanonicalPath,
+          bindRemoteWorkspacePath,
+          bindRemoteWorkspaceIdentity,
+          ensureWorkspaceTab: (workspacePath, options) => {
+            tabStoreApi.getState().ensureWorkspaceTab(workspacePath, options);
+          },
+          remoteSessions: remoteWorkspaceSessionsRef.current,
+          commitRemoteWorkspaceSessionMutation,
+          refreshPinnedTasks: refreshRemotePinnedTasksForSession,
+          refreshTimelineTasks: refreshRemoteTimelineTasksForSession,
+        });
+      } catch (error) {
+        logger.warn("[Root] Bot 远端 workspace 重连成功后同步 UI 状态失败", {
+          sessionId,
+          workspacePath: event.workspacePath,
+          workspaceIdentity: event.workspaceIdentity,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [
+      canUseRemoteWorkspace,
+      commitRemoteWorkspaceSessionMutation,
+      resolveRemoteWorkspaceCanonicalPath,
+      tabStoreApi,
+      waitForRemoteWorkspaceSessionReady,
+    ],
+  );
+
+  useEffect(() => {
+    return platform.onBotRemoteWorkspaceReconnected((event) => {
+      void handleBotRemoteWorkspaceReconnected(event);
+    });
+  }, [handleBotRemoteWorkspaceReconnected, platform]);
 
   const handleRemoteWorkspaceTabsClosed = useCallback(
     (workspaceKeys: string[]) => {
