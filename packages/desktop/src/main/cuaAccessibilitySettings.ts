@@ -13,7 +13,7 @@ import type { CuaHelperInstallerOptions } from "@zcode/services/node";
 import {
   resolveHelperPermissionSubjectIdentity,
   type HelperPermissionSubjectIdentity,
-} from "@zcode/services/cua-permission-broker";
+} from "@zcode/zcode-cua/helper-permission-identity";
 import type {
   CuaAccessibilitySettingsResult,
   CuaPermissionKind,

@@ -34,6 +34,30 @@ export async function startWebRemoteControlSession(input: {
     markRestoreConsumed,
   } = input;
   const runtimes = state.runtimes;
+  // 发布包把传输构造和二维码地址收成具名函数。theme 会传进构造参数，但不会进入查询串。
+  function createTransport(
+    options: ConstructorParameters<typeof WebRemoteControlDeviceTransport>[0],
+  ) {
+    return deps.createDeviceTransport
+      ? deps.createDeviceTransport(options)
+      : new WebRemoteControlDeviceTransport(options);
+  }
+  function createQrUrl(
+    auth: { deviceSid: string; passHash: string },
+    baseUrl: string,
+    theme: string | undefined,
+  ) {
+    return buildWebRemoteControlExternalQrUrl({
+      baseUrl,
+      deviceSid: auth.deviceSid,
+      passHash: auth.passHash,
+      timestamp: Date.now(),
+      deviceMid: deps.deviceMid,
+      deviceName: deps.deviceName,
+      appVersion: deps.appVersion,
+      theme,
+    });
+  }
   clearStartAuthorizationsForWindow(windowId);
   deps.featureGate.assertEnabled();
   markRestoreConsumed();
@@ -63,9 +87,7 @@ export async function startWebRemoteControlSession(input: {
       clearTimeout(timer);
       resolve();
     };
-    const transport = (
-      deps.createDeviceTransport ?? ((options) => new WebRemoteControlDeviceTransport(options))
-    )({
+    const transport = createTransport({
       relayWsUrl,
       deviceMid: deps.deviceMid,
       auth,
@@ -146,15 +168,7 @@ export async function startWebRemoteControlSession(input: {
     await stopWindowRuntime(windowId, "startup-restore-persist-failed");
     throw error;
   }
-  const qrUrl = buildWebRemoteControlExternalQrUrl({
-    baseUrl: remoteUrl,
-    deviceSid: persisted.deviceSid,
-    passHash: persisted.passHash,
-    timestamp: Date.now(),
-    deviceMid: deps.deviceMid,
-    deviceName: deps.deviceName,
-    appVersion: deps.appVersion,
-  });
+  const qrUrl = createQrUrl(persisted, remoteUrl, request.theme);
   runtime.deviceSid = persisted.deviceSid;
   runtime.passHash = persisted.passHash;
   runtime.qrUrl = qrUrl;

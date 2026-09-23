@@ -25,6 +25,7 @@ test("external QR query carries sid, hash and device fields without theme", () =
       deviceMid: "mid-1",
       deviceName: "desktop",
       appVersion: "3.14.1",
+      theme: "dark",
     }),
   );
   assert.equal(url.searchParams.get("sid"), "device-1");

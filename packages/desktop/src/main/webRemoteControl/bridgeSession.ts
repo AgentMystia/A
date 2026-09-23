@@ -12,7 +12,7 @@ import {
   degradeBridgeAfterRawFault,
   disposeRuntimeBridgeResources,
   isCurrentBridgeRuntime,
-  listResult,
+  buildWorkspaceListResult,
   emitRuntimeStatus,
   reportUsage,
   type BridgeRouterState,
@@ -24,13 +24,13 @@ import {
   type WebRemoteControlRuntime,
 } from "./runtimeTypes.js";
 import {
-  availableTasks,
-  availableWorkspaces,
+  getAvailableTasks,
+  getAvailableWorkspaces,
   bridgeIdentityFields,
   isBridgeableRemoteWorkspace,
-  runtimeInitialViewState,
+  getRuntimeInitialViewState,
   toExternalBridge,
-  webRemoteControlWorkspaceKey,
+  resolveWebRemoteControlWorkspaceKey,
 } from "./workspaceProjection.js";
 import { wrapElectronPort } from "./wrapElectronPort.js";
 
@@ -40,8 +40,8 @@ export async function createWorkspaceBridge(
   runtime: WebRemoteControlRuntime,
   request: Extract<WebRemoteControlAppPayload, { zcode_type: "workspace-bridge-open" }>,
 ): Promise<Record<string, unknown>> {
-  const target = availableWorkspaces(runtime, state.workspaces.get(runtime.windowId) ?? []).find(
-    (workspace) => webRemoteControlWorkspaceKey(workspace) === request.workspaceKey,
+  const target = getAvailableWorkspaces(runtime, state.workspaces.get(runtime.windowId) ?? []).find(
+    (workspace) => resolveWebRemoteControlWorkspaceKey(workspace) === request.workspaceKey,
   );
   if (!target) throw new Error("目标工作区不在当前桌面窗口中，无法创建 Web 远程控制 bridge。");
   if (!isBridgeableRemoteWorkspace(target)) {
@@ -59,7 +59,7 @@ export async function createWorkspaceBridge(
     hostEntryId: "",
     attachmentId: "",
     kind: target.kind,
-    workspaceKey: webRemoteControlWorkspaceKey(target),
+    workspaceKey: resolveWebRemoteControlWorkspaceKey(target),
     workspacePath: target.workspacePath,
     workspaceIdentity: target.workspaceIdentity,
     remoteSessionId: target.remoteSessionId,
@@ -231,13 +231,16 @@ export function routeWebRemoteControlPayload(
           result: {
             windowControlSessionId: runtime.deviceSid,
             desktopAppVersion: deps.appVersion,
-            workspaces: availableWorkspaces(runtime, state.workspaces.get(runtime.windowId) ?? []),
-            tasks: availableTasks(
+            workspaces: getAvailableWorkspaces(
+              runtime,
+              state.workspaces.get(runtime.windowId) ?? [],
+            ),
+            tasks: getAvailableTasks(
               runtime,
               state.workspaces.get(runtime.windowId) ?? [],
               state.tasks.get(runtime.windowId) ?? [],
             ),
-            initialViewState: runtimeInitialViewState(runtime),
+            initialViewState: getRuntimeInitialViewState(runtime),
             mobileViewState: runtime.mobileViewState,
           },
         },
@@ -251,7 +254,7 @@ export function routeWebRemoteControlPayload(
           zcode_type: "workspace-list-response",
           requestId: payload.requestId,
           success: true,
-          result: listResult(state, runtime),
+          result: buildWorkspaceListResult(state, runtime),
         },
         deps.logger,
       );

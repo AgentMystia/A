@@ -44,9 +44,10 @@ export const WINDOWS_DEV_CONTROL_PROTOCOL = "zcode-cua-windows-dev/v1";
 
 const UNAVAILABLE = "Computer Use is not available in this build.";
 
-export async function resolveHelperPermissionSubjectIdentity(_appPath) {
-  throw new CuaHelperError("helper_unavailable", UNAVAILABLE);
-}
+// 不从 broker/server 再导出权限主体。helper-permission-identity.js 顶层 import 了
+// child_process、fs/promises 和 path。host / scheduler 会加载本文件；再导出那个函数时，
+// esbuild 会在删掉函数体之后仍把这些 import 当成副作用留在两个包里。
+// desktop main 直接从 helper-permission-identity 引入。
 
 export function loadRealNativeAddon(_options) {
   throw new CuaHelperError("helper_unavailable", UNAVAILABLE);

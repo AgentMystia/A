@@ -14,7 +14,7 @@ export function webRemoteControlPathLabel(workspacePath: string): string {
   return parts[parts.length - 1] ?? workspacePath;
 }
 
-export function webRemoteControlWorkspaceKey(target: {
+export function resolveWebRemoteControlWorkspaceKey(target: {
   workspacePath: string;
   workspaceIdentity?: string;
 }): string {
@@ -33,7 +33,7 @@ export function isBridgeableRemoteTask(task: WebRemoteControlTaskSnapshot): bool
   return task.workspaceKind !== "remote" || !!(task.workspaceIdentity && task.remoteSessionId);
 }
 
-export function runtimeWorkspaceTarget(
+export function getRuntimeWorkspaceTarget(
   runtime: WebRemoteControlRuntime,
 ): WebRemoteControlWorkspaceSnapshot {
   const bridge = runtime.currentBridge;
@@ -46,10 +46,10 @@ export function runtimeWorkspaceTarget(
       kind: bridge.kind,
     };
   }
-  return runtimeStatusTarget(runtime);
+  return getRuntimeStatusTarget(runtime);
 }
 
-export function runtimeStatusTarget(
+export function getRuntimeStatusTarget(
   runtime: WebRemoteControlRuntime,
 ): WebRemoteControlWorkspaceSnapshot {
   return {
@@ -61,30 +61,33 @@ export function runtimeStatusTarget(
   };
 }
 
-export function availableWorkspaces(
+export function getAvailableWorkspaces(
   runtime: WebRemoteControlRuntime,
   synced: readonly WebRemoteControlWorkspaceSnapshot[],
 ): WebRemoteControlWorkspaceSnapshot[] {
   const byKey = new Map<string, WebRemoteControlWorkspaceSnapshot>();
-  for (const workspace of synced) byKey.set(webRemoteControlWorkspaceKey(workspace), workspace);
-  const current = runtimeWorkspaceTarget(runtime);
+  for (const workspace of synced)
+    byKey.set(resolveWebRemoteControlWorkspaceKey(workspace), workspace);
+  const current = getRuntimeWorkspaceTarget(runtime);
   if (isBridgeableRemoteWorkspace(current)) {
-    const key = webRemoteControlWorkspaceKey(current);
+    const key = resolveWebRemoteControlWorkspaceKey(current);
     if (!byKey.has(key)) byKey.set(key, current);
   }
   return [...byKey.values()];
 }
 
-export function availableTasks(
+export function getAvailableTasks(
   runtime: WebRemoteControlRuntime,
   syncedWorkspaces: readonly WebRemoteControlWorkspaceSnapshot[],
   syncedTasks: readonly WebRemoteControlTaskSnapshot[],
 ): WebRemoteControlTaskSnapshot[] {
   const keys = new Set(
-    availableWorkspaces(runtime, syncedWorkspaces).map(webRemoteControlWorkspaceKey),
+    getAvailableWorkspaces(runtime, syncedWorkspaces).map(resolveWebRemoteControlWorkspaceKey),
   );
   return syncedTasks
-    .filter((task) => isBridgeableRemoteTask(task) && keys.has(webRemoteControlWorkspaceKey(task)))
+    .filter(
+      (task) => isBridgeableRemoteTask(task) && keys.has(resolveWebRemoteControlWorkspaceKey(task)),
+    )
     .toSorted((left, right) =>
       right.updatedAt !== left.updatedAt
         ? right.updatedAt - left.updatedAt
@@ -94,26 +97,26 @@ export function availableTasks(
     );
 }
 
-export function runtimeInitialViewState(
+export function getRuntimeInitialViewState(
   runtime: WebRemoteControlRuntime,
 ): WebRemoteControlMobileView | undefined {
-  const current = runtimeWorkspaceTarget(runtime);
+  const current = getRuntimeWorkspaceTarget(runtime);
   if (!runtime.initialTaskId || !isBridgeableRemoteWorkspace(current)) return undefined;
   return {
-    activeWorkspaceKey: webRemoteControlWorkspaceKey(current),
+    activeWorkspaceKey: resolveWebRemoteControlWorkspaceKey(current),
     activeTaskId: runtime.initialTaskId,
     updatedAt: Date.now(),
   };
 }
 
-export function workspaceListSignature(input: {
+export function buildWorkspaceListPushSignature(input: {
   workspaces: readonly WebRemoteControlWorkspaceSnapshot[];
   tasks: readonly WebRemoteControlTaskSnapshot[];
 }): string {
   const workspaces = input.workspaces
     .map((workspace) =>
       JSON.stringify([
-        webRemoteControlWorkspaceKey(workspace),
+        resolveWebRemoteControlWorkspaceKey(workspace),
         workspace.kind,
         workspace.connectionState ?? "connected",
         workspace.remoteSessionId ?? "",
@@ -124,7 +127,7 @@ export function workspaceListSignature(input: {
   const tasks = input.tasks
     .map((task) =>
       JSON.stringify([
-        webRemoteControlWorkspaceKey(task),
+        resolveWebRemoteControlWorkspaceKey(task),
         task.taskId,
         task.title,
         task.remoteSessionId ?? "",

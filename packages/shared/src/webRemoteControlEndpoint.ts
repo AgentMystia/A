@@ -57,16 +57,29 @@ export function buildWebRemoteControlExternalQrUrl(input: {
   deviceMid?: string;
   deviceName?: string;
   appVersion?: string;
+  // 发布包会把 theme 放进参数解构。查询串不包含它。
+  theme?: string;
 }): string {
-  const url = new URL(input.baseUrl);
-  url.searchParams.set("sid", input.deviceSid);
-  url.searchParams.set("hash", input.passHash);
-  url.searchParams.set("t", String(input.timestamp));
-  const deviceMid = input.deviceMid?.trim();
-  const deviceName = input.deviceName?.trim();
-  const appVersion = input.appVersion?.trim();
-  if (deviceMid) url.searchParams.set("mid", deviceMid);
-  if (deviceName) url.searchParams.set("name", deviceName);
-  if (appVersion) url.searchParams.set("app_version", appVersion);
+  const {
+    baseUrl,
+    deviceSid,
+    passHash,
+    timestamp,
+    deviceMid,
+    deviceName,
+    appVersion,
+    theme: _theme,
+  } = input;
+  void _theme;
+  const url = new URL(baseUrl);
+  url.searchParams.set("sid", deviceSid);
+  url.searchParams.set("hash", passHash);
+  url.searchParams.set("t", String(timestamp));
+  const trimmedMid = deviceMid?.trim();
+  const trimmedName = deviceName?.trim();
+  const trimmedAppVersion = appVersion?.trim();
+  if (trimmedMid) url.searchParams.set("mid", trimmedMid);
+  if (trimmedName) url.searchParams.set("name", trimmedName);
+  if (trimmedAppVersion) url.searchParams.set("app_version", trimmedAppVersion);
   return url.toString();
 }

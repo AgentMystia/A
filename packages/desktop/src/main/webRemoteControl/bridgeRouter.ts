@@ -18,14 +18,14 @@ import {
   type WebRemoteControlRuntime,
 } from "./runtimeTypes.js";
 import {
-  availableTasks,
-  availableWorkspaces,
+  getAvailableTasks,
+  getAvailableWorkspaces,
   bridgeIdentityFields,
-  runtimeInitialViewState,
-  runtimeStatusTarget,
-  runtimeWorkspaceTarget,
-  webRemoteControlWorkspaceKey,
-  workspaceListSignature,
+  getRuntimeInitialViewState,
+  getRuntimeStatusTarget,
+  getRuntimeWorkspaceTarget,
+  resolveWebRemoteControlWorkspaceKey,
+  buildWorkspaceListPushSignature,
 } from "./workspaceProjection.js";
 
 export interface BridgeRouterState {
@@ -52,7 +52,7 @@ export function reportUsage(
 
 // 发布包把状态对象和通知拆成两个 keepName。emit 只把 build 的结果交给 onStatusChanged。
 export function buildRuntimeStatus(runtime: WebRemoteControlRuntime) {
-  const target = runtimeStatusTarget(runtime);
+  const target = getRuntimeStatusTarget(runtime);
   return {
     status: runtime.status,
     sessionId: runtime.deviceSid,
@@ -290,11 +290,14 @@ export function mapTransportState(
   }
 }
 
-export function listResult(state: BridgeRouterState, runtime: WebRemoteControlRuntime) {
-  const current = runtimeWorkspaceTarget(runtime);
-  const initial = runtimeInitialViewState(runtime);
-  const workspaces = availableWorkspaces(runtime, state.workspaces.get(runtime.windowId) ?? []);
-  const tasks = availableTasks(
+export function buildWorkspaceListResult(
+  state: BridgeRouterState,
+  runtime: WebRemoteControlRuntime,
+) {
+  const current = getRuntimeWorkspaceTarget(runtime);
+  const initial = getRuntimeInitialViewState(runtime);
+  const workspaces = getAvailableWorkspaces(runtime, state.workspaces.get(runtime.windowId) ?? []);
+  const tasks = getAvailableTasks(
     runtime,
     state.workspaces.get(runtime.windowId) ?? [],
     state.tasks.get(runtime.windowId) ?? [],
@@ -305,7 +308,7 @@ export function listResult(state: BridgeRouterState, runtime: WebRemoteControlRu
     activeWorkspaceKey:
       runtime.mobileViewState?.activeWorkspaceKey ??
       initial?.activeWorkspaceKey ??
-      webRemoteControlWorkspaceKey(current),
+      resolveWebRemoteControlWorkspaceKey(current),
     activeTaskId:
       runtime.mobileViewState?.activeTaskId ??
       runtime.currentBridge?.initialTaskId ??
@@ -318,8 +321,8 @@ function pushWorkspaceList(
   state: BridgeRouterState,
   runtime: WebRemoteControlRuntime,
 ): void {
-  const result = listResult(state, runtime);
-  const signature = workspaceListSignature(result);
+  const result = buildWorkspaceListResult(state, runtime);
+  const signature = buildWorkspaceListPushSignature(result);
   if (state.signatures.get(runtime.windowId) === signature) return;
   state.signatures.set(runtime.windowId, signature);
   sendAppPayload(runtime, { zcode_type: "workspace-list-updated", result }, deps.logger);

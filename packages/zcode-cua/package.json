@@ -38,6 +38,10 @@
       "types": "./broker-server.d.ts",
       "import": "./broker-server.js"
     },
+    "./helper-permission-identity": {
+      "types": "./helper-permission-identity.d.ts",
+      "import": "./helper-permission-identity.js"
+    },
     "./broker/ports": {
       "types": "./broker-ports.d.ts",
       "import": "./broker-ports.js"

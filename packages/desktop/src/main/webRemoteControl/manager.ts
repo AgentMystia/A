@@ -25,7 +25,10 @@ import {
   type WebRemoteControlRuntime,
   type WebRemoteControlStartAuthorization,
 } from "./runtimeTypes.js";
-import { bridgeIdentityFields, webRemoteControlWorkspaceKey } from "./workspaceProjection.js";
+import {
+  bridgeIdentityFields,
+  resolveWebRemoteControlWorkspaceKey,
+} from "./workspaceProjection.js";
 
 export interface WebRemoteControlManager {
   authorizeStart(
@@ -90,13 +93,14 @@ export function createWebRemoteControlManager(
   });
   let restoreConsumed = false;
 
-  const clearStartAuthorizationsForWindow = (windowId: number) => {
+  // 发布包 keepNames 只认具名函数。const 箭头不会留下授权、停止和 idle 这些名字。
+  function clearStartAuthorizationsForWindow(windowId: number) {
     for (const [token, authorization] of authorizations) {
       if (authorization.windowId === windowId) authorizations.delete(token);
     }
-  };
+  }
 
-  const authorizeStart = (windowId: number, request: WebRemoteControlManagerStartInput) => {
+  function authorizeStart(windowId: number, request: WebRemoteControlManagerStartInput) {
     const now = Date.now();
     clearStartAuthorizationsForWindow(windowId);
     for (const [token, authorization] of authorizations) {
@@ -106,18 +110,18 @@ export function createWebRemoteControlManager(
       token: randomUUID(),
       expiresAt: now + WEB_REMOTE_CONTROL_AUTHORIZATION_TTL_MS,
       windowId,
-      workspaceKey: webRemoteControlWorkspaceKey(request),
+      workspaceKey: resolveWebRemoteControlWorkspaceKey(request),
       ...(request.remoteSessionId ? { remoteSessionId: request.remoteSessionId } : {}),
     };
     authorizations.set(authorization.token, authorization);
     return authorization;
-  };
+  }
 
-  const consumeStartAuthorization = (
+  function consumeStartAuthorization(
     windowId: number,
     request: WebRemoteControlManagerStartInput,
     authorization: WebRemoteControlStartAuthorization,
-  ) => {
+  ) {
     const current = authorizations.get(authorization.token);
     authorizations.delete(authorization.token);
     if (!current || current !== authorization) {
@@ -127,18 +131,18 @@ export function createWebRemoteControlManager(
       throw new Error("Web remote control authorization expired");
     if (
       current.windowId !== windowId ||
-      current.workspaceKey !== webRemoteControlWorkspaceKey(request) ||
+      current.workspaceKey !== resolveWebRemoteControlWorkspaceKey(request) ||
       current.remoteSessionId !== request.remoteSessionId
     ) {
       throw new Error("Web remote control authorization target mismatch");
     }
-  };
+  }
 
-  const emitIdleStatus = (windowId: number) => {
+  function emitIdleStatus(windowId: number) {
     deps.onStatusChanged?.(windowId, { status: "idle" });
-  };
+  }
 
-  const stopWindowRuntime = async (windowId: number, reason: string) => {
+  async function stopWindowRuntime(windowId: number, reason: string) {
     const runtime = runtimes.get(windowId);
     if (!runtime) return;
     sendAppPayload(
@@ -162,7 +166,7 @@ export function createWebRemoteControlManager(
       `[web-remote-control] stopped window=${windowId} session=${runtime.deviceSid} reason=${reason}`,
     );
     emitIdleStatus(windowId);
-  };
+  }
 
   const manager: WebRemoteControlManager = {
     authorizeStart,
@@ -196,8 +200,10 @@ export function createWebRemoteControlManager(
       if (restoreConsumed || runtimes.has(windowId)) return false;
       const saved = await startupRestore;
       if (restoreConsumed || !saved) return false;
-      const key = webRemoteControlWorkspaceKey(saved);
-      const match = workspaces.find((workspace) => webRemoteControlWorkspaceKey(workspace) === key);
+      const key = resolveWebRemoteControlWorkspaceKey(saved);
+      const match = workspaces.find(
+        (workspace) => resolveWebRemoteControlWorkspaceKey(workspace) === key,
+      );
       if (!match) return false;
       restoreConsumed = true;
       deps.logger.info(

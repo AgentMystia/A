@@ -36,7 +36,7 @@ export function createWebRemoteControlSharedHostAttachments(options: {
     return options.createMessageChannel?.() ?? new MessageChannelMain();
   }
 
-  const releaseAttachment = (attachmentId: string) => {
+  function releaseAttachment(attachmentId: string) {
     const entry = attachments.get(attachmentId);
     if (!entry) return;
     attachments.delete(attachmentId);
@@ -48,13 +48,16 @@ export function createWebRemoteControlSharedHostAttachments(options: {
         error,
       });
     }
-  };
+  }
 
-  const attachLocalHost = (windowId: number): WebRemoteControlAttachedHost => {
+  function attachLocalHost(windowId: number): WebRemoteControlAttachedHost {
     const webContentsId = BrowserWindow.fromId(windowId)?.webContents.id ?? windowId;
     const process = options.windowHostProcessMap.get(webContentsId);
     if (!process) {
-      throw createSharedHostError("DESKTOP_HOST_MISSING", `未找到桌面窗口 host process，windowId=${windowId}`);
+      throw createSharedHostError(
+        "DESKTOP_HOST_MISSING",
+        `未找到桌面窗口 host process，windowId=${windowId}`,
+      );
     }
     const { port1, port2 } = createMessageChannel();
     const attachmentId = `shared-host-attachment-${++nextId}`;
@@ -70,7 +73,7 @@ export function createWebRemoteControlSharedHostAttachments(options: {
     );
     attachments.set(attachmentId, { windowId, port: port1 });
     return { entryId: `desktop-host:${windowId}`, attachmentId, process, port: port1 };
-  };
+  }
 
   async function attachWorkspaceHost(
     windowId: number,
@@ -83,7 +86,10 @@ export function createWebRemoteControlSharedHostAttachments(options: {
   ): Promise<WebRemoteControlAttachedHost> {
     if (target.kind === "local") return attachLocalHost(windowId);
     if (!target.remoteSessionId) {
-      throw createSharedHostError("REMOTE_SESSION_MISSING", "远程 workspace bridge 缺少 remoteSessionId。");
+      throw createSharedHostError(
+        "REMOTE_SESSION_MISSING",
+        "远程 workspace bridge 缺少 remoteSessionId。",
+      );
     }
     const workspaceIdentity = target.workspaceIdentity?.trim();
     if (!workspaceIdentity) {

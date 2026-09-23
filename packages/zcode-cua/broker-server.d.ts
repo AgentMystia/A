@@ -14,18 +14,6 @@ export declare function isCuaLocalDevelopmentRuntime(
   compiledLocalDevelopmentRuntime?: boolean,
 ): boolean;
 
-export interface HelperPermissionSubjectIdentity {
-  appPath: string;
-  executablePath: string;
-  displayName: string;
-  bundleId: string;
-  [key: string]: unknown;
-}
-
-export declare function resolveHelperPermissionSubjectIdentity(
-  appPath: string,
-): Promise<HelperPermissionSubjectIdentity>;
-
 export interface CuaHelperVerifierDependencies {
   readExecutableArchs: (executablePath: string) => Promise<string[]>;
   [key: string]: unknown;
