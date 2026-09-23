@@ -32,8 +32,9 @@ export async function createRemoteBackend(target: RemoteTarget): Promise<IRemote
       return new DockerBackend(target);
     }
     case "server":
-      // 发布包的 server remote 是 websocket client，不经过 SSH/WSL/Docker 进程后端。
-      // 客户端尚未还原，这里不能按 url 拉起进程。
-      throw new Error("server remote is not a process backend");
+      // server remote 连接已有服务，不部署、也不创建 SSH/WSL/Docker 进程后端。
+      throw new Error(
+        "server remote target connects to an existing server and has no deploy backend",
+      );
   }
 }
