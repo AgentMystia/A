@@ -12,7 +12,7 @@ import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { PROCESS_RESOURCE_CLI_LANES } from "./processResourceTelemetry.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { zcodeProviderSchema } from "./providers.js";
-import { zcodeAgentProviderSchema } from "./zcode-agent-policy.js";
+import type { ZCodeProvider } from "./zcode-task-types-core.js";
 import { modelSelectionSchema } from "./model-selection.js";
 import { providerProvisioningTriggerSchema } from "./provider-provisioning.js";
 import {
@@ -1240,7 +1240,8 @@ export const zcodeTaskMetaSchema = z.object({
   model: z.string().optional(),
   thoughtLevel: nonEmptyStringSchema.optional(),
   runtimeEpoch: z.number().int().nonnegative().optional(),
-  provider: zcodeAgentProviderSchema.optional(),
+  // 运行时校验仍是五值枚举。输出类型保持可选 glm，避免历史名字进入 ZCodeTaskMeta。
+  provider: zcodeProviderSchema.optional() as z.ZodOptional<z.ZodType<ZCodeProvider>>,
   migrationSource: zcodeTaskMigrationSourceSchema.optional(),
   forkedFromTaskId: nonEmptyStringSchema.optional(),
   // cron automation 身份：随 meta_json 一起持久化（单一来源），同时在写入时投影到 tasks 表

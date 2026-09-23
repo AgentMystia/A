@@ -31,6 +31,7 @@ import {
   serializeLaunchMarks,
   type RemoteTarget,
   type WorkspacePurpose,
+  type ZCodeProvider,
   ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
 } from "@zcode/shared";
 import { getMainLaunchPartialMarks } from "./desktopLaunchMarks.js";
@@ -463,7 +464,8 @@ export function spawnHostProcess(
     if (result.data.type === HostResponseTypes.AgentProcessSpawned) {
       registerHostAgentProcess(label, {
         pid: result.data.pid,
-        provider: result.data.provider,
+        // 进程事件 schema 接受历史 provider 名。注册表类型仍是运行时 ZCodeProvider。
+        provider: result.data.provider as ZCodeProvider,
         workspacePath: result.data.workspacePath,
         command: result.data.command,
         args: result.data.args,

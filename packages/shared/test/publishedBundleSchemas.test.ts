@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { appSettingsPatchSchema, appSettingsSchema } from "../src/validationAppSettings.js";
 import { botsStateSchema } from "../src/bots.js";
 import { cloudContentBundleSchema } from "../src/cloudContent.js";
 import {
@@ -10,7 +11,29 @@ import {
 } from "../src/cloudDialogPayload.js";
 import { marketingDeliverySchema } from "../src/marketingTouch.js";
 import { CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID } from "../src/plugin-marketplaces.js";
+import { zcodeProviderSchema } from "../src/providers.js";
+import { zcodeAgentProviderSchema } from "../src/zcode-agent-policy.js";
 import { zcodePermissionResponseSchema } from "../src/zcode-protocol-legacy-types.js";
+
+test("published provider enum is shared and settings collapse it to glm", () => {
+  assert.equal(zcodeAgentProviderSchema, zcodeProviderSchema);
+  assert.equal(zcodeProviderSchema.parse("claude"), "claude");
+  assert.equal(zcodeProviderSchema.safeParse("nope").success, false);
+
+  const migrated = appSettingsSchema.parse({
+    enabledBuiltinAgentCliProviders: ["nope"],
+  });
+  assert.deepEqual(migrated.enabledBuiltinAgentCliProviders, ["glm"]);
+
+  const patched = appSettingsPatchSchema.parse({
+    enabledBuiltinAgentCliProviders: ["opencode", "glm"],
+  });
+  assert.deepEqual(patched.enabledBuiltinAgentCliProviders, ["glm"]);
+  assert.equal(
+    appSettingsPatchSchema.safeParse({ enabledBuiltinAgentCliProviders: ["nope"] }).success,
+    false,
+  );
+});
 
 test("content bundle schema is the cloud dialog zip schema", () => {
   assert.equal(cloudContentBundleSchema, cloudDialogBundleSchema);

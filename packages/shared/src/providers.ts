@@ -1,14 +1,10 @@
 import { z } from "zod";
 
 /**
- * ZCode agent 提供方的单一真源。
- *
- * 类型 ZCodeProvider、运行时 schema zcodeProviderSchema 都从这里派生,
- * 避免各处内联 z.enum([...]) 副本随新增/删除 provider 漂移。
- * 本模块只依赖 zod(叶子),可被 validation / zcode-protocol 等无环引用。
+ * 发布包进程事件和持久化 task meta 共用这一份历史 provider zod。
+ * 运行时类型 ZCodeProvider 仍只有 glm，定义在 zcode-task-types-core.ts。
+ * 不要从枚举再导出同名类型，否则 claude/opencode 会进入运行时类型。
  */
-const ZCODE_PROVIDERS = ["glm"] as const;
+const PUBLISHED_ZCODE_PROVIDER_VALUES = ["claude", "opencode", "gemini", "codex", "glm"] as const;
 
-export const zcodeProviderSchema = z.enum(ZCODE_PROVIDERS);
-
-export type ZCodeProvider = (typeof ZCODE_PROVIDERS)[number];
+export const zcodeProviderSchema = z.enum(PUBLISHED_ZCODE_PROVIDER_VALUES);

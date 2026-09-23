@@ -17,6 +17,12 @@ export const BOT_TASK_STREAM_CHANNEL = "bots:task-stream";
 /** 发布包不允许这些 provider 的启用 bot 共享同一 credential。 */
 export const BOT_POLLING_PROVIDERS = ["telegram", "feishu", "lark"] as const;
 
+/**
+ * 发布包设置里的内置 CLI provider 列表。读取时总是展开这一份。
+ * 放在 BOT_PROVIDERS 前面，和发布包 main 里紧挨 bot provider 数组的 ["glm"] 对齐。
+ */
+export const ZCODE_BUILTIN_AGENT_CLI_PROVIDERS = ["glm"] as const;
+
 export const BOT_PROVIDERS = [
   "telegram",
   "webhook",
