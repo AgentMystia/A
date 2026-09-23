@@ -49,21 +49,14 @@ export function buildDevRibbonSvg(size: number): string {
 </svg>`;
 }
 
-async function loadDefaultLogger(): Promise<DevBadgeLogger> {
-  const { logger } = await import("./logger.js");
-  return logger;
-}
-
-async function createNativeImageFromBuffer(buffer: Buffer): Promise<NativeImage> {
-  const { nativeImage } = await import("electron");
-  return nativeImage.createFromBuffer(buffer);
-}
-
 export async function renderDevBadgeIcon(
   iconPath: string,
   deps: RenderDevBadgeIconDeps = {},
 ): Promise<NativeImage | null> {
-  const log = deps.logger ?? (await loadDefaultLogger());
+  const log = deps.logger;
+  if (!log) {
+    throw new Error("Dev badge logger is required.");
+  }
   try {
     const loadSharp = deps.importSharp ?? (() => import("sharp"));
     const { default: sharp } = await loadSharp();
@@ -84,8 +77,10 @@ export async function renderDevBadgeIcon(
       .composite([{ input: base, blend: "dest-in" }])
       .png()
       .toBuffer();
-    const createFromBuffer = deps.createFromBuffer ?? createNativeImageFromBuffer;
-    const image = await createFromBuffer(masked);
+    if (!deps.createFromBuffer) {
+      throw new Error("Dev badge createFromBuffer is required.");
+    }
+    const image = await deps.createFromBuffer(masked);
     if (image.isEmpty()) {
       log.warn("[dev-badge] rendered image is empty, fallback to default icon");
       return null;

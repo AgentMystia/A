@@ -110,7 +110,7 @@ app.whenReady
        → info resource.completed 或 resource.failed
 ```
 
-- 未打包桌面进程的 DEV 角标只有一张图，所有者是 `devBadgeIcon` 模块。`app.whenReady` 在 Windows AUMID 之后、`applyAppIcon` 之前，仅当 `!app.isPackaged` 时调用 `renderDevBadgeIcon(iconPath)`。函数动态 `import("sharp")`，读图标文件，边长取宽高最小值，用 `buildDevRibbonSvg` 画蓝色 DEV 斜带，先 `blend:"over"` 再以原图 `blend:"dest-in"`。没有尺寸、结果为空或任意失败都打 `[dev-badge]` 警告并返回 `null`，继续用文件路径。打包态不调用，因为 `sharp` 不在 `app.asar`。Dock、主窗口和更新状态窗口读这一张图；退出确认、架构提示、Linux 桌面文件仍用路径。
+- 未打包桌面进程的 DEV 角标只有一张图，所有者是 `devBadgeIcon` 模块。`app.whenReady` 在 Windows AUMID 之后、`applyAppIcon` 之前，仅当 `!app.isPackaged` 时调用 `renderDevBadgeIcon(iconPath)`。函数动态 `import("sharp")`，读图标文件，边长取宽高最小值，用 `buildDevRibbonSvg` 画蓝色 DEV 斜带，先 `blend:"over"` 再以原图 `blend:"dest-in"`。生产安装走 `devBadgeIconInstall`：静态导入 main `logger` 和 `nativeImage.createFromBuffer`。分类和绘制函数不动态 `import("./logger.js")`，也不再动态 `import("electron")`，否则 main 会多出一个 chunk，JS 文件数对不上发布包的 22 个。测试可以用 deps 替换 logger、读文件、sharp 和 `createFromBuffer`。没有尺寸、结果为空或任意失败都打 `[dev-badge]` 警告并返回 `null`，继续用文件路径。打包态不调用，因为 `sharp` 不在 `app.asar`。Dock、主窗口和更新状态窗口读这一张图；退出确认、架构提示、Linux 桌面文件仍用路径。
 
 ```text
 app.whenReady

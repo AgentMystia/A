@@ -21,7 +21,7 @@ import { BrowserGuestManager } from "./browserView/browserGuestManager.js";
 import { createElectronBrowserWebmRecorder } from "./browserView/electronBrowserWebmRecorder.js";
 import { installBrowserRestoreBootstrapProtocol } from "./browserView/browserRestoreBootstrapProtocol.js";
 import { installCaptchaNetworkDiagnostics } from "./captchaNetworkDiagnostics.js";
-import { installDevBadgeIcon, resolveAppIcon } from "./devBadgeIcon.js";
+import { installDevBadgeIcon, resolveAppIcon } from "./devBadgeIconInstall.js";
 import {
   createLocalMediaPreviewPathRegistry,
   installLocalMediaPreviewProtocol,
