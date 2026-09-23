@@ -1,6 +1,5 @@
 import {
   decodeCustomModelValue,
-  encodeCustomModelValue,
   generateTraceId,
   isFeishuBotProvider,
   type BotActor,
@@ -35,9 +34,7 @@ function readTrimmedString(value: unknown): string | undefined {
 }
 
 /** 发布包 host `getModeConfigOption`：只认 category=mode 的 select。 */
-export function getModeConfigOption(
-  options: ZCodeConfigOption[],
-): ZCodeConfigOption | undefined {
+export function getModeConfigOption(options: ZCodeConfigOption[]): ZCodeConfigOption | undefined {
   return options.find((option) => option.category === "mode" && option.type === "select");
 }
 
@@ -108,7 +105,9 @@ export function normalizeRecoveredBotDraftOptions(options: BotDraftOptions): Bot
 }
 
 /** 发布包 host `formatBotModelSelectionValue`：glm 只展示 modelId。 */
-export function formatBotModelSelectionValue(selection: ModelSelection | undefined): string | undefined {
+export function formatBotModelSelectionValue(
+  selection: ModelSelection | undefined,
+): string | undefined {
   if (!selection) {
     return undefined;
   }
@@ -138,6 +137,42 @@ export function getNativeModelProviderId(provider: string): string {
   return `native:${provider}`;
 }
 
+// 发布包 host keepNames。opencode 只在这里做运行时 model id，不进入 ZCodeProvider。
+export function toAsciiSlug(value: string): string {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "provider"
+  );
+}
+
+export function hash8(value: string): string {
+  let hash = 2166136261;
+  for (const char of value) {
+    hash ^= char.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+export function toOpencodeProviderKey(providerId: string): string {
+  const trimmed = providerId.trim();
+  if (!trimmed) {
+    throw new Error("providerId 不能为空");
+  }
+  return `${toAsciiSlug(trimmed)}-${hash8(trimmed)}`;
+}
+
+export function toOpencodeModelId(providerId: string, modelName: string): string {
+  const trimmed = modelName.trim();
+  if (!trimmed) {
+    throw new Error("modelName 不能为空");
+  }
+  return `${toOpencodeProviderKey(providerId)}/${trimmed}`;
+}
+
 /** 发布包 host `resolveCustomModelRuntimeModelId`。 */
 export function resolveCustomModelRuntimeModelId(
   provider: string,
@@ -147,7 +182,7 @@ export function resolveCustomModelRuntimeModelId(
     return undefined;
   }
   return provider === "opencode"
-    ? encodeCustomModelValue(custom.providerId, custom.modelName)
+    ? toOpencodeModelId(custom.providerId, custom.modelName)
     : custom.modelName;
 }
 
@@ -162,7 +197,10 @@ export function taskStatus(task: { status?: string | null }): string {
 }
 
 /** 发布包 host `formatStatusTaskLine`。 */
-export function formatStatusTaskLine(task: { title: string; taskId: string }, label = "Task"): string {
+export function formatStatusTaskLine(
+  task: { title: string; taskId: string },
+  label = "Task",
+): string {
   return `${label}: ${task.title} (${task.taskId})`;
 }
 
@@ -213,7 +251,11 @@ export function resolveOptionByValue<T extends { id: string; label: string }>(
     return options[Number.parseInt(trimmed, 10) - 1] ?? null;
   }
   const token = trimmed.toLowerCase();
-  return options.find((option) => option.id.toLowerCase() === token || option.label.toLowerCase() === token) ?? null;
+  return (
+    options.find(
+      (option) => option.id.toLowerCase() === token || option.label.toLowerCase() === token,
+    ) ?? null
+  );
 }
 
 export function isSelectionIndexValue(value: string): boolean {
@@ -235,16 +277,31 @@ export { isFeishuBotProvider };
 export function findSelectConfigOption(
   options: Array<{ type: string; category?: string; id: string }>,
   configId: string,
-): { type: string; category?: string; id: string; currentValue?: unknown; options?: Array<{ value: string; name: string; description?: string }> } | undefined {
+):
+  | {
+      type: string;
+      category?: string;
+      id: string;
+      currentValue?: unknown;
+      options?: Array<{ value: string; name: string; description?: string }>;
+    }
+  | undefined {
   const category = configId === "thoughtLevel" ? "thought_level" : configId;
-  return options.find((option) => option.type === "select" && (option.category === category || option.id === category));
+  return options.find(
+    (option) =>
+      option.type === "select" && (option.category === category || option.id === category),
+  );
 }
 
-export function getConfigCommandMissingMessageId(configId: string): "modeMissing" | "thoughtLevelMissing" {
+export function getConfigCommandMissingMessageId(
+  configId: string,
+): "modeMissing" | "thoughtLevelMissing" {
   return configId === "mode" ? "modeMissing" : "thoughtLevelMissing";
 }
 
-export function stripModelProviderDescriptionsForTextSelection(selection: BotSelection): BotSelection {
+export function stripModelProviderDescriptionsForTextSelection(
+  selection: BotSelection,
+): BotSelection {
   if (selection.action !== "model.provider.set") {
     return selection;
   }
@@ -254,7 +311,12 @@ export function stripModelProviderDescriptionsForTextSelection(selection: BotSel
   };
 }
 
-export function formatSelectionFallback(selection: BotSelection, locale: "zh-CN" | "en-US", textHint: string, textHintNoCancel: string): string {
+export function formatSelectionFallback(
+  selection: BotSelection,
+  locale: "zh-CN" | "en-US",
+  textHint: string,
+  textHintNoCancel: string,
+): string {
   const lines = selection.options.map((option, index) => {
     const description = option.description ? ` ${option.description}` : "";
     return `${index + 1}. ${option.label}${description}`;
@@ -266,8 +328,6 @@ export function formatSelectionFallback(selection: BotSelection, locale: "zh-CN"
   return `${selection.title}\n0. ${cancel}\n${lines.join("\n")}\n\n${textHint}`;
 }
 
-export function toSelectionOptions(
-  options: BotSelectionOption[],
-): BotSelectionOption[] {
+export function toSelectionOptions(options: BotSelectionOption[]): BotSelectionOption[] {
   return options;
 }
