@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { modelSelectionSchema } from "./model-selection.js";
+import { zcodePermissionResponseSchema } from "./zcode-protocol-legacy-types.js";
 
 /** 发布包 host 的全 workspace 授权字面量。 */
 export const ALL_WORKSPACES = "*" as const;
@@ -124,24 +125,6 @@ export const botsConfigSchema = z
 
 export type BotsConfig = z.infer<typeof botsConfigSchema>;
 
-export const botPermissionResponseSchema = z
-  .object({
-    decision: z.enum(["allow", "deny", "escalate", "modify"]),
-    reason: z.string().optional(),
-    modifiedInput: z.unknown().optional(),
-    permissionUpdates: z.array(z.unknown()).optional(),
-  })
-  .strict();
-
-export const botPendingPermissionOptionSchema = z.object({
-  requestId: z.string().min(1),
-  optionId: z.string().min(1),
-  command: z.enum(["approve", "deny"]),
-  label: z.string().min(1),
-  response: botPermissionResponseSchema,
-  handledAt: z.number().optional(),
-});
-
 export const botElicitationOptionSchema = z
   .object({
     value: z.string(),
@@ -189,7 +172,19 @@ export const botRuntimeStateSchema = z.object({
   mode: z.enum(["draft", "task"]),
   activeTaskId: z.string().min(1).nullable(),
   draftOptions: botDraftOptionsSchema.optional(),
-  pendingPermissionOptions: z.array(botPendingPermissionOptionSchema).optional(),
+  // 发布包 preload 的 response 指向已有的 zcodePermissionResponseSchema，不另建 unknown 数组。
+  pendingPermissionOptions: z
+    .array(
+      z.object({
+        requestId: z.string().min(1),
+        optionId: z.string().min(1),
+        command: z.enum(["approve", "deny"]),
+        label: z.string().min(1),
+        response: zcodePermissionResponseSchema,
+        handledAt: z.number().optional(),
+      }),
+    )
+    .optional(),
   pendingElicitation: botPendingElicitationSchema.optional(),
   telegramOffset: z.number().optional(),
   weixinGetUpdatesBuf: z.string().optional(),

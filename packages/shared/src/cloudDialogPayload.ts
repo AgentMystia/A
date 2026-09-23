@@ -4,7 +4,8 @@ import { z } from "zod";
  * 发布包把这份云弹窗 payload zod 打进 renderer、main、host、preload 和 scheduler。
  * 不拿它解析运行时 hero：投影后的地址可以是本地媒体，不是 http(s)。
  */
-const cloudDialogButtonThemeSchema = z.object({
+// 营销按钮引用这一份。再写一份相同枚举会在 main、host、preload、scheduler 和 renderer 各留一份副本。
+export const cloudDialogButtonThemeSchema = z.object({
   variant: z
     .enum(["", "default", "outline", "secondary", "ghost", "destructive", "warning", "link"])
     .optional()

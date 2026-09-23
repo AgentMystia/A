@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cloudDialogButtonThemeSchema } from "./cloudDialogPayload.js";
 
 const campaignIdSchema = z.string().trim().min(1).max(128);
 const assetUrlSchema = z
@@ -69,30 +70,26 @@ const buttonActionSchema = z.discriminatedUnion("type", [
     type: z.literal("copy_text"),
     args: z
       .object({
-        text: z.string().max(20_000).refine((value) => value.trim().length > 0),
+        text: z
+          .string()
+          .max(20_000)
+          .refine((value) => value.trim().length > 0),
       })
       .strict(),
   }),
 ]);
 
-const buttonThemeSchema = z.object({
-  variant: z
-    .enum(["", "default", "outline", "secondary", "ghost", "destructive", "warning", "link"])
-    .optional()
-    .transform((value) => value || "default"),
-  class: z.string().max(512).optional(),
-  style: z.string().max(512).optional(),
-});
-
 const popupButtonSchema = z.object({
   text: richTextSchema,
   action: buttonActionSchema,
-  theme: buttonThemeSchema.nullish(),
+  theme: cloudDialogButtonThemeSchema.nullish(),
 });
 
 const bannerButtonSchema = popupButtonSchema.omit({ theme: true }).extend({
   text: richTextSchema.extend({
-    format: z.enum(["", "plaintext", "html", "markdown"]).transform((value) => value || "plaintext"),
+    format: z
+      .enum(["", "plaintext", "html", "markdown"])
+      .transform((value) => value || "plaintext"),
   }),
 });
 
@@ -128,7 +125,9 @@ const visualSchema = z.discriminatedUnion("type", [
         .min(1)
         .max(240)
         .refine(
-          (value) => !value.includes("\\") && value.split("/").every((part) => part && part !== "." && part !== ".."),
+          (value) =>
+            !value.includes("\\") &&
+            value.split("/").every((part) => part && part !== "." && part !== ".."),
         ),
       fallback: marketingAssetRefSchema.nullish(),
     }),

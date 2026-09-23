@@ -72,6 +72,7 @@ renderer hook → ProxyChannel → Host 单例
 - 微信 iLink API 基址 `https://ilinkai.weixin.qq.com/ilink/bot`，注册 QR 走同一 host。
 - Telegram 命令名 workspace=`project`、thoughtLevel=`think`。绑定码 3 字节 hex 大写，默认 TTL 30s。
 - 飞书回复粒度只保留 `streaming_card`；其余 provider 去掉该粒度。配置 schema 的 `replyMode` 枚举重复这四个字面量：`assistant_changes`、`assistant_toolcalls_changes`、`summary_changes`、`streaming_card`。新建草稿调用 `normalizeBotReplyGranularity(provider, DEFAULT_BOT_REPLY_MODE)`；归一化在参数缺省时使用字面量 `assistant_changes`。
+- Bot 运行态里的 `pendingPermissionOptions[].response` 就是 `zcodePermissionResponseSchema`。选项对象写在 `botRuntimeStateSchema` 里，不另建一份 `permissionUpdates: z.array(z.unknown())`。发布包 preload 把 `response` 指到已有的权限响应对象。
 - `listUserConfigOptions` 发布包 keepNames 实现返回 `[]`。`listProviderConfigOptionsForActiveTask` 只调用它。`readCurrentActiveTaskMode` 取 config `mode` 的 currentValue，否则用 task.mode。
 - Telegram、Weixin、Feishu 三个 channel runtime 的 `getConnectionFingerprint`、`refresh`、`scheduleRefresh` 和 `dispose` 是具名函数。对象方法缩写不会留下这些 keepNames。指纹仍只走 `createBotConnectionFingerprint`：Telegram / Weixin 是 provider、credentialRef、凭据；Feishu 在中间多一个 `feishuAppId`。`scheduleRefresh` 只在 `runBackgroundTasks !== false` 时入队。
 - 同一原因：`readTelegramOffset`、`writeTelegramOffset`、`readWeixinGetUpdatesBuf`、`writeWeixinGetUpdatesBuf`、`startTyping`、`stopTyping`、`stopInboundTyping`、`setRuntimeStatus`、`onDeliveryResult`、`processProviderCallback`、`listWorkspaceRefs`、`handleBind`、`handleMessage`、`handleHelp`、`handleStatus`、`handleReconnect` 和 `handleWeixinFirstActivation` 必须是具名函数。对象方法或改名不会留下发布包里的 keepNames。`handleUnknown` 仍是对象方法：发布包没有这个 keepName。
@@ -236,6 +237,7 @@ createRemoteWorkspaceServiceCollection
 
 - Hero 视图类型是 `image`、`video`、`lottie`、`interactive_bundle`。营销 schema 仍只有 `image`、`video`、`bundle`。`resolveMarketingHero` 是唯一投影：image/video 先解码再交给视图；`bundle` 仅桌面端 `prepare`，运行时 `zcode-hero-sandbox-v1`，通道 `zcode-cloud-hero-v1`。没有 media port 时 hero 为空，不另开下载。
 - 云弹窗 payload 的 zod 只属于 `cloudDialogPayload.ts`。`schemaVersion` 为 1；kind 是 `campaign`、`feature`、`notice`；按钮 variant 含 `link`；navigate 目的地含 `model_settings`。重复按钮 id，或 `actionId` 在 `actions` 里不存在时，问题文案是 `Duplicate button or missing action`。`buildCloudDialogPayload` 不调用这份 schema，投影后的 hero 可以是本地媒体地址。
+- 按钮 theme 只有一份 zod 对象，定义在 `cloudDialogPayload.ts`，营销 `marketingTouch.ts` 引用同一个对象。variant 是 `""`、`default`、`outline`、`secondary`、`ghost`、`destructive`、`warning`、`link`；空字符串变成 `default`。`class` 和 `style` 最长 512。发布包 main、host、scheduler、preload 和 renderer 都只出现这一次枚举。
 - Lottie 只从 `lottie-web` 5.13.0 的 `lottie_light_canvas` 动态加载。文档校验拒绝外链、字体、表达式和超限帧；下载超过 2MiB 失败。失败且有 fallback 时回退图片。
 - 弹窗按钮动作由 `buildCloudDialogPayload` 从 popup 拷贝生成。除 `plugin_marketplace` 记为 `plugin_store` 外，navigate 在视图里收成 `settings`；执行时仍用按钮序号回查原始 action。
 - 活动展示的唯一所有者是 `createMarketingTouchController`。它保存 banner、待展示 popup、对话框、pending 和错误。Hero URL 与 zip 租约仍只经过 `resolveMarketingHero`。轮询器只负责按可见性和退避调用 `refresh`，不保存投放内容。
@@ -506,7 +508,7 @@ key = mobileConnected 且 activeWorkspaceKey、activeTaskId 都非空
 
 - `restore-legacy-sessions` 的中英文说明写在内置技能表。插件名集合和官方插件路径标记也包含它。说明只替换展示文案。
 - Renderer 的 `createCommandEnvelope` 在 CAS 命令缺少 `baseRevision` 时抛出 `command ${type} 是 CAS 命令，必须携带 baseRevision（10-protocol-spec §6.4）`。
-- `CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID` 仍是 `claude-plugins-official`。同一对象上的 `$comment` 保留「默认个人市场」说明。
+- `CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID` 仍是字符串 `claude-plugins-official`。不要用带 `$comment` 的对象去保住说明：发布包没有这段中文，副作用对象会被打进每一份 preload。
 - 营销失败弹窗的说明节点再写 `data-slot="alert-description"`。
 
 ### 草稿 provider 记忆
