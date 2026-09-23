@@ -13,6 +13,7 @@ import {
   AUTOMATION_CREATE_LIMIT_ERROR_CODE,
   resolveWorkspaceKey,
   modelSelectionSchema,
+  zcodeBotDeliveryTargetSchema,
   zcodeTaskModeSchema,
   type ZCodeAutomation,
   type ZCodeAutomationCreateParams,
@@ -27,7 +28,6 @@ import {
   type ZCodeBotDeliveryTarget,
 } from "@zcode/shared";
 import { getTasksIndexDatabasePath } from "#src/paths.js";
-import { parseStoredBotDeliveryTarget } from "#src/session/botDeliveryTarget.js";
 import { runTasksDatabaseMigrations } from "#src/session/tasksDatabase/migrations.js";
 
 const require = createRequire(import.meta.url);
@@ -433,9 +433,17 @@ export class AutomationRepo {
     workspaceKey: string,
   ): Promise<ZCodeBotDeliveryTarget | undefined> {
     await this.ensureReady();
+    // 发布包把 safeParse 写在方法里。具名解析函数留在测试入口，不进 host paths / scheduler。
     const raw = this.getRow(automationId, workspaceKey)?.bot_delivery_target;
-    if (!raw) return undefined;
-    return parseStoredBotDeliveryTarget(raw);
+    if (raw) {
+      try {
+        const parsed = zcodeBotDeliveryTargetSchema.safeParse(JSON.parse(raw));
+        return parsed.success ? parsed.data : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
   }
 
   async hasTaskBinding(scope: {
