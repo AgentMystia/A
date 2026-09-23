@@ -1,8 +1,7 @@
 /** 发布包 host `ur`。可重试的传输失败都用这个 code。 */
 export const BROKER_UNAVAILABLE = "broker_unavailable";
 
-const HOLD_RESPONSE_SLACK_MS = 5_000;
-const MAX_HOLD_SECONDS = 30;
+export { boundedHoldDuration, businessResponseTimeout } from "./helper-hold-duration.js";
 
 /**
  * 发布包 host `legacyHelperMessageProvesActionNotSent`。
@@ -44,28 +43,6 @@ export class PermissionBrokerError extends Error {
 
 export function permissionBrokerPermissionError(message, options = {}) {
   return new PermissionBrokerError(message, { ...options, permissionError: true });
-}
-
-/** 发布包 host `boundedHoldDuration`。duration 按秒计，上限 30 秒。 */
-export function boundedHoldDuration(method, params) {
-  if (method !== "hold_key" && method !== "hold_key_to_app") return 0;
-  const duration = (params ?? {}).duration;
-  if (
-    typeof duration === "boolean" ||
-    typeof duration !== "number" ||
-    !Number.isFinite(duration) ||
-    duration < 0
-  ) {
-    return 0;
-  }
-  return Math.min(duration, MAX_HOLD_SECONDS) * 1_000;
-}
-
-/** 发布包 host `businessResponseTimeout`。按住类调用要覆盖按住时长再加 5 秒。 */
-export function businessResponseTimeout(timeoutMs, method, params) {
-  if (method !== "hold_key" && method !== "hold_key_to_app") return timeoutMs;
-  const holdMs = boundedHoldDuration(method, params);
-  return holdMs <= 0 ? timeoutMs : Math.max(timeoutMs, holdMs + HOLD_RESPONSE_SLACK_MS);
 }
 
 export function isValidErrorEnvelope(value) {

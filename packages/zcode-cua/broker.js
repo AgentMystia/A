@@ -5,7 +5,7 @@ import { join } from "node:path";
 // helperHealth 不能从本文件加载，否则交换 chunk 会把方法表一并带走。
 // 残留常量必须排在 catalog 之后：写进 catalog 文件会被抬到方法表前面。
 import "./helper-broker-catalog.js";
-import "./helper-published-refresh-window.js";
+import "./helper-hold-duration.js";
 import "./helper-published-peer-freeze.js";
 import "./helper-published-async-local.js";
 import "./helper-published-deadline-keys.js";

@@ -3,17 +3,19 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import test from "node:test";
 
 import {
-  publishedUnusedRefreshGraceMs,
+  businessResponseTimeout,
+  publishedHoldSlackMs,
   publishedUnusedRefreshMs,
-} from "./helper-published-refresh-window.js";
+} from "./helper-hold-duration.js";
 import { publishedUnusedPeerCheck } from "./helper-published-peer-freeze.js";
 import { publishedUnusedAsyncLocalStorage } from "./helper-published-async-local.js";
 import { publishedUnusedDeadlineKeys } from "./helper-published-deadline-keys.js";
 import { defaultPeerCredentialChecker } from "./permissionBrokerClient.js";
 
-test("published catalog residue keeps the unused refresh pair", () => {
+test("published hold window keeps the unused 30s var and the 5s slack", () => {
   assert.equal(publishedUnusedRefreshMs, 30 * 1e3);
-  assert.equal(publishedUnusedRefreshGraceMs, 5 * 1e3);
+  assert.equal(publishedHoldSlackMs, 5 * 1e3);
+  assert.equal(businessResponseTimeout(3000, "hold_key", { duration: 10 }), 15_000);
 });
 
 test("published peer freeze is empty and is not the real checker", () => {
