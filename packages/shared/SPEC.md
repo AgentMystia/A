@@ -200,6 +200,9 @@ createRemoteWorkspaceServiceCollection
 - `ensureInstalled` 以解析后的 app 路径做单飞。macOS 安装租约是安装根目录里的 `.zcode-cua-helper-install.lock`（`O_EXLOCK`，等待 120s）。已安装包校验通过且本地 bundled 载荷没变时直接返回；否则暂存、校验、替换、清 quarantine、写 `.zcode-cua-helper-meta.json`。
 - 下载根只认 `ZCODE_CUA_HELPER_DOWNLOAD_BASE_URL`、`ZCODE_DEPS_BASE_URL` 或调用方自己的 `INTRANET_MACHINE_HOST`。发布包里的内网默认主机名不写入仓库。
 - 内嵌 Helper build id 来自 `__ZCODE_CUA_HELPER_BUILD_ID__`。未注入时桌面打包使用发布包里的 `pipeline-291748-cead36fd`，环境变量仍可覆盖。这不是应用提交号。
+- 启动参数只由 `buildHelperOpenArgs` 构造。设置页探测不传 launcher pid，也不传 PiP。带 broker launch guard 时，截止时间、取消文件名和真实目录必须同时成立，否则 `launch_failed`。`/usr/bin/open` 超时或 LaunchServices `-1712` 也是 `launch_failed`。
+- 产品 Helper 的运行态只属于 `CuaHelperHost`。`createProductCuaHelperHost` 在 macOS 上创建它，并固定 ghost cursor 与 PiP。启动前先占住 socket 预留；校验失败或 `stop()` 介入时终止已拉起的 pid。终止失败是 `termination_failed`，活进程身份对不上是 `verification_failed`。没有候选包是 `helper_missing`。
+- 稳定 socket 是运行时目录里的 `broker.sock`。随机启动 socket 才是 `broker-<16 hex>.sock`。Windows 管道前缀是 `\\.\pipe\zcode-cua-helper-`。`waitForCuaHelperStartup` 超时抛 `caller_timeout`。权限刷新标记和启动取消哨兵都写在这条传输旁边，不另建一套 Host。
 
 - 简单交换只属于 `packages/zcode-cua/broker.js` 的 `brokerExchange`。`callBrokerMethod` / `probeHelperHealth` 走它：先发 `id:0` 的空 `authenticate`，再发 `id:1` 的业务方法。鉴权被拒是 `CuaHelperError`，`code` 为 `auth_failed`。`probeHelperHealth` 在截止时间前按 `broker_info` 轮询，超时 `code` 为 `health_timeout`。
 - `PermissionBrokerClient` 只属于 `permissionBrokerClient.js`。每条 RPC 新建连接，鉴权帧带 `clientApiVersion:2` 与 `authenticateParams`，业务 id 从 1 递增。默认 peer 检查拒绝 world-writable socket；Windows 管道必须落在 `\\.\pipe\zcode-cua-helper-`。`hold_key` / `hold_key_to_app` 的等待时间是 `max(timeout, min(duration,30)*1000+5000)`。

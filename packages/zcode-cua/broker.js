@@ -1,7 +1,13 @@
-import { randomUUID } from "node:crypto";
 import { createConnection } from "node:net";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+import {
+  brokerRuntimeDir,
+  pruneStaleBrokerSockets,
+  randomBrokerSocketSuffix,
+  STABLE_BROKER_SOCKET_NAME,
+  WINDOWS_HELPER_PIPE_PREFIX,
+} from "./helper-broker-runtime.js";
 
 export const BROKER_SOCKET_ENV = "ZCODE_CUA_PERMISSION_BROKER_SOCKET";
 export const BROKER_UNAVAILABLE_ENV = "ZCODE_CUA_PERMISSION_BROKER_UNAVAILABLE";
@@ -174,16 +180,24 @@ export async function probeHelperHealth(socketPath, options = {}) {
   );
 }
 
+// 发布包把稳定探测 socket 和每次启动的随机 socket 分开。设置页探测走前者。
 export function mintBrokerSocketPath(options = {}) {
-  const dir = typeof options.dir === "string" ? options.dir : tmpdir();
-  return join(dir, `zcode-cua-broker-${randomUUID()}.sock`);
+  const env = options.env ?? process.env;
+  if (process.platform === "win32") {
+    return WINDOWS_HELPER_PIPE_PREFIX + randomBrokerSocketSuffix();
+  }
+  const dir = options.dir ?? brokerRuntimeDir(env);
+  pruneStaleBrokerSockets(dir);
+  return join(dir, `broker-${randomBrokerSocketSuffix()}.sock`);
 }
 
 export function resolveBrokerSocketPath(options = {}) {
   const env = options.env ?? process.env;
-  const fromEnv = env[BROKER_SOCKET_ENV];
-  if (typeof fromEnv === "string" && fromEnv.trim()) return fromEnv;
-  return mintBrokerSocketPath(options);
+  const configured = env[BROKER_SOCKET_ENV];
+  if (typeof configured === "string" && configured.trim().length > 0) return configured;
+  if (process.platform === "win32") return `${WINDOWS_HELPER_PIPE_PREFIX}default`;
+  if (options.dir) return join(options.dir, STABLE_BROKER_SOCKET_NAME);
+  return join(brokerRuntimeDir(env), STABLE_BROKER_SOCKET_NAME);
 }
 
 export function parseRequestLine(_line) {

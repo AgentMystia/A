@@ -50,9 +50,11 @@ export declare function createCuaHelperInstaller(
 
 export declare const defaultCuaHelperVerifierDependencies: CuaHelperVerifierDependencies;
 
-export declare function cuaBrokerRefreshMarkerPath(socketPath: string): string | undefined;
+export declare function cuaBrokerRefreshMarkerPath(socketPath: string): string;
 export interface CuaBrokerRefreshMarkerHandle {
   path: string;
+  deadlineEpochMs: number;
+  complete(): Promise<void>;
 }
 export declare function publishCuaBrokerRefreshMarker(
   socketPath: string,
