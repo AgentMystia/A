@@ -279,6 +279,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   gitState,
   browserNavigationRequest,
   browserRestoreUrls,
+  providerConfigFile,
   taskNativeSessionLogFile,
   taskSessionFile,
   testMessages,
@@ -1625,6 +1626,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                   nativeSessionLogPath={taskNativeSessionLogFile.path}
                   nativeSessionLogExists={taskNativeSessionLogFile.exists}
                   nativeSessionLogLoading={taskNativeSessionLogFile.loading}
+                  providerWorkspaceConfigPath={providerConfigFile.path}
+                  providerWorkspaceConfigExists={providerConfigFile.exists}
+                  providerWorkspaceConfigLoading={providerConfigFile.loading}
                   workspaceHeaderState={workspaceShellZCodeState}
                   gitSummary={gitState.summary}
                   gitDirtyFileCount={gitDirtyFileCount}
@@ -1957,6 +1961,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                           nativeSessionLogPath={taskNativeSessionLogFile.path}
                           nativeSessionLogExists={taskNativeSessionLogFile.exists}
                           nativeSessionLogLoading={taskNativeSessionLogFile.loading}
+                          providerWorkspaceConfigPath={providerConfigFile.path}
+                          providerWorkspaceConfigExists={providerConfigFile.exists}
+                          providerWorkspaceConfigLoading={providerConfigFile.loading}
                           workspaceHeaderState={workspaceShellZCodeState}
                           gitSummary={gitState.summary}
                           gitDirtyFileCount={gitDirtyFileCount}

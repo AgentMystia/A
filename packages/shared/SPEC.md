@@ -277,6 +277,7 @@ Root 挂载隐藏宿主 + 每个 workspace 订阅
 - 打开任务先通知侧栏是否跨 workspace。同一 workspace 走现有 `onSelectTask`，并调用 switcher 的 `updateMobileViewState`。跨 workspace 只调用 `switchWorkspace`。成功后不清除壳上的切换标志；失败才清。壳在该标志为真时盖住会话列并显示 `common.loading`。
 - 侧栏另有一条 effect：active task 变化时调用 `updateMobileViewState`，失败记 `[WorkspaceSidebar] 同步远控 mobileViewState 失败`。Switcher 存在时隐藏本地置顶区，并把 grouped 视图按 workspace 交给索引。工具栏渲染在索引内部、置顶区之前。
 - Switcher 的构造仍不在 renderer。没有 switcher 时继续用本地任务区。
+- 远控导航滚动容器在 `webRemoteControlWorkspaceSwitcher` 或 `isWebRemoteControl` 为真时写 `data-web-remote-navigation-scroll="true"`，并加上 `max-md:overflow-y-auto`。内容区补 `max-md:pt-11`，拖拽占位在窄屏隐藏。这个标志只改侧栏滚动，不另存一份导航高度。
 
 ### 桌面发布远控任务与 workspace 快照
 
@@ -309,6 +310,8 @@ Main 重连请求
 - `exists === false` 时打开父目录。盘符根目录保持 `X:\\`。优先用上次选择的已安装编辑器，失败再交给现有 `openInFileManager`。手机远控隐藏该菜单项。
 - 个人市场 id `claude-plugins-official` 的分组标题使用 `settings.plugins.marketplace.claudeCodePlugins`。它不是官方市场，也不恢复已下线的 pluginNames 精选名单。列表分组 memo 和市场源对话框都无条件格式化这条文案。该 id 排在官方市场之后，不能移除，刷新失败也不展示。
 - `CLAUDE_UNKNOWN_COMMAND` 在「没有可用模型」之后、provider business 文案之前解析。消息匹配 `Claude Code 未知命令 <command>（参数：<args>）。` 时分别使用 `zcode.error.CLAUDE_UNKNOWN_COMMAND` 与 `_WITH_ARGS`。解析失败则显示原始 message，不再走后续本地化。
+- App 用当前 `workspaceHeaderProvider` 调用已有 `useWorkspaceProviderConfigFile`，把结果作为 `providerConfigFile` 传给壳。壳只把 `path` / `exists` / `loading` 写进两个 `WorkspaceHeader`，标题区签名接收 `providerWorkspaceConfigPath`、`providerWorkspaceConfigExists`、`providerWorkspaceConfigLoading`。菜单仍由 `useTaskListItemContextActions` 自己查询；标题区不读取这份投影，也不把它当成第二份已接受路径。
+- 权限选项名先查全局表，再按 provider 字符串查表。`codex` 的 `allow for session` 与 `allow for this session` 都映射到 `chat.permission.allowForSession`。这张表不把 codex 加进 `ZCodeProvider`。
 
 ### 远控紧凑会话
 

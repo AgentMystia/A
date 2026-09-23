@@ -84,6 +84,7 @@ import {
   type SidebarTaskOrganizeBy,
   type SidebarTaskSortBy,
 } from "@/lib/sidebarTaskPreferences.js";
+import { resolveWebRemoteNavigationScrollChrome } from "@/lib/webRemoteNavigationScroll.js";
 import {
   persistSidebarPurposeSectionPreferences,
   readSidebarPurposeSectionPreferences,
@@ -593,6 +594,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     taskOrganizeBy,
   });
   const isWebRemoteTaskIndex = Boolean(webRemoteControlWorkspaceSwitcher) || isWebRemoteControl;
+  const webRemoteNavigationScroll = resolveWebRemoteNavigationScrollChrome(isWebRemoteTaskIndex);
   const remoteTaskViewMode: SidebarTaskViewMode =
     isWebRemoteTaskIndex && taskViewMode === "grouped" ? "workspace" : taskViewMode;
   const showWebRemoteTaskIndex =
@@ -1305,16 +1307,26 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       // 这里用设计系统的结构面 token 固定侧栏层级，避免不同合成器把左侧容器混成异常灰块。
       className="flex h-full flex-col overflow-hidden"
     >
-      <div className="h-12 [app-region:drag]"></div>
+      <div
+        className={cn("h-12 [app-region:drag]", webRemoteNavigationScroll.dragSpacerClassName)}
+      />
       <div className="relative flex-1 min-h-0 overflow-hidden">
         <div
+          data-web-remote-navigation-scroll={webRemoteNavigationScroll.scrollDataAttribute}
           className={cn(
             "absolute inset-0 flex min-h-0 flex-col transition-transform duration-200 ease-out",
             isFileTreeOpen && "-translate-x-full pointer-events-none",
+            webRemoteNavigationScroll.scrollClassName,
           )}
           aria-hidden={isFileTreeOpen}
         >
-          <div className={cn("flex flex-col gap-1 px-2", isWindowsDesktop ? "py-2" : "py-3")}>
+          <div
+            className={cn(
+              "flex flex-col gap-1 px-2",
+              isWindowsDesktop ? "py-2" : "py-3",
+              webRemoteNavigationScroll.contentClassName,
+            )}
+          >
             <WorkspaceNewTaskTooltip disabledReason={workspaceReadOnlyReason}>
               <NewTaskButtonGroup
                 disabled={workspaceReadOnly}

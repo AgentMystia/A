@@ -11,6 +11,7 @@ import { useGitRepository } from "@/hooks/useGitRepository.js";
 import { useAppKeyboard } from "@/hooks/useAppKeyboard.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceActiveTaskState } from "@/hooks/useWorkspaceActiveTaskState.js";
+import { useWorkspaceProviderConfigFile } from "@/hooks/useWorkspaceProviderConfigFile.js";
 import { useEnsureWorkspaceMcpLoaded } from "@/hooks/useEnsureWorkspaceMcpLoaded.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly, isWorkspaceTab } from "@/store/tabStore.js";
@@ -383,6 +384,7 @@ export function App({
     activeTaskProvider,
     activeTaskChangeSummary,
     activeTaskTitle,
+    workspaceHeaderProvider,
     taskNativeSessionLogFile,
     taskSessionFile,
   } = useWorkspaceActiveTaskState({
@@ -393,6 +395,13 @@ export function App({
     selectedProvider: workspaceShellZCodeState.selectedProvider,
     intl,
   });
+  // 壳层只投影 Header 签名需要的 path/exists/loading。菜单仍自己查询，不复用这份结果。
+  const providerConfigFile = useWorkspaceProviderConfigFile(
+    workspaceAbsPath,
+    workspaceHeaderProvider,
+    workspaceRemoteSessionId,
+    workspaceIdentity,
+  );
   const workspaceTabs = useMemo(
     () =>
       tabs.filter(isWorkspaceTab).map((tab) => ({
@@ -1219,6 +1228,7 @@ export function App({
         gitState={gitState}
         browserNavigationRequest={browserNavigationRequest}
         browserRestoreUrls={browserRestoreUrls}
+        providerConfigFile={providerConfigFile}
         taskNativeSessionLogFile={taskNativeSessionLogFile}
         taskSessionFile={taskSessionFile}
         testMessages={testMessages}

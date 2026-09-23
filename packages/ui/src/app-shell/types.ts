@@ -198,6 +198,9 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   gitState: ReturnType<typeof import("@/hooks/useGitRepository.js").useGitRepository>;
   browserNavigationRequest: BrowserNavigationRequest | null;
   browserRestoreUrls: Record<string, string>;
+  providerConfigFile: ReturnType<
+    typeof import("@/hooks/useWorkspaceProviderConfigFile.js").useWorkspaceProviderConfigFile
+  >;
   taskNativeSessionLogFile: ReturnType<
     typeof import("@/hooks/useTaskNativeSessionLogFile.js").useTaskNativeSessionLogFile
   >;
