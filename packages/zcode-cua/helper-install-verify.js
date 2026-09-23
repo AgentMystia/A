@@ -1,34 +1,13 @@
-import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-
 import { CuaHelperError } from "./broker.js";
 import { HELPER_APP_NAME } from "./broker-helper-constants.js";
+import { execFileText } from "./helper-exec-file-text.js";
 import { readMachoArchNames } from "./helper-macho.js";
+import { existsSync, join } from "./helper-published-launch-bindings.js";
+import { HELPER_TOOLS } from "./helper-tools.js";
 
-const TOOLS = {
-  codesign: "/usr/bin/codesign",
-  plutil: "/usr/bin/plutil",
-  spctl: "/usr/sbin/spctl",
-  syspolicyCheck: "/usr/bin/syspolicy_check",
-};
-
-export function formatErrorMessage(error) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-export function execFileText(command, args) {
-  return new Promise((resolve, reject) => {
-    execFile(command, args, { encoding: "utf8" }, (error, stdout, stderr) => {
-      if (error) {
-        const detail = `${command} ${args.join(" ")} failed: ${formatErrorMessage(error)}${stderr ? `\n${stderr}` : ""}`;
-        reject(new Error(detail));
-        return;
-      }
-      resolve({ stdout, stderr });
-    });
-  });
-}
+// 发布包把校验函数和启动函数放在同一个没有 node import 的模块里。
+// existsSync / join 走 launch bindings，工具路径走 HELPER_TOOLS，文本执行走 helper-exec-file-text.js。
+// 这里再写 execFile、existsSync、join 的 node import，压缩后会单独留下一个空 import 模块。
 
 export function readString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -36,7 +15,13 @@ export function readString(value) {
 
 export async function defaultReadBundleInfo(appPath) {
   const plistPath = join(appPath, "Contents", "Info.plist");
-  const { stdout } = await execFileText(TOOLS.plutil, ["-convert", "json", "-o", "-", plistPath]);
+  const { stdout } = await execFileText(HELPER_TOOLS.plist, [
+    "-convert",
+    "json",
+    "-o",
+    "-",
+    plistPath,
+  ]);
   const plist = JSON.parse(stdout);
   return {
     bundleId: readString(plist.CFBundleIdentifier),
@@ -48,11 +33,15 @@ export async function defaultReadBundleInfo(appPath) {
 }
 
 export async function defaultVerifyCodeSignature(appPath) {
-  await execFileText(TOOLS.codesign, ["--verify", "--deep", "--strict", appPath]);
+  await execFileText(HELPER_TOOLS.codesign, ["--verify", "--deep", "--strict", appPath]);
 }
 
 export async function defaultInspectCodesignDetails(appPath) {
-  const { stdout, stderr } = await execFileText(TOOLS.codesign, ["-dv", "--verbose=4", appPath]);
+  const { stdout, stderr } = await execFileText(HELPER_TOOLS.codesign, [
+    "-dv",
+    "--verbose=4",
+    appPath,
+  ]);
   const output = `${stdout}\n${stderr}`;
   const teamIdentifier = output.match(/^TeamIdentifier=(.+)$/mu)?.[1]?.trim() || null;
   const authorities = [...output.matchAll(/^Authority=(.+)$/gmu)]
@@ -67,11 +56,11 @@ export async function defaultInspectCodesignDetails(appPath) {
 }
 
 export async function defaultAssessGatekeeper(appPath) {
-  if (existsSync(TOOLS.syspolicyCheck)) {
-    await execFileText(TOOLS.syspolicyCheck, ["distribution", appPath]);
+  if (existsSync(HELPER_TOOLS.syspolicyCheck)) {
+    await execFileText(HELPER_TOOLS.syspolicyCheck, ["distribution", appPath]);
     return;
   }
-  await execFileText(TOOLS.spctl, ["-a", "-vv", "-t", "exec", appPath]);
+  await execFileText(HELPER_TOOLS.spctl, ["-a", "-vv", "-t", "exec", appPath]);
 }
 
 export async function inspectCodesignDetailsBestEffort(appPath, dependencies) {

@@ -3,13 +3,8 @@ import { join, resolve, sep } from "node:path";
 
 import { CuaHelperError } from "./broker.js";
 import { HELPER_APP_NAME } from "./broker-helper-constants.js";
-import { execFileText, formatErrorMessage } from "./helper-install-verify.js";
-
-const TOOLS = {
-  ditto: "/usr/bin/ditto",
-  unzip: "/usr/bin/unzip",
-  xattr: "/usr/bin/xattr",
-};
+import { execFileText, formatErrorMessage } from "./helper-exec-file-text.js";
+import { HELPER_TOOLS } from "./helper-tools.js";
 
 export function isUnsafeZipEntryName(name) {
   return (
@@ -23,7 +18,7 @@ export function isUnsafeZipEntryName(name) {
 }
 
 export async function assertSafeZipArchiveEntries(archivePath) {
-  const { stdout } = await execFileText(TOOLS.unzip, ["-Z1", archivePath]);
+  const { stdout } = await execFileText(HELPER_TOOLS.unzip, ["-Z1", archivePath]);
   const entries = stdout
     .split("\n")
     .map((entry) => entry.replace(/\r$/u, ""))
@@ -66,18 +61,22 @@ export async function assertNoSymlinkEscape(root) {
 
 export async function defaultExtractZip(archivePath, destination) {
   await assertSafeZipArchiveEntries(archivePath);
-  await execFileText(TOOLS.ditto, ["-x", "-k", archivePath, destination]);
+  await execFileText(HELPER_TOOLS.ditto, ["-x", "-k", archivePath, destination]);
   await assertNoSymlinkEscape(destination);
 }
 
 export async function defaultClearQuarantine(appPath) {
-  if (process.platform !== "darwin") return;
-  try {
-    await execFileText(TOOLS.xattr, ["-dr", "com.apple.quarantine", appPath]);
-  } catch (error) {
-    const message = formatErrorMessage(error);
-    if (!/No such xattr|No such file|No such file or directory|not found/iu.test(message))
-      throw error;
+  // 发布包压缩后是 `platform === "darwin" && await xattr.catch(...)`。
+  // if 会收成这条表达式；提前 return 不会。
+  if (process.platform === "darwin") {
+    await execFileText(HELPER_TOOLS.xattr, ["-dr", "com.apple.quarantine", appPath]).catch(
+      (error) => {
+        const message = formatErrorMessage(error);
+        if (!/No such xattr|No such file|No such file or directory|not found/iu.test(message)) {
+          throw error;
+        }
+      },
+    );
   }
 }
 

@@ -15,6 +15,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { CuaHelperError } from "./broker.js";
 import { HELPER_APP_NAME } from "./broker-helper-constants.js";
 import { defaultDownloadFile, redactHelperDownloadUrl } from "./helper-download.js";
+import { formatErrorMessage } from "./helper-exec-file-text.js";
 import {
   defaultClearQuarantine,
   defaultExtractZip,
@@ -24,7 +25,6 @@ import { resolveCuaHelperInstallPlan } from "./helper-install-plan.js";
 import { acquireMacOSCuaHelperInstallLease } from "./helper-install-lease.js";
 import {
   defaultCuaHelperVerifierDependencies,
-  formatErrorMessage,
   verifyCuaHelperBundle,
 } from "./helper-install-verify.js";
 
@@ -33,14 +33,13 @@ const LOCAL_DEV_PAYLOAD_FILES = [["Contents", "Info.plist"]];
 const installsInFlight = new Map();
 
 async function clearHelperQuarantine(appPath, context) {
-  try {
-    await context.dependencies.clearQuarantine(appPath);
-  } catch (error) {
+  // 发布包用 catch，不用 try。同步抛出不会被吞掉。
+  await context.dependencies.clearQuarantine(appPath).catch((error) => {
     context.logger?.warn(
       undefined,
       `cua helper installed and verified, but quarantine cleanup failed: ${formatErrorMessage(error)}`,
     );
-  }
+  });
 }
 
 async function localDevPayloadTreeChanged(left, right) {

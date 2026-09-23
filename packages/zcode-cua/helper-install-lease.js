@@ -3,7 +3,7 @@ import { lstat, open, realpath } from "node:fs/promises";
 import { join } from "node:path";
 
 import { CuaHelperError } from "./broker.js";
-import { formatErrorMessage } from "./helper-install-verify.js";
+import { formatErrorMessage } from "./helper-exec-file-text.js";
 
 const LOCK_NAME = ".zcode-cua-helper-install.lock";
 const LOCK_WAIT_MS = 120_000;
