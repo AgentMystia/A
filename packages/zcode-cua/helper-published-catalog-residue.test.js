@@ -8,6 +8,7 @@ import {
   publishedUnusedRefreshMs,
 } from "./helper-hold-duration.js";
 import { publishedUnusedPeerCheck } from "./helper-published-peer-freeze.js";
+import "./helper-published-connection.js";
 import { publishedUnusedAsyncLocalStorage } from "./helper-published-async-local.js";
 import { publishedUnusedDeadlineKeys } from "./helper-published-deadline-keys.js";
 import { defaultPeerCredentialChecker } from "./permissionBrokerClient.js";
@@ -23,6 +24,11 @@ test("published peer freeze is empty and is not the real checker", () => {
   assert.equal(publishedUnusedPeerCheck.verifySocketPeer("socket", {}), undefined);
   assert.equal(typeof defaultPeerCredentialChecker, "function");
   assert.notEqual(publishedUnusedPeerCheck, defaultPeerCredentialChecker({}));
+});
+
+test("published connection residue exports nothing", async () => {
+  const residue = await import("./helper-published-connection.js");
+  assert.deepEqual(Object.keys(residue), []);
 });
 
 test("published async local storage and deadline keys stay unused constants", () => {

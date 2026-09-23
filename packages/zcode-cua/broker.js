@@ -7,6 +7,7 @@ import { join } from "node:path";
 import "./helper-broker-catalog.js";
 import "./helper-hold-duration.js";
 import "./helper-published-peer-freeze.js";
+import "./helper-published-connection.js";
 import "./helper-published-async-local.js";
 import "./helper-published-deadline-keys.js";
 import "./helper-exit-log.js";
