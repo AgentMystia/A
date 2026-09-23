@@ -24,8 +24,8 @@ import { getWorkspaceKey } from "./botsNormalize.js";
 import { formatAttachmentRejectedReason, prepareBotMessageContent } from "./botsAttachments.js";
 import { broadcastTaskListChange } from "./botsBroadcast.js";
 
-/** 发布包 host `handleMessage`。 */
-export async function handleBotMessage(
+/** 发布包 host `handleMessage`。对象方法或别名不会留下这个 keepName。 */
+export async function handleMessage(
   runtime: BotInboundTaskRuntime,
   message: BotInboundMessage,
 ): Promise<BotOutboundMessage[]> {

@@ -45,70 +45,74 @@ export function createTypingController(providers: Record<string, BotProvider | n
     { bot: BotConfigEntry; target: Parameters<NonNullable<BotProvider["startTyping"]>>[1] }
   >();
   const intervals = new Map<string, ReturnType<typeof setInterval>>();
-  return {
-    startTyping(bot, actor, taskId) {
-      const provider = providers[bot.provider];
-      const userId = actor.chatId ?? actor.providerUserId;
-      if (!provider || !userId || live.has(taskId) || intervals.has(taskId)) {
-        return;
-      }
-      const target = {
-        providerUserId: userId,
-        providerMessageId: actor.providerMessageId,
-        providerContextToken: actor.providerContextToken,
-      };
-      if (provider.startTyping) {
-        live.set(taskId, { bot, target });
-        provider.startTyping(bot, target).catch(() => undefined);
-        return;
-      }
-      if (provider.sendTyping) {
-        provider.sendTyping(bot, target).catch(() => undefined);
-        intervals.set(
-          taskId,
-          setInterval(() => {
-            provider.sendTyping?.(bot, target).catch(() => undefined);
-          }, BOT_TYPING_INTERVAL_MS),
-        );
-      }
-    },
-    stopTyping(taskId) {
-      const liveHandle = live.get(taskId);
-      if (liveHandle) {
-        live.delete(taskId);
-        providers[liveHandle.bot.provider]
-          ?.stopTyping?.(liveHandle.bot, liveHandle.target)
-          .catch(() => undefined);
-      }
-      const interval = intervals.get(taskId);
-      if (interval) {
-        clearInterval(interval);
-        intervals.delete(taskId);
-      }
-    },
-    async stopInboundTyping(bot, actor) {
-      const provider = providers[bot.provider];
-      const userId = actor.chatId ?? actor.providerUserId;
-      if (!provider?.stopTyping || !userId || !actor.providerMessageId) {
-        return;
-      }
-      const stillLive = Array.from(live.values()).some(
-        (entry) =>
-          entry.bot.id === bot.id && entry.target.providerMessageId === actor.providerMessageId,
+  // 发布包 keepNames 落在具名函数上。对象方法不会留下 startTyping / stopTyping。
+  function startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string) {
+    const provider = providers[bot.provider];
+    const userId = actor.chatId ?? actor.providerUserId;
+    if (!provider || !userId || live.has(taskId) || intervals.has(taskId)) {
+      return;
+    }
+    const target = {
+      providerUserId: userId,
+      providerMessageId: actor.providerMessageId,
+      providerContextToken: actor.providerContextToken,
+    };
+    if (provider.startTyping) {
+      live.set(taskId, { bot, target });
+      provider.startTyping(bot, target).catch(() => undefined);
+      return;
+    }
+    if (provider.sendTyping) {
+      provider.sendTyping(bot, target).catch(() => undefined);
+      intervals.set(
+        taskId,
+        setInterval(() => {
+          provider.sendTyping?.(bot, target).catch(() => undefined);
+        }, BOT_TYPING_INTERVAL_MS),
       );
-      if (stillLive) {
-        return;
-      }
-      const target = {
-        providerUserId: userId,
-        providerMessageId: actor.providerMessageId,
-        providerContextToken: actor.providerContextToken,
-      };
-      await provider.stopTyping(bot, target).catch(() => undefined);
-    },
+    }
+  }
+  function stopTyping(taskId: string) {
+    const liveHandle = live.get(taskId);
+    if (liveHandle) {
+      live.delete(taskId);
+      providers[liveHandle.bot.provider]
+        ?.stopTyping?.(liveHandle.bot, liveHandle.target)
+        .catch(() => undefined);
+    }
+    const interval = intervals.get(taskId);
+    if (interval) {
+      clearInterval(interval);
+      intervals.delete(taskId);
+    }
+  }
+  async function stopInboundTyping(bot: BotConfigEntry, actor: BotActor) {
+    const provider = providers[bot.provider];
+    const userId = actor.chatId ?? actor.providerUserId;
+    if (!provider?.stopTyping || !userId || !actor.providerMessageId) {
+      return;
+    }
+    const stillLive = Array.from(live.values()).some(
+      (entry) =>
+        entry.bot.id === bot.id && entry.target.providerMessageId === actor.providerMessageId,
+    );
+    if (stillLive) {
+      return;
+    }
+    const target = {
+      providerUserId: userId,
+      providerMessageId: actor.providerMessageId,
+      providerContextToken: actor.providerContextToken,
+    };
+    await provider.stopTyping(bot, target).catch(() => undefined);
+  }
+  return {
+    startTyping,
+    stopTyping,
+    stopInboundTyping,
     dispose() {
       for (const taskId of [...live.keys(), ...intervals.keys()]) {
-        this.stopTyping(taskId);
+        stopTyping(taskId);
       }
     },
   };

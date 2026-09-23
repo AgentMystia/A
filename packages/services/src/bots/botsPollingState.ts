@@ -31,19 +31,27 @@ async function writeBotPollingField(
   await repo.writeState(state);
 }
 
-export function createBotPollingState(repo: BotsRepo, listWorkspaces: () => Promise<BotWorkspaceRef[]>) {
+export function createBotPollingState(
+  repo: BotsRepo,
+  listWorkspaces: () => Promise<BotWorkspaceRef[]>,
+) {
+  // 发布包 keepNames 只落在具名函数上。
+  async function readTelegramOffset(botId: string) {
+    return (await repo.readState()).bots[botId]?.telegramOffset;
+  }
+  function writeTelegramOffset(botId: string, offset: number) {
+    return writeBotPollingField(repo, listWorkspaces, botId, { telegramOffset: offset });
+  }
+  async function readWeixinGetUpdatesBuf(botId: string) {
+    return (await repo.readState()).bots[botId]?.weixinGetUpdatesBuf;
+  }
+  function writeWeixinGetUpdatesBuf(botId: string, buf: string) {
+    return writeBotPollingField(repo, listWorkspaces, botId, { weixinGetUpdatesBuf: buf });
+  }
   return {
-    async readTelegramOffset(botId: string) {
-      return (await repo.readState()).bots[botId]?.telegramOffset;
-    },
-    writeTelegramOffset(botId: string, offset: number) {
-      return writeBotPollingField(repo, listWorkspaces, botId, { telegramOffset: offset });
-    },
-    async readWeixinGetUpdatesBuf(botId: string) {
-      return (await repo.readState()).bots[botId]?.weixinGetUpdatesBuf;
-    },
-    writeWeixinGetUpdatesBuf(botId: string, buf: string) {
-      return writeBotPollingField(repo, listWorkspaces, botId, { weixinGetUpdatesBuf: buf });
-    },
+    readTelegramOffset,
+    writeTelegramOffset,
+    readWeixinGetUpdatesBuf,
+    writeWeixinGetUpdatesBuf,
   };
 }

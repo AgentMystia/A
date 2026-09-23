@@ -82,7 +82,8 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
   let migrated: Promise<void> | null = null;
   let disposing: Promise<void> | null = null;
   const loadCredential = (ref: string) => options.credentialService.load(ref);
-  const setRuntimeStatus: BotRuntimeStatusSink["setRuntimeStatus"] = (status) => {
+  // 具名函数表达式会被 esbuild 丢掉 keepName。必须是 function 声明。
+  function setRuntimeStatus(status: Parameters<BotRuntimeStatusSink["setRuntimeStatus"]>[0]) {
     const previous = runtimeStatus.get(status.botId);
     runtimeStatus.set(status.botId, {
       botId: status.botId,
@@ -94,7 +95,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
       deliveryError: status.deliveryError ?? previous?.deliveryError,
       lastUpdateAt: Date.now(),
     });
-  };
+  }
   const statusSink: BotRuntimeStatusSink = {
     getRuntimeStatus: (botId) => runtimeStatus.get(botId),
     setRuntimeStatus,

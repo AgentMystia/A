@@ -24,7 +24,7 @@ import {
 } from "./botsNormalize.js";
 import { createOutbound, toOutboundMessages } from "./botsOutbound.js";
 import { handleBotReconnect } from "./botsInboundReconnect.js";
-import { handleBindCommand } from "./botsInboundBind.js";
+import { handleBind as bindBot } from "./botsInboundBind.js";
 import {
   formatReplyGranularityLabel,
   listReplyGranularityOptions,
@@ -260,7 +260,7 @@ export function createInboundHandlers(deps: {
       createStatusReplyImpl = fn;
     },
     async handleBind(message, code) {
-      return handleBindCommand({
+      return bindBot({
         message,
         code,
         locale: await readMessageLocale(),

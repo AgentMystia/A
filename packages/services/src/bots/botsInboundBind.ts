@@ -9,12 +9,16 @@ import type { BotMessageLocale } from "./botsCopy.js";
 import { findBot, normalizeAllowedWorkspaces, normalizeBotCommandPolicy } from "./botsNormalize.js";
 import type { BotsRepo } from "./botsRepo.js";
 
-export async function handleBindCommand(input: {
+/** 发布包 host `handleBind`。 */
+export async function handleBind(input: {
   message: BotInboundMessage;
   code: string;
   locale: BotMessageLocale;
   repo: BotsRepo;
-  bindCodes: Map<string, { botId: string; code: string; allowedWorkspaces: string[]; expiresAt: number }>;
+  bindCodes: Map<
+    string,
+    { botId: string; code: string; allowedWorkspaces: string[]; expiresAt: number }
+  >;
   replies(actor: BotInboundMessage["actor"], text: string): BotOutboundMessage[];
 }): Promise<BotOutboundMessage[]> {
   if (input.message.actor.chatType !== "private") {
@@ -42,5 +46,8 @@ export async function handleBindCommand(input: {
     bots: config.bots.map((item) => (item.id === next.id ? next : item)),
   });
   input.bindCodes.delete(record.code);
-  return input.replies(input.message.actor, [copy(input.locale, "bindSuccess"), buildHelpText(input.locale, next)].join("\n\n"));
+  return input.replies(
+    input.message.actor,
+    [copy(input.locale, "bindSuccess"), buildHelpText(input.locale, next)].join("\n\n"),
+  );
 }

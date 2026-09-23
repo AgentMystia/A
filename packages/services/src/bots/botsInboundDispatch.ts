@@ -21,7 +21,7 @@ import {
   handleStructuredElicitationResponse,
   submitPendingElicitation,
 } from "./botsInboundElicitation.js";
-import { handleBotMessage } from "./botsInboundMessage.js";
+import { handleMessage } from "./botsInboundMessage.js";
 import type { BotInboundTaskRuntime } from "./botsInboundRuntime.js";
 import { parseBotCommand } from "./botsParseCommand.js";
 import {
@@ -181,7 +181,7 @@ export async function dispatchInboundMessage(
     case "unknown":
       return inbound.handleUnknown(message, rewritten.name);
     case "message":
-      return handleBotMessage(runtime, message);
+      return handleMessage(runtime, message);
   }
 }
 

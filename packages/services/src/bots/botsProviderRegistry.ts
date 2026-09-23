@@ -11,24 +11,25 @@ export function createBotProviderMap(input: {
   runtimeStatus: Map<string, BotRuntimeStatus>;
   setRuntimeStatus: BotRuntimeStatusSink["setRuntimeStatus"];
 }): Record<BotProviderId, BotProvider | null> {
-  const reportDelivery = (bot: BotConfigEntry, error?: string) => {
+  // 发布包 keepName 是 onDeliveryResult，箭头不会留下这个名字。
+  function onDeliveryResult(bot: BotConfigEntry, error?: string) {
     input.setRuntimeStatus({
       botId: bot.id,
       provider: bot.provider,
       status: input.runtimeStatus.get(bot.id)?.status ?? (bot.enabled ? "idle" : "disabled"),
       deliveryError: error,
     });
-  };
+  }
   return {
     telegram: createTelegramBotProvider({ loadCredential: input.loadCredential }),
     webhook: createWebhookBotProvider({ loadCredential: input.loadCredential }),
     feishu: createFeishuBotProvider({
       loadCredential: input.loadCredential,
-      onDeliveryResult: reportDelivery,
+      onDeliveryResult,
     }),
     lark: createFeishuBotProvider({
       loadCredential: input.loadCredential,
-      onDeliveryResult: reportDelivery,
+      onDeliveryResult,
     }),
     weixin: createWeixinBotProvider({ loadCredential: input.loadCredential }),
     discord: null,
