@@ -9,11 +9,11 @@ import {
 import { createAcknowledgedWebRemoteControlRelayProtocol } from "./acknowledgedRelayProtocol.js";
 import { sendAppPayload } from "./outboundBuffer.js";
 import {
-  degradeBridge,
-  disposeRuntimeBridge,
-  isCurrentBridge,
+  degradeBridgeAfterRawFault,
+  disposeRuntimeBridgeResources,
+  isCurrentBridgeRuntime,
   listResult,
-  publishRuntimeStatus,
+  emitRuntimeStatus,
   reportUsage,
   type BridgeRouterState,
 } from "./bridgeRouter.js";
@@ -47,11 +47,11 @@ export async function createWorkspaceBridge(
   if (!isBridgeableRemoteWorkspace(target)) {
     throw new Error("目标远程工作区尚未连接，无法创建 bridge，请先重连。");
   }
-  disposeRuntimeBridge(deps, runtime);
+  disposeRuntimeBridgeResources(deps, runtime);
   runtime.status = "connecting";
   runtime.error = undefined;
   runtime.failure = undefined;
-  publishRuntimeStatus(deps, runtime);
+  emitRuntimeStatus(deps, runtime);
   const bridge: WebRemoteControlBridge = {
     bridgeSessionId: request.bridgeSessionId,
     bridgeGeneration: request.bridgeGeneration,
@@ -85,7 +85,7 @@ export async function createWorkspaceBridge(
       initialTaskId: request.taskId,
       kind: target.kind,
     });
-    if (!isCurrentBridge(state, runtime, bridge)) {
+    if (!isCurrentBridgeRuntime(state, runtime, bridge)) {
       deps.releaseWorkspaceHostAttachment(attached.attachmentId);
       attached = undefined;
       throw new Error("Workspace bridge request was superseded.");
@@ -108,14 +108,14 @@ export async function createWorkspaceBridge(
     const disposeHostToRelay = hostProtocol.onMessage((buffer) => relay.protocol.send(buffer));
     const disposeRelayToHost = relay.protocol.onMessage((buffer) => hostProtocol.send(buffer));
     const disposeDegraded = relay.onDegraded((fault) =>
-      degradeBridge(deps, state, runtime, bridge, fault.reasonCode),
+      degradeBridgeAfterRawFault(deps, state, runtime, bridge, fault.reasonCode),
     );
     const disposeSaturated = relay.onSaturated(() => {
-      if (!isCurrentBridge(state, runtime, bridge) || bridge.degraded) return;
+      if (!isCurrentBridgeRuntime(state, runtime, bridge) || bridge.degraded) return;
       hostProtocol.sendFlowState("saturated");
     });
     const disposeDrained = relay.onDrained(() => {
-      if (!isCurrentBridge(state, runtime, bridge) || bridge.degraded) return;
+      if (!isCurrentBridgeRuntime(state, runtime, bridge) || bridge.degraded) return;
       hostProtocol.sendFlowState("drained");
     });
     bridge.hostEntryId = attached.entryId;
@@ -132,7 +132,7 @@ export async function createWorkspaceBridge(
     runtime.status = "active";
     runtime.error = undefined;
     runtime.failure = undefined;
-    publishRuntimeStatus(deps, runtime);
+    emitRuntimeStatus(deps, runtime);
     deps.logger.info(
       `[web-remote-control] workspace bridge active window=${runtime.windowId} session=${runtime.deviceSid} bridgeSession=${request.bridgeSessionId}`,
     );
@@ -160,10 +160,10 @@ export async function createWorkspaceBridge(
       }),
     );
     if (attached) deps.releaseWorkspaceHostAttachment(attached.attachmentId);
-    if (isCurrentBridge(state, runtime, bridge)) {
-      disposeRuntimeBridge(deps, runtime);
+    if (isCurrentBridgeRuntime(state, runtime, bridge)) {
+      disposeRuntimeBridgeResources(deps, runtime);
       runtime.status = runtime.mobileConnected ? "active" : "running";
-      publishRuntimeStatus(deps, runtime);
+      emitRuntimeStatus(deps, runtime);
     }
     throw error;
   }

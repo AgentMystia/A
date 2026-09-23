@@ -4,19 +4,19 @@ import {
   WEB_REMOTE_CONTROL_OUTBOUND_DROP_MS,
 } from "./runtimeTypes.js";
 
-export function clearPendingOutboundTimer(runtime: WebRemoteControlRuntime): void {
+export function clearPendingOutboundPayloadTimer(runtime: WebRemoteControlRuntime): void {
   if (!runtime.pendingOutboundPayloadTimer) return;
   clearTimeout(runtime.pendingOutboundPayloadTimer);
   runtime.pendingOutboundPayloadTimer = undefined;
 }
 
-export function clearMobileDisconnectGrace(runtime: WebRemoteControlRuntime): void {
+export function clearMobileDisconnectGraceTimer(runtime: WebRemoteControlRuntime): void {
   if (!runtime.mobileDisconnectGraceTimer) return;
   clearTimeout(runtime.mobileDisconnectGraceTimer);
   runtime.mobileDisconnectGraceTimer = undefined;
 }
 
-function sendToTransport(
+function sendPayloadToTransport(
   runtime: WebRemoteControlRuntime,
   payload: object,
 ): {
@@ -31,7 +31,10 @@ function sendToTransport(
       : { kind: "unavailable" };
 }
 
-function scheduleDrop(runtime: WebRemoteControlRuntime, logger: WebRemoteControlLogger): void {
+function schedulePendingOutboundPayloadTimeout(
+  runtime: WebRemoteControlRuntime,
+  logger: WebRemoteControlLogger,
+): void {
   if (runtime.pendingOutboundPayloadTimer || runtime.pendingOutboundPayloads.length === 0) return;
   runtime.pendingOutboundPayloadTimer = setTimeout(() => {
     runtime.pendingOutboundPayloadTimer = undefined;
@@ -44,7 +47,7 @@ function scheduleDrop(runtime: WebRemoteControlRuntime, logger: WebRemoteControl
   }, WEB_REMOTE_CONTROL_OUTBOUND_DROP_MS);
 }
 
-function bufferPayload(
+function bufferOutboundPayload(
   runtime: WebRemoteControlRuntime,
   payload: object,
   logger: WebRemoteControlLogger,
@@ -52,7 +55,7 @@ function bufferPayload(
   if (runtime.pendingOutboundPayloads.length >= WEB_REMOTE_CONTROL_OUTBOUND_BUFFER_LIMIT) {
     const droppedCount = runtime.pendingOutboundPayloads.length + 1;
     runtime.pendingOutboundPayloads.length = 0;
-    clearPendingOutboundTimer(runtime);
+    clearPendingOutboundPayloadTimer(runtime);
     logger.warn("[web-remote-control] dropped overflowing outbound payloads", {
       windowId: runtime.windowId,
       session: runtime.deviceSid,
@@ -61,7 +64,7 @@ function bufferPayload(
     return;
   }
   runtime.pendingOutboundPayloads.push(payload);
-  scheduleDrop(runtime, logger);
+  schedulePendingOutboundPayloadTimeout(runtime, logger);
 }
 
 export function flushPendingOutboundPayloads(
@@ -71,9 +74,9 @@ export function flushPendingOutboundPayloads(
   while (runtime.pendingOutboundPayloads.length > 0) {
     const payload = runtime.pendingOutboundPayloads[0];
     if (!payload) break;
-    const result = sendToTransport(runtime, payload);
+    const result = sendPayloadToTransport(runtime, payload);
     if (result.kind === "unavailable") {
-      scheduleDrop(runtime, logger);
+      schedulePendingOutboundPayloadTimeout(runtime, logger);
       return;
     }
     if (result.kind === "oversize") {
@@ -85,7 +88,7 @@ export function flushPendingOutboundPayloads(
     }
     runtime.pendingOutboundPayloads.shift();
   }
-  clearPendingOutboundTimer(runtime);
+  clearPendingOutboundPayloadTimer(runtime);
 }
 
 export function sendAppPayload(
@@ -94,11 +97,11 @@ export function sendAppPayload(
   logger: WebRemoteControlLogger,
 ): void {
   if (runtime.pendingOutboundPayloads.length > 0) {
-    bufferPayload(runtime, payload, logger);
+    bufferOutboundPayload(runtime, payload, logger);
     flushPendingOutboundPayloads(runtime, logger);
     return;
   }
-  const result = sendToTransport(runtime, payload);
+  const result = sendPayloadToTransport(runtime, payload);
   if (result.kind === "sent") return;
   if (result.kind === "oversize") {
     logger.warn("[web-remote-control] rejected oversize app payload", {
@@ -108,5 +111,5 @@ export function sendAppPayload(
     });
     return;
   }
-  bufferPayload(runtime, payload, logger);
+  bufferOutboundPayload(runtime, payload, logger);
 }

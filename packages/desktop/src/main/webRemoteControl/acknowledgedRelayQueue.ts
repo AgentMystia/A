@@ -78,14 +78,14 @@ export class AcknowledgedRelayBatchQueue<
   }
 }
 
-function requirePositive(value: number, name: string): number {
+function requirePositiveSafeInteger(value: number, name: string): number {
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${name} must be a positive safe integer`);
   }
   return value;
 }
 
-function requireNonnegative(value: number, name: string): number {
+function requireNonnegativeSafeInteger(value: number, name: string): number {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${name} must be a nonnegative safe integer`);
   }
@@ -105,11 +105,11 @@ export function resolveAcknowledgedRelayLimits(input: {
   replayBufferGraceMs: number;
   assemblyTimeoutMs: number;
 } {
-  const highWaterMarkBytes = requirePositive(
+  const highWaterMarkBytes = requirePositiveSafeInteger(
     input.saturationHighWaterMarkBytes ?? ACKNOWLEDGED_RELAY_DEFAULTS.saturationHighWaterMarkBytes,
     "saturationHighWaterMarkBytes",
   );
-  const lowWaterMarkBytes = requireNonnegative(
+  const lowWaterMarkBytes = requireNonnegativeSafeInteger(
     input.saturationLowWaterMarkBytes ?? ACKNOWLEDGED_RELAY_DEFAULTS.saturationLowWaterMarkBytes,
     "saturationLowWaterMarkBytes",
   );
@@ -120,21 +120,21 @@ export function resolveAcknowledgedRelayLimits(input: {
     highWaterMarkBytes,
     lowWaterMarkBytes,
     replayBufferMaxBytes: Math.min(
-      requirePositive(
+      requirePositiveSafeInteger(
         input.replayBufferMaxBytes ?? ACKNOWLEDGED_RELAY_DEFAULTS.replayBufferMaxBytes,
         "replayBufferMaxBytes",
       ),
       ACKNOWLEDGED_RELAY_DEFAULTS.replayBufferMaxBytes,
     ),
     replayBufferGraceMs: Math.min(
-      requirePositive(
+      requirePositiveSafeInteger(
         input.replayBufferGraceMs ?? ACKNOWLEDGED_RELAY_DEFAULTS.replayBufferGraceMs,
         "replayBufferGraceMs",
       ),
       ACKNOWLEDGED_RELAY_DEFAULTS.replayBufferGraceMs,
     ),
     assemblyTimeoutMs: Math.min(
-      requirePositive(
+      requirePositiveSafeInteger(
         input.assemblyTimeoutMs ?? ACKNOWLEDGED_RELAY_DEFAULTS.assemblyTimeoutMs,
         "assemblyTimeoutMs",
       ),

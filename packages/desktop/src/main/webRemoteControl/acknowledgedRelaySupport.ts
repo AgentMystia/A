@@ -111,7 +111,7 @@ export function isRawTransportCandidate(value: unknown): boolean {
   return type === "rpc-frame" || type === "rpc-frame-ack";
 }
 
-export function measureBatchBytes(
+export function measureAcknowledgedRelayBatchBytes(
   frames: readonly unknown[],
   measure: (frame: unknown) => number,
 ): number {

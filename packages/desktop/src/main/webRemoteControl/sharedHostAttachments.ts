@@ -9,7 +9,7 @@ interface SharedHostEntry {
   port: MessagePortMain;
 }
 
-function codedError(code: string, message: string): Error {
+function createSharedHostError(code: string, message: string): Error {
   const error = new Error(message) as Error & { code?: string };
   error.code = code;
   return error;
@@ -31,7 +31,10 @@ export function createWebRemoteControlSharedHostAttachments(options: {
   let nextId = 0;
   const attachments = new Map<string, SharedHostEntry>();
 
-  const createChannel = () => options.createMessageChannel?.() ?? new MessageChannelMain();
+  // 发布包 keepNames 落在具名函数上。对象方法不会留下 attach/dispose 这些名字。
+  function createMessageChannel() {
+    return options.createMessageChannel?.() ?? new MessageChannelMain();
+  }
 
   const releaseAttachment = (attachmentId: string) => {
     const entry = attachments.get(attachmentId);
@@ -51,9 +54,9 @@ export function createWebRemoteControlSharedHostAttachments(options: {
     const webContentsId = BrowserWindow.fromId(windowId)?.webContents.id ?? windowId;
     const process = options.windowHostProcessMap.get(webContentsId);
     if (!process) {
-      throw codedError("DESKTOP_HOST_MISSING", `未找到桌面窗口 host process，windowId=${windowId}`);
+      throw createSharedHostError("DESKTOP_HOST_MISSING", `未找到桌面窗口 host process，windowId=${windowId}`);
     }
-    const { port1, port2 } = createChannel();
+    const { port1, port2 } = createMessageChannel();
     const attachmentId = `shared-host-attachment-${++nextId}`;
     process.postMessage(
       {
@@ -69,59 +72,65 @@ export function createWebRemoteControlSharedHostAttachments(options: {
     return { entryId: `desktop-host:${windowId}`, attachmentId, process, port: port1 };
   };
 
+  async function attachWorkspaceHost(
+    windowId: number,
+    target: {
+      workspacePath: string;
+      workspaceIdentity?: string;
+      remoteSessionId?: string;
+      kind: "local" | "remote";
+    },
+  ): Promise<WebRemoteControlAttachedHost> {
+    if (target.kind === "local") return attachLocalHost(windowId);
+    if (!target.remoteSessionId) {
+      throw createSharedHostError("REMOTE_SESSION_MISSING", "远程 workspace bridge 缺少 remoteSessionId。");
+    }
+    const workspaceIdentity = target.workspaceIdentity?.trim();
+    if (!workspaceIdentity) {
+      throw createSharedHostError(
+        "REMOTE_WORKSPACE_IDENTITY_MISSING",
+        "远程 workspace bridge 缺少 workspaceIdentity，不能建立身份隔离。",
+      );
+    }
+    const attached = options.attachRemoteWorkspaceSessionHost({
+      windowId,
+      remoteSessionId: target.remoteSessionId,
+      workspacePath: target.workspacePath,
+      workspaceIdentity,
+      workspaceKey: workspaceIdentity || target.workspacePath,
+      clientMode: "web-remote-replayable",
+    });
+    const attachmentId = `shared-host-attachment-${++nextId}`;
+    attachments.set(attachmentId, {
+      windowId,
+      remoteSessionId: target.remoteSessionId,
+      port: attached.port,
+    });
+    return {
+      entryId: `remote-session-host:${target.remoteSessionId}`,
+      attachmentId,
+      process: attached.process,
+      port: attached.port,
+      remoteKind: attached.remoteKind,
+    };
+  }
+
+  function disposeWindow(windowId: number): void {
+    for (const [attachmentId, entry] of Array.from(attachments)) {
+      if (entry.windowId === windowId) releaseAttachment(attachmentId);
+    }
+  }
+
+  function disposeRemoteSession(remoteSessionId: string): void {
+    for (const [attachmentId, entry] of Array.from(attachments)) {
+      if (entry.remoteSessionId === remoteSessionId) releaseAttachment(attachmentId);
+    }
+  }
+
   return {
-    async attachWorkspaceHost(
-      windowId: number,
-      target: {
-        workspacePath: string;
-        workspaceIdentity?: string;
-        remoteSessionId?: string;
-        kind: "local" | "remote";
-      },
-    ): Promise<WebRemoteControlAttachedHost> {
-      if (target.kind === "local") return attachLocalHost(windowId);
-      if (!target.remoteSessionId) {
-        throw codedError("REMOTE_SESSION_MISSING", "远程 workspace bridge 缺少 remoteSessionId。");
-      }
-      const workspaceIdentity = target.workspaceIdentity?.trim();
-      if (!workspaceIdentity) {
-        throw codedError(
-          "REMOTE_WORKSPACE_IDENTITY_MISSING",
-          "远程 workspace bridge 缺少 workspaceIdentity，不能建立身份隔离。",
-        );
-      }
-      const attached = options.attachRemoteWorkspaceSessionHost({
-        windowId,
-        remoteSessionId: target.remoteSessionId,
-        workspacePath: target.workspacePath,
-        workspaceIdentity,
-        workspaceKey: workspaceIdentity || target.workspacePath,
-        clientMode: "web-remote-replayable",
-      });
-      const attachmentId = `shared-host-attachment-${++nextId}`;
-      attachments.set(attachmentId, {
-        windowId,
-        remoteSessionId: target.remoteSessionId,
-        port: attached.port,
-      });
-      return {
-        entryId: `remote-session-host:${target.remoteSessionId}`,
-        attachmentId,
-        process: attached.process,
-        port: attached.port,
-        remoteKind: attached.remoteKind,
-      };
-    },
+    attachWorkspaceHost,
     releaseAttachment,
-    disposeWindow(windowId: number): void {
-      for (const [attachmentId, entry] of Array.from(attachments)) {
-        if (entry.windowId === windowId) releaseAttachment(attachmentId);
-      }
-    },
-    disposeRemoteSession(remoteSessionId: string): void {
-      for (const [attachmentId, entry] of Array.from(attachments)) {
-        if (entry.remoteSessionId === remoteSessionId) releaseAttachment(attachmentId);
-      }
-    },
+    disposeWindow,
+    disposeRemoteSession,
   };
 }

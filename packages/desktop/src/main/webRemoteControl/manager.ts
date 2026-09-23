@@ -6,15 +6,15 @@ import type {
 } from "@zcode/shared";
 import { resetExternalRelayDeviceAuth } from "./auth.js";
 import {
-  disposeRuntimeBridge,
-  publishRuntimeStatus,
+  disposeRuntimeBridgeResources,
+  emitRuntimeStatus,
   pushWorkspaceListUpdated,
   type BridgeRouterState,
 } from "./bridgeRouter.js";
 import { startWebRemoteControlSession } from "./managerStart.js";
 import {
-  clearMobileDisconnectGrace,
-  clearPendingOutboundTimer,
+  clearMobileDisconnectGraceTimer,
+  clearPendingOutboundPayloadTimer,
   sendAppPayload,
 } from "./outboundBuffer.js";
 import {
@@ -90,7 +90,7 @@ export function createWebRemoteControlManager(
   });
   let restoreConsumed = false;
 
-  const clearAuthorizations = (windowId: number) => {
+  const clearStartAuthorizationsForWindow = (windowId: number) => {
     for (const [token, authorization] of authorizations) {
       if (authorization.windowId === windowId) authorizations.delete(token);
     }
@@ -98,7 +98,7 @@ export function createWebRemoteControlManager(
 
   const authorizeStart = (windowId: number, request: WebRemoteControlManagerStartInput) => {
     const now = Date.now();
-    clearAuthorizations(windowId);
+    clearStartAuthorizationsForWindow(windowId);
     for (const [token, authorization] of authorizations) {
       if (authorization.expiresAt <= now) authorizations.delete(token);
     }
@@ -113,7 +113,7 @@ export function createWebRemoteControlManager(
     return authorization;
   };
 
-  const consumeAuthorization = (
+  const consumeStartAuthorization = (
     windowId: number,
     request: WebRemoteControlManagerStartInput,
     authorization: WebRemoteControlStartAuthorization,
@@ -134,11 +134,11 @@ export function createWebRemoteControlManager(
     }
   };
 
-  const emitIdle = (windowId: number) => {
+  const emitIdleStatus = (windowId: number) => {
     deps.onStatusChanged?.(windowId, { status: "idle" });
   };
 
-  const stopWindow = async (windowId: number, reason: string) => {
+  const stopWindowRuntime = async (windowId: number, reason: string) => {
     const runtime = runtimes.get(windowId);
     if (!runtime) return;
     sendAppPayload(
@@ -152,22 +152,22 @@ export function createWebRemoteControlManager(
     );
     runtimes.delete(windowId);
     state.signatures.delete(windowId);
-    disposeRuntimeBridge(deps, runtime);
-    clearPendingOutboundTimer(runtime);
-    clearMobileDisconnectGrace(runtime);
+    disposeRuntimeBridgeResources(deps, runtime);
+    clearPendingOutboundPayloadTimer(runtime);
+    clearMobileDisconnectGraceTimer(runtime);
     runtime.pendingOutboundPayloads.length = 0;
     runtime.transport.dispose();
     deps.disposeWorkspaceHostAttachmentsForWindow(windowId, reason);
     deps.logger.info(
       `[web-remote-control] stopped window=${windowId} session=${runtime.deviceSid} reason=${reason}`,
     );
-    emitIdle(windowId);
+    emitIdleStatus(windowId);
   };
 
   const manager: WebRemoteControlManager = {
     authorizeStart,
     async startAuthorized(windowId, request, authorization) {
-      consumeAuthorization(windowId, request, authorization);
+      consumeStartAuthorization(windowId, request, authorization);
       return manager.start(windowId, request);
     },
     async start(windowId, request) {
@@ -176,21 +176,21 @@ export function createWebRemoteControlManager(
         state,
         windowId,
         request,
-        stopWindow,
-        clearAuthorizations,
+        stopWindowRuntime,
+        clearStartAuthorizationsForWindow,
         markRestoreConsumed: () => {
           restoreConsumed = true;
         },
       });
     },
     async stop(windowId) {
-      clearAuthorizations(windowId);
-      await stopWindow(windowId, "manual-stop");
+      clearStartAuthorizationsForWindow(windowId);
+      await stopWindowRuntime(windowId, "manual-stop");
       await deps.startupRestoreStorageProvider.clear();
     },
     async suspend(windowId, reason) {
-      clearAuthorizations(windowId);
-      await stopWindow(windowId, reason);
+      clearStartAuthorizationsForWindow(windowId);
+      await stopWindowRuntime(windowId, reason);
     },
     async restorePreviouslyEnabled(windowId, workspaces) {
       if (restoreConsumed || runtimes.has(windowId)) return false;
@@ -219,12 +219,12 @@ export function createWebRemoteControlManager(
     },
     async resetPairing(windowId, request) {
       deps.featureGate.assertEnabled();
-      await stopWindow(windowId, "leaked-qr");
+      await stopWindowRuntime(windowId, "leaked-qr");
       await resetExternalRelayDeviceAuth(deps.authStorageProvider, deps.logger, "leaked-qr");
       return manager.start(windowId, request);
     },
     async resetPairingAuthorized(windowId, request, authorization) {
-      consumeAuthorization(windowId, request, authorization);
+      consumeStartAuthorization(windowId, request, authorization);
       return manager.resetPairing(windowId, request);
     },
     getStatus(windowId) {
@@ -270,8 +270,8 @@ export function createWebRemoteControlManager(
       if (runtime) pushWorkspaceListUpdated(deps, state, runtime);
     },
     async disposeWindow(windowId) {
-      clearAuthorizations(windowId);
-      await stopWindow(windowId, "window-disposed");
+      clearStartAuthorizationsForWindow(windowId);
+      await stopWindowRuntime(windowId, "window-disposed");
       state.workspaces.delete(windowId);
       state.tasks.delete(windowId);
       state.signatures.delete(windowId);
@@ -283,7 +283,7 @@ export function createWebRemoteControlManager(
         const runtimeMatches = runtime.remoteSessionId === remoteSessionId;
         if (!bridgeMatches && !runtimeMatches) continue;
         if (bridgeMatches && bridge) {
-          disposeRuntimeBridge(deps, runtime);
+          disposeRuntimeBridgeResources(deps, runtime);
           sendAppPayload(
             runtime,
             {
@@ -301,7 +301,7 @@ export function createWebRemoteControlManager(
         runtime.error = undefined;
         runtime.failure = undefined;
         runtimes.set(windowId, runtime);
-        publishRuntimeStatus(deps, runtime);
+        emitRuntimeStatus(deps, runtime);
       }
       deps.disposeWorkspaceHostAttachmentsForRemoteSession(remoteSessionId, reason);
     },

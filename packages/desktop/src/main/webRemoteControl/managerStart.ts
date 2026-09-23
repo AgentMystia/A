@@ -1,11 +1,11 @@
 import { buildWebRemoteControlExternalQrUrl, type WebRemoteControlStatus } from "@zcode/shared";
 import { resetExternalRelayDeviceAuth } from "./auth.js";
-import { mapTransportState, publishRuntimeStatus, type BridgeRouterState } from "./bridgeRouter.js";
+import { mapTransportState, emitRuntimeStatus, type BridgeRouterState } from "./bridgeRouter.js";
 import { routeRawTransportPayload, routeWebRemoteControlPayload } from "./bridgeSession.js";
 import { WebRemoteControlDeviceTransport } from "./deviceTransport.js";
 import {
-  clearMobileDisconnectGrace,
-  clearPendingOutboundTimer,
+  clearMobileDisconnectGraceTimer,
+  clearPendingOutboundPayloadTimer,
   flushPendingOutboundPayloads,
 } from "./outboundBuffer.js";
 import {
@@ -20,17 +20,24 @@ export async function startWebRemoteControlSession(input: {
   state: BridgeRouterState;
   windowId: number;
   request: WebRemoteControlManagerStartInput;
-  stopWindow: (windowId: number, reason: string) => Promise<void>;
-  clearAuthorizations: (windowId: number) => void;
+  stopWindowRuntime: (windowId: number, reason: string) => Promise<void>;
+  clearStartAuthorizationsForWindow: (windowId: number) => void;
   markRestoreConsumed: () => void;
 }): Promise<WebRemoteControlStatus> {
-  const { deps, state, windowId, request, stopWindow, clearAuthorizations, markRestoreConsumed } =
-    input;
+  const {
+    deps,
+    state,
+    windowId,
+    request,
+    stopWindowRuntime,
+    clearStartAuthorizationsForWindow,
+    markRestoreConsumed,
+  } = input;
   const runtimes = state.runtimes;
-  clearAuthorizations(windowId);
+  clearStartAuthorizationsForWindow(windowId);
   deps.featureGate.assertEnabled();
   markRestoreConsumed();
-  await stopWindow(windowId, "restart");
+  await stopWindowRuntime(windowId, "restart");
   const endpoints = await deps.getEndpointUrls?.();
   const relayWsUrl = endpoints?.relayWsUrl ?? deps.relayWsUrl;
   const remoteUrl = endpoints?.remoteUrl ?? deps.mobileRemoteControlUrl;
@@ -113,15 +120,15 @@ export async function startWebRemoteControlSession(input: {
       pendingOutboundPayloads: [],
     };
     runtimes.set(windowId, runtime);
-    publishRuntimeStatus(deps, runtime);
+    emitRuntimeStatus(deps, runtime);
     transport.start();
   });
   try {
     await ready;
   } catch (error) {
     runtimes.delete(windowId);
-    clearPendingOutboundTimer(runtime);
-    clearMobileDisconnectGrace(runtime);
+    clearPendingOutboundPayloadTimer(runtime);
+    clearMobileDisconnectGraceTimer(runtime);
     runtime.pendingOutboundPayloads.length = 0;
     runtime.transport.dispose();
     throw error;
@@ -136,7 +143,7 @@ export async function startWebRemoteControlSession(input: {
       initialTaskId: request.initialTaskId,
     });
   } catch (error) {
-    await stopWindow(windowId, "startup-restore-persist-failed");
+    await stopWindowRuntime(windowId, "startup-restore-persist-failed");
     throw error;
   }
   const qrUrl = buildWebRemoteControlExternalQrUrl({
@@ -152,7 +159,7 @@ export async function startWebRemoteControlSession(input: {
   runtime.passHash = persisted.passHash;
   runtime.qrUrl = qrUrl;
   runtime.connectUrl = qrUrl;
-  publishRuntimeStatus(deps, runtime);
+  emitRuntimeStatus(deps, runtime);
   return {
     status: runtime.status === "active" ? "active" : "running",
     sessionId: persisted.deviceSid,

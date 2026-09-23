@@ -5,8 +5,8 @@ import {
   type WebRemoteControlWorkspaceSnapshot,
 } from "@zcode/shared";
 import {
-  clearMobileDisconnectGrace,
-  clearPendingOutboundTimer,
+  clearMobileDisconnectGraceTimer,
+  clearPendingOutboundPayloadTimer,
   flushPendingOutboundPayloads,
   sendAppPayload,
 } from "./outboundBuffer.js";
@@ -50,12 +50,10 @@ export function reportUsage(
   }
 }
 
-export function publishRuntimeStatus(
-  deps: WebRemoteControlManagerDependencies,
-  runtime: WebRemoteControlRuntime,
-): void {
+// 发布包把状态对象和通知拆成两个 keepName。emit 只把 build 的结果交给 onStatusChanged。
+export function buildRuntimeStatus(runtime: WebRemoteControlRuntime) {
   const target = runtimeStatusTarget(runtime);
-  deps.onStatusChanged?.(runtime.windowId, {
+  return {
     status: runtime.status,
     sessionId: runtime.deviceSid,
     windowControlSessionId: runtime.deviceSid,
@@ -70,10 +68,17 @@ export function publishRuntimeStatus(
     initialTaskId: runtime.currentBridge?.initialTaskId ?? runtime.initialTaskId,
     error: runtime.error,
     failure: runtime.failure,
-  });
+  };
 }
 
-export function disposeRuntimeBridge(
+export function emitRuntimeStatus(
+  deps: WebRemoteControlManagerDependencies,
+  runtime: WebRemoteControlRuntime,
+): void {
+  deps.onStatusChanged?.(runtime.windowId, buildRuntimeStatus(runtime));
+}
+
+export function disposeRuntimeBridgeResources(
   deps: WebRemoteControlManagerDependencies,
   runtime: WebRemoteControlRuntime,
 ): void {
@@ -92,7 +97,7 @@ export function disposeRuntimeBridge(
   runtime.currentBridge = undefined;
 }
 
-export function isCurrentBridge(
+export function isCurrentBridgeRuntime(
   state: BridgeRouterState,
   runtime: WebRemoteControlRuntime,
   bridge: WebRemoteControlBridge,
@@ -100,14 +105,14 @@ export function isCurrentBridge(
   return state.runtimes.get(runtime.windowId) === runtime && runtime.currentBridge === bridge;
 }
 
-export function degradeBridge(
+export function degradeBridgeAfterRawFault(
   deps: WebRemoteControlManagerDependencies,
   state: BridgeRouterState,
   runtime: WebRemoteControlRuntime,
   bridge: WebRemoteControlBridge,
   reasonCode: string,
 ): void {
-  if (!isCurrentBridge(state, runtime, bridge) || bridge.degraded) return;
+  if (!isCurrentBridgeRuntime(state, runtime, bridge) || bridge.degraded) return;
   bridge.degraded = true;
   deps.logger.warn("[web-remote-control] raw relay bridge degraded", {
     windowId: runtime.windowId,
@@ -146,9 +151,9 @@ export function preserveWindowRuntimeFailure(
     },
     deps.logger,
   );
-  disposeRuntimeBridge(deps, runtime);
-  clearPendingOutboundTimer(runtime);
-  clearMobileDisconnectGrace(runtime);
+  disposeRuntimeBridgeResources(deps, runtime);
+  clearPendingOutboundPayloadTimer(runtime);
+  clearMobileDisconnectGraceTimer(runtime);
   runtime.pendingOutboundPayloads.length = 0;
   runtime.transport.dispose();
   runtime.status = "error";
@@ -158,7 +163,7 @@ export function preserveWindowRuntimeFailure(
   deps.logger.warn(
     `[web-remote-control] runtime closed window=${windowId} session=${runtime.deviceSid} reason=${reason} failure=${failure.reason} message=${failure.message ?? "<none>"}`,
   );
-  publishRuntimeStatus(deps, runtime);
+  emitRuntimeStatus(deps, runtime);
 }
 
 function scheduleMobileDisconnectGrace(
@@ -172,7 +177,7 @@ function scheduleMobileDisconnectGrace(
     if (state.runtimes.get(runtime.windowId) !== runtime || runtime.status === "error") return;
     runtime.status = "running";
     runtime.mobileConnected = false;
-    publishRuntimeStatus(deps, runtime);
+    emitRuntimeStatus(deps, runtime);
   }, WEB_REMOTE_CONTROL_MOBILE_DISCONNECT_GRACE_MS);
 }
 
@@ -202,23 +207,23 @@ export function mapTransportState(
     if (runtime.mobileConnected) {
       runtime.status = "active";
       scheduleMobileDisconnectGrace(deps, state, runtime);
-      publishRuntimeStatus(deps, runtime);
+      emitRuntimeStatus(deps, runtime);
       return;
     }
     runtime.status = "starting";
-    publishRuntimeStatus(deps, runtime);
+    emitRuntimeStatus(deps, runtime);
     return;
   }
   if (next === "waiting_terminal") {
     if (runtime.mobileConnected) {
       runtime.status = "active";
       scheduleMobileDisconnectGrace(deps, state, runtime);
-      publishRuntimeStatus(deps, runtime);
+      emitRuntimeStatus(deps, runtime);
       return;
     }
     runtime.status = "running";
     runtime.mobileConnected = false;
-    publishRuntimeStatus(deps, runtime);
+    emitRuntimeStatus(deps, runtime);
     return;
   }
   if (next === "paired") {
@@ -234,10 +239,10 @@ export function mapTransportState(
       );
     }
     runtime.hasEverPaired = true;
-    clearMobileDisconnectGrace(runtime);
+    clearMobileDisconnectGraceTimer(runtime);
     runtime.status = "active";
     runtime.mobileConnected = true;
-    publishRuntimeStatus(deps, runtime);
+    emitRuntimeStatus(deps, runtime);
     flushPendingOutboundPayloads(runtime, deps.logger);
     return;
   }
@@ -281,7 +286,7 @@ export function mapTransportState(
       );
     }
     runtime.status = "error";
-    publishRuntimeStatus(deps, runtime);
+    emitRuntimeStatus(deps, runtime);
   }
 }
 

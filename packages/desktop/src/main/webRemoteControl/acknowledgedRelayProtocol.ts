@@ -16,7 +16,7 @@ import {
 import {
   AcknowledgedRelayDeadline,
   isRawTransportCandidate,
-  measureBatchBytes,
+  measureAcknowledgedRelayBatchBytes,
   rawIdentityMatches,
   relayIdentity,
   type AcknowledgedRelayFault,
@@ -156,7 +156,7 @@ export class AcknowledgedRelayProtocol {
     }
     let outerBytes = 0;
     try {
-      outerBytes = measureBatchBytes(frames, this.measureFrameBytes);
+      outerBytes = measureAcknowledgedRelayBatchBytes(frames, this.measureFrameBytes);
     } catch {
       this.enterDegraded({ reasonCode: "remote.rpcFrame.outerMeterFailed", terminal: true });
       return;

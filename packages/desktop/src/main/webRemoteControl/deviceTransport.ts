@@ -60,8 +60,8 @@ export interface WebRemoteControlDeviceTransportOptions {
   onInvalidPersistedAuth: () => Promise<void>;
 }
 
-function estimateRawBytes(data: unknown): number {
-  if (Array.isArray(data)) return data.reduce((sum, part) => sum + estimateRawBytes(part), 0);
+function estimateRawDataBytes(data: unknown): number {
+  if (Array.isArray(data)) return data.reduce((sum, part) => sum + estimateRawDataBytes(part), 0);
   if (typeof data === "string") return Buffer.byteLength(data, "utf8");
   if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) return data.byteLength;
   return Buffer.byteLength(String(data), "utf8");
@@ -198,7 +198,7 @@ export class WebRemoteControlDeviceTransport implements WebRemoteControlDeviceTr
     });
     socket.on("message", (data) => {
       if (socket !== this.socket) return;
-      const bytes = estimateRawBytes(data);
+      const bytes = estimateRawDataBytes(data);
       if (bytes > WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes) {
         this.options.logger.warn("[web-remote-control] oversize external relay message dropped", {
           bytes,
