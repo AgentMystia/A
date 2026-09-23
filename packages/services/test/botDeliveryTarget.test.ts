@@ -7,10 +7,8 @@ import test from "node:test";
 import { resolveWorkspaceKey, type ZCodeBotDeliveryTarget } from "@zcode/shared";
 import { resolveAutomationBotDeliveryTarget } from "../src/bots/botsHostHelpers.js";
 import { AutomationRepo } from "../src/session/automationRepo.js";
-import {
-  parseStoredBotDeliveryTarget,
-  watchCronRunBotDelivery,
-} from "../src/session/botDeliveryTarget.js";
+import { parseStoredBotDeliveryTarget } from "../src/session/botDeliveryTarget.js";
+import { watchCronRunBotDelivery } from "../src/session/watchCronRunBotDelivery.js";
 
 const require = createRequire(import.meta.url);
 const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
@@ -110,6 +108,41 @@ test("automation create 写入 bot_delivery_target，公开对象与 update 不�
       undefined,
     );
     reopened.close();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("claimManualRuns 重建 bot_delivery_target 行，但公开对象不携带它", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "bot-delivery-claim-"));
+  const dbPath = join(dir, "tasks-index.sqlite");
+  const repo = new AutomationRepo(dbPath);
+  try {
+    const created = await repo.create(
+      {
+        title: "delivery",
+        cronExpr: "0 * * * *",
+        prompt: "ping",
+        workspacePath: "/tmp/ws",
+        recurring: true,
+        botDeliveryTarget: target,
+      },
+      { nextRunAt: 1 },
+    );
+    const workspaceKey = resolveWorkspaceKey({ workspacePath: "/tmp/ws" });
+    await repo.ensureRunClaimed({
+      runId: "run-manual-1",
+      automationId: created.automationId,
+      workspaceKey,
+      scheduledAt: 1,
+      trigger: "manual",
+    });
+    const claimed = await repo.claimManualRuns(Date.now());
+    assert.equal(claimed.length, 1);
+    assert.equal(claimed[0]?.automation.automationId, created.automationId);
+    assert.equal("botDeliveryTarget" in claimed[0]!.automation, false);
+    assert.deepEqual(await repo.getBotDeliveryTarget(created.automationId, workspaceKey), target);
+    repo.close();
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

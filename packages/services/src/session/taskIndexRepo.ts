@@ -710,15 +710,16 @@ export class TaskIndexRepo {
       .run(JSON.stringify([workspaceKeyValue, taskId]), workspaceKeyValue);
   }
 
-  private hasTasksColumn(name: string): boolean {
+  // 发布包 host paths 用表名参数探测列。固定字面量 PRAGMA table_info(tasks) 对不上。
+  private hasColumn(table: string, column: string): boolean {
     return this.getDatabase()
-      .prepare("PRAGMA table_info(tasks)")
+      .prepare(`PRAGMA table_info(${table})`)
       .all()
-      .some((column) => (column as { name?: string }).name === name);
+      .some((row) => (row as { name?: string }).name === column);
   }
 
   private migrateLegacyAcpTaskIds(): void {
-    if (!this.hasTasksColumn("acp_session_id")) return;
+    if (!this.hasColumn("tasks", "acp_session_id")) return;
     const database = this.getDatabase();
     const legacyRows = database
       .prepare(

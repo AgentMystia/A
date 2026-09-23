@@ -814,6 +814,7 @@ export class AutomationRepo {
             a.dispatch_attempts AS a_dispatch_attempts,
             a.retry_at AS a_retry_at,
             a.last_error AS a_last_error,
+            a.bot_delivery_target AS a_bot_delivery_target,
             a.created_at AS a_created_at,
             a.updated_at AS a_updated_at,
             r.run_id AS r_run_id,
@@ -890,6 +891,8 @@ export class AutomationRepo {
             dispatch_attempts: row["a_dispatch_attempts"] as number,
             retry_at: (row["a_retry_at"] as number | null) ?? null,
             last_error: (row["a_last_error"] as string | null) ?? null,
+            // 发布包把存储列放进交给 rowToAutomation 的行。公开对象仍然不读它。
+            bot_delivery_target: (row["a_bot_delivery_target"] as string | null) ?? null,
             created_at: row["a_created_at"] as number,
             updated_at: now,
           }),
