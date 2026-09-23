@@ -421,6 +421,24 @@ normalizeZCodeUiError
 - 短语按原文包含 `Captcha verification failed or the verify token was rejected.` 或 `verify token was rejected`；按小写包含 `captcha verify failed`、`验证码校验失败`、`captcha verification failed`。空白 message 不算命中。code 比较不去空白。
 - `3007` 仍无 UI 恢复动作。文案仍是 `zcode.error.providerBusiness.3007`。
 
+### 作曲栏溢出收起
+
+作曲栏是否收起只由 `fitComposerToolbar` 写到探针 DOM，再原样抄回真实节点。模式、计划、电脑控制和思考档不另存一份收起状态。
+
+```text
+溢出 = max(0, 内容宽度 - 左侧操作区宽度, 有右侧操作区时的整行超出)
+  → 溢出 ≤ 0 则停止
+  → 优先级 0、1、2、3 依次把对应控件写成 data-composer-compact=true
+  → 仍溢出且存在 .composer-provider-prefix：data-composer-provider-compact=true
+  → 仍溢出：思考档 data-composer-compact=icon
+  → 仍溢出：data-composer-model-icon=true
+```
+
+- 作曲栏把 `composerCollapsePriority={3}` 传给思考档。三个触发器各自写 `data-composer-thought-control` 和 `data-composer-collapse-priority`。未传优先级时不写这两个属性，进度条保持 `hidden @sm/composer:inline-flex @xl/composer:hidden`。
+- 有优先级时控件带 `group/thought`。`compact=true` 用 `group-data-[composer-compact=true]/thought:inline-flex` 显示进度条，并用 `group-data-[composer-compact]/thought:hidden` 隐藏文案和箭头。`compact=icon` 收成 28px 图标。
+- 不写 `--composer-model-max-width`。模型触发器在 icon 态使用固定尺寸类。供应商标前缀类是 `composer-provider-prefix inline`。
+- 抄回时保留 compact 的原值，`icon` 不能被写成 `true`。
+
 ### 对话遥测 parity 用例
 
 发布包 styles 在模块初始化时建好 `TDP01`–`TDP19` 用例表，并在桌面且 `VITE_ZCODE_E2E_STORE_BRIDGE=1` 时把 `window.__zcodeConversationTelemetryParityE2E` 设为 `{ variant: "current", run }`。这张表不拥有会话遥测；每次 `run` 只创建当次的 `ConversationTelemetrySupervisor`，结束时 flush 并 dispose。
