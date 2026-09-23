@@ -213,7 +213,7 @@ async function respondToWorkspaceBridgeOpen(
   }
 }
 
-export function routeWebRemoteControlPayload(
+export function routePayload(
   deps: WebRemoteControlManagerDependencies,
   state: BridgeRouterState,
   runtime: WebRemoteControlRuntime,

@@ -109,9 +109,7 @@ export type WebRemoteControlRpcTransportPayload = z.infer<
   typeof webRemoteControlRpcTransportPayloadSchema
 >;
 
-export function parseWebRemoteControlRpcIdentity(
-  value: WebRemoteControlRpcIdentity,
-): WebRemoteControlRpcIdentity {
+export function identityFrom(value: WebRemoteControlRpcIdentity): WebRemoteControlRpcIdentity {
   const parsed = webRemoteControlRpcIdentitySchema.safeParse({
     bridgeSessionId: value.bridgeSessionId,
     ...(value.bridgeGeneration === undefined ? {} : { bridgeGeneration: value.bridgeGeneration }),
@@ -130,7 +128,7 @@ export function parseWebRemoteControlRpcTransportPayload(
   return parsed.success ? parsed.data : null;
 }
 
-export function hasWebRemoteControlRawIdentityMismatch(
+export function hasRawIdentityMismatch(
   identity: WebRemoteControlRpcIdentity,
   value: unknown,
 ): boolean {
@@ -147,7 +145,7 @@ export function hasWebRemoteControlRawIdentityMismatch(
   );
 }
 
-export function sameWebRemoteControlRpcIdentity(
+export function sameIdentity(
   identity: WebRemoteControlRpcIdentity,
   frame: { bridgeSessionId: string; bridgeGeneration?: number; recoveryId?: string },
 ): boolean {
@@ -163,7 +161,7 @@ export interface WebRemoteControlFrameFingerprint {
   value: string;
 }
 
-export function webRemoteControlFrameFingerprint(
+export function frameFingerprint(
   frame: WebRemoteControlRpcFrame,
   bytes: Uint8Array,
 ): WebRemoteControlFrameFingerprint {
@@ -186,9 +184,17 @@ export function webRemoteControlFrameFingerprint(
   };
 }
 
-export function sameWebRemoteControlFrameFingerprint(
+export function sameFingerprint(
   left: WebRemoteControlFrameFingerprint,
   right: WebRemoteControlFrameFingerprint,
 ): boolean {
   return left.value === right.value;
 }
+
+export {
+  identityFrom as parseWebRemoteControlRpcIdentity,
+  hasRawIdentityMismatch as hasWebRemoteControlRawIdentityMismatch,
+  sameIdentity as sameWebRemoteControlRpcIdentity,
+  frameFingerprint as webRemoteControlFrameFingerprint,
+  sameFingerprint as sameWebRemoteControlFrameFingerprint,
+};

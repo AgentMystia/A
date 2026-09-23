@@ -2,7 +2,7 @@ import type { TelemetryEventPayload } from "./telemetry.js";
 
 export type WebRemoteControlTelemetryResult = "success" | "failure";
 
-function resultDetail(
+function buildResultDetail(
   result: WebRemoteControlTelemetryResult,
   errorCategory?: string,
 ): Record<string, string> {
@@ -12,7 +12,7 @@ function resultDetail(
   };
 }
 
-function event(
+function buildWebRemoteControlEvent(
   elementName: string,
   eventType: string,
   eventExtraDetail: Record<string, string>,
@@ -29,7 +29,7 @@ export function buildWebRemoteControlEntryViewTelemetry(input: {
   workspaceKind: string;
   remoteKind?: string;
 }): TelemetryEventPayload {
-  return event("web_remote_control_entry_view", "view", {
+  return buildWebRemoteControlEvent("web_remote_control_entry_view", "view", {
     workspace_kind: input.workspaceKind,
     remote_kind: input.remoteKind ?? "",
   });
@@ -41,8 +41,8 @@ export function buildWebRemoteControlStartResultTelemetry(input: {
   workspaceKind: string;
   remoteKind?: string;
 }): TelemetryEventPayload {
-  return event("web_remote_control_start_result", "result", {
-    ...resultDetail(input.result, input.errorCategory),
+  return buildWebRemoteControlEvent("web_remote_control_start_result", "result", {
+    ...buildResultDetail(input.result, input.errorCategory),
     workspace_kind: input.workspaceKind,
     remote_kind: input.remoteKind ?? "",
   });
@@ -55,8 +55,8 @@ export function buildWebRemoteControlPairResultTelemetry(input: {
   workspaceKind: string;
   remoteKind?: string;
 }): TelemetryEventPayload {
-  return event("web_remote_control_pair_result", "result", {
-    ...resultDetail(input.result, input.errorCategory),
+  return buildWebRemoteControlEvent("web_remote_control_pair_result", "result", {
+    ...buildResultDetail(input.result, input.errorCategory),
     pair_kind: input.pairKind,
     workspace_kind: input.workspaceKind,
     remote_kind: input.remoteKind ?? "",
@@ -70,8 +70,8 @@ export function buildWebRemoteControlBridgeResultTelemetry(input: {
   remoteKind?: string;
   entryKind: "task" | "home";
 }): TelemetryEventPayload {
-  return event("web_remote_control_bridge_result", "result", {
-    ...resultDetail(input.result, input.errorCategory),
+  return buildWebRemoteControlEvent("web_remote_control_bridge_result", "result", {
+    ...buildResultDetail(input.result, input.errorCategory),
     workspace_kind: input.workspaceKind,
     remote_kind: input.remoteKind ?? "",
     entry_kind: input.entryKind,

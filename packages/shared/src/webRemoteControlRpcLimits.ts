@@ -19,13 +19,13 @@ export class WebRemoteControlRpcTransportEncodingError extends Error {
   }
 }
 
-export function assertPositiveSafeRpcInteger(value: number, reasonCode: string): void {
+export function assertPositiveSafe(value: number, reasonCode: string): void {
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new WebRemoteControlRpcTransportEncodingError(reasonCode);
   }
 }
 
-export function boundedPositiveRpcLimit(
+export function boundedPositive(
   value: number | undefined,
   ceiling: number,
   reasonCode: string,
@@ -36,3 +36,8 @@ export function boundedPositiveRpcLimit(
   }
   return Math.min(resolved, ceiling);
 }
+
+export {
+  assertPositiveSafe as assertPositiveSafeRpcInteger,
+  boundedPositive as boundedPositiveRpcLimit,
+};

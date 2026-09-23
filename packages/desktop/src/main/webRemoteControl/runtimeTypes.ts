@@ -160,21 +160,20 @@ type WebRemoteControlDeviceTransportOptionsLogger = {
 
 export type WebRemoteControlManagerStartInput = WebRemoteControlStartRequest;
 
-export function createWebRemoteControlFailure(
-  reason: string,
-  message: string,
-): WebRemoteControlFailure {
+export function createFailure(reason: string, message: string): WebRemoteControlFailure {
   return { reason, message };
 }
 
-export function readErrorCode(error: unknown): string | undefined {
+export { createFailure as createWebRemoteControlFailure };
+
+export function getErrorCode(error: unknown): string | undefined {
   return typeof error === "object" && error !== null && "code" in error
     ? String(error.code)
     : undefined;
 }
 
 export function mapWorkspaceBridgeFailureReason(error: unknown): string {
-  switch (readErrorCode(error)) {
+  switch (getErrorCode(error)) {
     case "DESKTOP_HOST_MISSING":
       return "desktop-disconnected";
     case "REMOTE_SESSION_MISSING":

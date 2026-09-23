@@ -1,5 +1,4 @@
 import { crc32WireBytes, encodeWireBytesBase64 } from "./zcode-protocol-v4/wire-binary.js";
-import { utf8JsonByteLength } from "./zcode-protocol-v4/wire-codec.js";
 import {
   assertPositiveSafeRpcInteger,
   boundedPositiveRpcLimit,
@@ -47,7 +46,13 @@ function frameShell(input: {
   };
 }
 
-export function relayEnvelopeForWebRemoteControlPayload(
+// 发布包 main 把计量函数留在本模块，名字是 utf8Bytes，入参已经是 JSON 字符串。
+// 不从 wire-codec 引入 utf8JsonByteLength：那个名字属于 host 侧 topic wire。
+function utf8Bytes(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
+}
+
+export function relayEnvelopeFor(
   payload: unknown,
   timestamps: { clientTimestamp?: number | null; serverTimestamp?: number | null } = {},
 ): {
@@ -72,8 +77,10 @@ export function measureWebRemoteControlRpcRelayEnvelopeBytes(
   payload: unknown,
   timestamps?: { clientTimestamp?: number | null; serverTimestamp?: number | null },
 ): number {
-  return utf8JsonByteLength(relayEnvelopeForWebRemoteControlPayload(payload, timestamps));
+  return utf8Bytes(JSON.stringify(relayEnvelopeFor(payload, timestamps)));
 }
+
+export { relayEnvelopeFor as relayEnvelopeForWebRemoteControlPayload };
 
 function base64Length(byteLength: number): number {
   return 4 * Math.ceil(byteLength / 3);

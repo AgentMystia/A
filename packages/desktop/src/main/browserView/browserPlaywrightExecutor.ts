@@ -3,7 +3,7 @@ import type { BrowserCommandResult, BrowserPlaywrightAction } from "@zcode/share
 import { buildViewportScreenshotParams } from "./browserCommandPageHandlers.js";
 import type { ControlledView } from "./browserCommandTypes.js";
 import { captureScreenshotWithCssPixelCorrection } from "./browserScreenshotCapture.js";
-import { captureBrowserDomSnapshot } from "./browserPlaywrightDomSnapshot.js";
+import { captureCodexDomSnapshot } from "./browserPlaywrightDomSnapshot.js";
 import { executeIabPlaywrightLocator } from "./browserPlaywrightLocatorExecutor.js";
 import { normalizePlaywrightTimeout } from "./browserPlaywrightTimeout.js";
 
@@ -230,7 +230,7 @@ export async function handlePlaywrightAction(
   if (action.name === "domSnapshot") {
     // 只 clone documentElement 返回的 outerHTML 噪声较多，缺少交互语义。
     // 通过隔离环境中的 Playwright 生成 AI/ARIA 快照，再展开 iframe 并归一化结果。
-    const value = await captureBrowserDomSnapshot(view, signal);
+    const value = await captureCodexDomSnapshot(view, signal);
     return done({ ok: true, value });
   }
   if (action.name === "elementInfo") {

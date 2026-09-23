@@ -9,10 +9,12 @@ import type {
   WebRemoteControlRuntime,
 } from "./runtimeTypes.js";
 
-export function webRemoteControlPathLabel(workspacePath: string): string {
+export function getPathLabel(workspacePath: string): string {
   const parts = workspacePath.replace(/\\/g, "/").split("/").filter(Boolean);
   return parts[parts.length - 1] ?? workspacePath;
 }
+
+export { getPathLabel as webRemoteControlPathLabel };
 
 export function resolveWebRemoteControlWorkspaceKey(target: {
   workspacePath: string;
@@ -21,13 +23,15 @@ export function resolveWebRemoteControlWorkspaceKey(target: {
   return resolveWorkspaceKey(target);
 }
 
-export function isBridgeableRemoteWorkspace(target: {
+export function isBridgeableRemoteTarget(target: {
   kind: "local" | "remote";
   workspaceIdentity?: string;
   remoteSessionId?: string;
 }): boolean {
   return target.kind !== "remote" || !!(target.workspaceIdentity && target.remoteSessionId);
 }
+
+export { isBridgeableRemoteTarget as isBridgeableRemoteWorkspace };
 
 export function isBridgeableRemoteTask(task: WebRemoteControlTaskSnapshot): boolean {
   return task.workspaceKind !== "remote" || !!(task.workspaceIdentity && task.remoteSessionId);
@@ -42,7 +46,7 @@ export function getRuntimeWorkspaceTarget(
       workspacePath: bridge.workspacePath,
       workspaceIdentity: bridge.workspaceIdentity,
       remoteSessionId: bridge.remoteSessionId,
-      label: webRemoteControlPathLabel(bridge.workspacePath),
+      label: getPathLabel(bridge.workspacePath),
       kind: bridge.kind,
     };
   }
@@ -56,7 +60,7 @@ export function getRuntimeStatusTarget(
     workspacePath: runtime.workspacePath,
     workspaceIdentity: runtime.workspaceIdentity,
     remoteSessionId: runtime.remoteSessionId,
-    label: webRemoteControlPathLabel(runtime.workspacePath),
+    label: getPathLabel(runtime.workspacePath),
     kind: runtime.remoteSessionId || runtime.workspaceIdentity ? "remote" : "local",
   };
 }
@@ -69,7 +73,7 @@ export function getAvailableWorkspaces(
   for (const workspace of synced)
     byKey.set(resolveWebRemoteControlWorkspaceKey(workspace), workspace);
   const current = getRuntimeWorkspaceTarget(runtime);
-  if (isBridgeableRemoteWorkspace(current)) {
+  if (isBridgeableRemoteTarget(current)) {
     const key = resolveWebRemoteControlWorkspaceKey(current);
     if (!byKey.has(key)) byKey.set(key, current);
   }
@@ -101,7 +105,7 @@ export function getRuntimeInitialViewState(
   runtime: WebRemoteControlRuntime,
 ): WebRemoteControlMobileView | undefined {
   const current = getRuntimeWorkspaceTarget(runtime);
-  if (!runtime.initialTaskId || !isBridgeableRemoteWorkspace(current)) return undefined;
+  if (!runtime.initialTaskId || !isBridgeableRemoteTarget(current)) return undefined;
   return {
     activeWorkspaceKey: resolveWebRemoteControlWorkspaceKey(current),
     activeTaskId: runtime.initialTaskId,

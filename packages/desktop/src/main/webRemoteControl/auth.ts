@@ -24,10 +24,11 @@ export function createNodeWebRemoteControlRelayAuthProvider(): WebRemoteControlR
   };
 }
 
-export function safeWebRemoteControlAuthLogFields(auth: {
-  deviceSid?: string;
-  passHash?: string;
-}): { hasDeviceSid: boolean; deviceSidSuffix?: string; hasPassHash: boolean } {
+export function safeAuthLogFields(auth: { deviceSid?: string; passHash?: string }): {
+  hasDeviceSid: boolean;
+  deviceSidSuffix?: string;
+  hasPassHash: boolean;
+} {
   const deviceSid = auth.deviceSid?.trim();
   return {
     hasDeviceSid: !!deviceSid,
@@ -75,7 +76,7 @@ export function createWebRemoteControlRelayAuthStorageProvider(input: {
         return undefined;
       }
       input.logger?.info("[web-remote-control] external relay auth loaded", {
-        ...safeWebRemoteControlAuthLogFields({ deviceSid, passHash }),
+        ...safeAuthLogFields({ deviceSid, passHash }),
       });
       return { deviceSid, passHash };
     },
@@ -85,7 +86,7 @@ export function createWebRemoteControlRelayAuthStorageProvider(input: {
       });
       await input.credentialService.save(WEB_REMOTE_CONTROL_PASS_HASH_KEY, auth.passHash);
       input.logger?.info("[web-remote-control] external relay auth saved", {
-        ...safeWebRemoteControlAuthLogFields(auth),
+        ...safeAuthLogFields(auth),
       });
     },
     clear,
@@ -93,7 +94,7 @@ export function createWebRemoteControlRelayAuthStorageProvider(input: {
       await clear();
       await this.save(auth);
       input.logger?.info("[web-remote-control] external relay auth rotated", {
-        ...safeWebRemoteControlAuthLogFields(auth),
+        ...safeAuthLogFields(auth),
       });
     },
   };

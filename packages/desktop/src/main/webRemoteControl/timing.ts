@@ -1,4 +1,4 @@
-export function safeWebRemoteControlRandom(random: () => number = Math.random): number {
+export function safeRandom(random: () => number = Math.random): number {
   const value = random();
   return Number.isFinite(value) ? Math.min(0.999999999, Math.max(0, value)) : 0;
 }
@@ -23,7 +23,7 @@ export function getWebRemoteControlHeartbeatDelayMs(
   const jitter = getWebRemoteControlHeartbeatJitterMs(interval, requestedJitter);
   const low = Math.max(1, interval - jitter);
   const high = interval + jitter;
-  return low + Math.floor(safeWebRemoteControlRandom(random) * (high - low + 1));
+  return low + Math.floor(safeRandom(random) * (high - low + 1));
 }
 
 export function getWebRemoteControlReconnectJitterMs(
@@ -32,5 +32,5 @@ export function getWebRemoteControlReconnectJitterMs(
 ): number {
   if (!Number.isFinite(delayMs) || delayMs <= 0) return 0;
   const delay = Math.floor(delayMs);
-  return Math.floor(safeWebRemoteControlRandom(random) * (delay + 1));
+  return Math.floor(safeRandom(random) * (delay + 1));
 }
