@@ -2,6 +2,7 @@ import {
   decodeCustomModelValue,
   generateTraceId,
   isFeishuBotProvider,
+  normalizeAgentProviderToZCodeAgent,
   type BotActor,
   type BotDraftOptions,
   type ZCodeBotDeliveryTarget,
@@ -99,9 +100,9 @@ export function toBotTaskProvider(provider: string | undefined): BotTaskProvider
     : DEFAULT_DRAFT_PROVIDER;
 }
 
-/** 发布包 host `normalizeBotDraftOptions`（keepNames `St`）。 */
-export function normalizeRecoveredBotDraftOptions(options: BotDraftOptions): BotDraftOptions {
-  return { ...options, provider: toBotTaskProvider(options.provider) };
+/** 发布包 host index 第二份 `normalizeBotDraftOptions`：provider 固定收成 glm。 */
+export function normalizeBotDraftOptions(options: BotDraftOptions): BotDraftOptions {
+  return { ...options, provider: normalizeAgentProviderToZCodeAgent(options.provider) };
 }
 
 /** 发布包 host `formatBotModelSelectionValue`：glm 只展示 modelId。 */

@@ -12,9 +12,8 @@ export const ZCODE_COMMAND_AGENT_SOURCES = [
   ZCODE_COMMAND_AGENT_SOURCE,
 ] as const satisfies readonly CommandAgentSource[];
 
-export function normalizeAgentProviderToZCodeAgent(
-  _provider?: ZCodeProvider | null,
-): ZCodeProvider {
+// 发布包 host 忽略入参并固定返回 glm。bot 草稿 provider 也调用它，所以入参不收窄成 ZCodeProvider。
+export function normalizeAgentProviderToZCodeAgent(_provider?: string | null): ZCodeProvider {
   return ZCODE_AGENT_PROVIDER;
 }
 

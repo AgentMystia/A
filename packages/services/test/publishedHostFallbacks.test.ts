@@ -4,6 +4,9 @@ import {
   BUILTIN_MODEL_PROVIDER_IDS,
   CODING_PLAN_SECURITY_VERIFICATION_REQUIRED,
   CODING_PLAN_SYSTEM_BUSY,
+  isMainAgentToolProjectionSource,
+  normalizeAgentProviderToZCodeAgent,
+  readClaudeParentToolUseId,
 } from "@zcode/shared";
 import {
   isSecurityVerificationMessage,
@@ -26,6 +29,20 @@ test("security verification messages become the published error code", () => {
     CODING_PLAN_SYSTEM_BUSY,
   );
   assert.equal(normalizeRemoteErrorMessage("quota exceeded", providerId, 7), "quota exceeded");
+});
+
+test("main-agent todo projection skips Claude parent tool metadata", () => {
+  assert.equal(normalizeAgentProviderToZCodeAgent("codex"), "glm");
+  assert.equal(
+    readClaudeParentToolUseId({ _meta: { claudeCode: { parentToolUseId: " claude-1 " } } }),
+    "claude-1",
+  );
+  assert.equal(readClaudeParentToolUseId({ _meta: { claudeCode: {} } }), undefined);
+  assert.equal(
+    isMainAgentToolProjectionSource({ _meta: { claudeCode: { parentToolUseId: "claude-1" } } }),
+    false,
+  );
+  assert.equal(isMainAgentToolProjectionSource({ title: "todo" }), true);
 });
 
 test("parent tool ids fall through to Claude metadata", () => {

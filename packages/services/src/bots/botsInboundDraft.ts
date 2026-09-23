@@ -23,6 +23,7 @@ import {
 import {
   formatWorkspaceOptionLabel,
   isSelectionIndexValue,
+  normalizeBotDraftOptions,
   resolveOptionByValue,
 } from "./botsHostHelpers.js";
 import {
@@ -193,10 +194,7 @@ export async function ensureDraftOptions(
   context: BotRuntimeState,
 ): Promise<BotDraftOptions> {
   if (context.draftOptions) {
-    const normalized = {
-      ...context.draftOptions,
-      provider: toBotTaskProvider(context.draftOptions.provider),
-    };
+    const normalized = normalizeBotDraftOptions(context.draftOptions);
     if (normalized.provider !== context.draftOptions.provider) {
       await runtime.persistContext({ ...context, draftOptions: normalized });
     }
@@ -218,7 +216,7 @@ export async function writeDraftOptions(
     ...context,
     mode: "draft",
     activeTaskId: null,
-    draftOptions: { ...draft, provider: toBotTaskProvider(draft.provider) },
+    draftOptions: normalizeBotDraftOptions(draft),
   });
 }
 
