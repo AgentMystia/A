@@ -4,6 +4,10 @@ import { join } from "node:path";
 // 留在这条静态链上，main 的 paths chunk、host index、scheduler index 才会带上它们。
 // helperHealth 不能从本文件加载，否则交换 chunk 会把方法表一并带走。
 // 残留常量必须排在 catalog 之后：写进 catalog 文件会被抬到方法表前面。
+// 方法表必须先于帧上限，帧上限必须先于 catalog 里的 AX 残留。
+// 写进 catalog 文件会被抬到方法表前面，或和方法表并成一条语句。
+import "./helper-broker-methods.js";
+import "./helper-published-frame-budget.js";
 import "./helper-broker-catalog.js";
 import "./helper-hold-duration.js";
 import "./helper-published-peer-freeze.js";

@@ -8,8 +8,8 @@ import {
 } from "./helper-launch.js";
 import { discoverCuaHelperLaunchProcesses } from "./helper-live-identity.js";
 import { publishCuaBrokerRefreshMarker } from "./helper-refresh-marker.js";
+import { PERMISSION_REFRESH_TERM_GRACE_MS } from "./helper-reservation.js";
 
-const PERMISSION_REFRESH_TERM_GRACE_MS = 10_000;
 const PERMISSION_REFRESH_MARKER_SLACK_MS = 5_000;
 
 export function attachCuaHelperTermination(CuaHelperHost) {

@@ -1,9 +1,10 @@
-import { createServer } from "node:net";
 import { chmod, lstat, mkdir, rename, stat, unlink } from "node:fs/promises";
+import { createServer } from "node:net";
 import { dirname } from "node:path";
 import process from "node:process";
 
 import { isWindowsNamedPipePath } from "./helper-broker-runtime.js";
+import { publishedEightSecondBudgetMs } from "./helper-published-frame-budget.js";
 
 const RESERVATION_SUFFIX = ".host-reservation";
 const PENDING_SUFFIX = ".pending";
@@ -146,3 +147,13 @@ export async function createTransportReservation(options) {
     },
   };
 }
+
+// 发布包刷新宽限是前面的 8e3 再加 2 秒，不是字面量 1e4。
+// main / scheduler 摇掉预留函数后仍留下这次加法，node import 也留着。
+// oxlint-disable-next-line eslint(no-constant-condition) -- 空 if 让没有调用方时的加法留下；if 本身压缩后消失
+if (0) {
+  // 保留模块副作用，避免 bundle 删掉下面的常量。
+}
+var publishedTransportReservationGraceMs = publishedEightSecondBudgetMs + 2_000;
+
+export { publishedTransportReservationGraceMs as PERMISSION_REFRESH_TERM_GRACE_MS };

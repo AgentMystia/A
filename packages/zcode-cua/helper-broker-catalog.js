@@ -23,54 +23,6 @@ import "./pip-session-schema.js";
 
 export const PROJECT_CONFIG_FILES = ["zcode.json", join(".zcode", "config.json")];
 
-const BROKER_METHODS = [
-  "broker_info",
-  "controller_status",
-  "controller_takeover",
-  "controller_stop",
-  "request_access",
-  "permission_status",
-  "input_permission_status",
-  "screen_capture_status",
-  "screen_capture_probe",
-  "supports_accessibility",
-  "list_applications",
-  "application_info",
-  "list_windows",
-  "capture_app",
-  "element_at_point",
-  "read_element",
-  "click",
-  "scroll",
-  "drag",
-  "type_text",
-  "type_text_to_app",
-  "press_key",
-  "press_key_to_app",
-  "hold_key",
-  "hold_key_to_app",
-  "cancel_input_holds",
-  "element_press",
-  "element_show_menu",
-  "element_focus",
-  "element_set_value",
-  "element_perform_action",
-  "element_select_text",
-  "paste",
-  "prevent_activation",
-  "reenable_activation",
-  "is_focus_steal_prevented",
-  "pip_start",
-  "pip_stop",
-  "pip_is_running",
-  "pip_clear_dismissed",
-  "pip_session_handshake",
-  "pip_session_event",
-];
-
-export const BROKER_METHOD_SET = new Set(BROKER_METHODS);
-export const BROKER_MAX_FRAME_BYTES = 16 * 1024 * 1024;
-
 const BROKER_NOT_ACCEPTING = "broker_not_accepting";
 const PERMISSION_REFRESH_IN_PROGRESS = "permission_refresh_in_progress";
 const PERMISSION_REFRESH_INVALID = "permission_refresh_invalid";
