@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join } from "./helper-published-launch-bindings.js";
 
 import { CuaHelperError } from "./broker.js";
 import {

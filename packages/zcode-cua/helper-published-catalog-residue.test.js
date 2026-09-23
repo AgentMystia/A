@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -7,10 +8,12 @@ import {
   publishedHoldSlackMs,
   publishedUnusedRefreshMs,
 } from "./helper-hold-duration.js";
-import { publishedUnusedPeerCheck } from "./helper-published-peer-freeze.js";
 import "./helper-published-connection.js";
 import { publishedUnusedAsyncLocalStorage } from "./helper-published-async-local.js";
 import { publishedUnusedDeadlineKeys } from "./helper-published-deadline-keys.js";
+import { readFileSync as publishedLaunchReadFileSync } from "./helper-published-launch-bindings.js";
+import { publishedUnusedPeerCheck } from "./helper-published-peer-freeze.js";
+import { publishedUnusedTempReadLimit } from "./helper-published-temp-limit.js";
 import { defaultPeerCredentialChecker } from "./permissionBrokerClient.js";
 
 test("published hold window keeps the unused 30s var and the 5s slack", () => {
@@ -29,6 +32,15 @@ test("published peer freeze is empty and is not the real checker", () => {
 test("published connection residue exports nothing", async () => {
   const residue = await import("./helper-published-connection.js");
   assert.deepEqual(Object.keys(residue), []);
+});
+
+test("published temp residue keeps the unused 16MiB var and does not read files", async () => {
+  assert.equal(publishedUnusedTempReadLimit, 16 * 1024 * 1024);
+  assert.equal(publishedLaunchReadFileSync, readFileSync);
+  const scan = await import("./helper-published-temp-scan.js");
+  const read = await import("./helper-published-temp-read.js");
+  assert.deepEqual(Object.keys(scan), []);
+  assert.deepEqual(Object.keys(read), []);
 });
 
 test("published async local storage and deadline keys stay unused constants", () => {

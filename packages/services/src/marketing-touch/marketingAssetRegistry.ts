@@ -13,16 +13,13 @@ export interface MarketingAssetRegistry {
   readMedia(asset: MarketingAssetRef, kind: "image" | "video"): Promise<string>;
 }
 
-const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
-const VIDEO_MAX_BYTES = 16 * 1024 * 1024;
-const DATA_URL_BUDGET_BYTES = 48 * 1024 * 1024;
-const PNG_SIGNATURE = Buffer.from("89504e470d0a1a0a", "hex");
-
 function sniffMediaType(bytes: Buffer, kind: "image" | "video"): string | undefined {
   if (kind === "video") {
     return bytes.toString("ascii", 4, 8) === "ftyp" ? "video/mp4" : undefined;
   }
-  if (bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
+  // 发布包把 PNG 头留在下载函数里。模块顶层的 Buffer.from 会被当成副作用，
+  // main paths 和 scheduler 摇掉下载后仍留下文件头。
+  if (bytes.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex"))) {
     return "image/png";
   }
   if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) {
@@ -63,10 +60,12 @@ function allowVisual(allow: (asset: MarketingAssetRef) => void, visual: unknown)
   }
 }
 
-export function createMarketingAssetRegistry(options: {
-  allowLoopback?: boolean;
-  fetch?: typeof fetch;
-} = {}): MarketingAssetRegistry {
+export function createMarketingAssetRegistry(
+  options: {
+    allowLoopback?: boolean;
+    fetch?: typeof fetch;
+  } = {},
+): MarketingAssetRegistry {
   const allowed = new Map<string, Set<string>>();
   const cache = new Map<string, { data: string; size: number }>();
   const inflight = new Map<string, Promise<string>>();
@@ -104,7 +103,8 @@ export function createMarketingAssetRegistry(options: {
     if (!response.ok || !response.body) {
       throw new Error("marketing_asset_download");
     }
-    const limit = (kind === "image" ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES);
+    // 发布包写成 (kind==="image"?8:16)*1024*1024，不把 8MiB/16MiB 留成模块顶层常量。
+    const limit = (kind === "image" ? 8 : 16) * 1024 * 1024;
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const chunk of response.body) {
@@ -124,7 +124,8 @@ export function createMarketingAssetRegistry(options: {
       throw new Error("marketing_asset_type");
     }
     const dataUrl = `data:${mediaType};base64,${bytes.toString("base64")}`;
-    while (cacheBytes + dataUrl.length > DATA_URL_BUDGET_BYTES && cache.size > 0) {
+    const dataUrlBudgetBytes = 48 * 1024 * 1024;
+    while (cacheBytes + dataUrl.length > dataUrlBudgetBytes && cache.size > 0) {
       const oldest = cache.keys().next().value as string;
       cacheBytes -= cache.get(oldest)?.size ?? 0;
       cache.delete(oldest);

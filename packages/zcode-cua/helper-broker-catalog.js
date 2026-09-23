@@ -1,6 +1,13 @@
 import { join } from "node:path";
 
 import "./helper-published-ax-tables.js";
+// 键页必须单独成模块，否则会被并进按键集那条语句，发不出 `var x=64,y=x*x`。
+import "./helper-published-ax-page.js";
+// 键页常量结束之后才是这三份临时文件残留，不能写进 ax-tables，否则会被抬到键集前面。
+import "./helper-published-temp-scan.js";
+import "./helper-published-temp-read.js";
+import "./helper-published-temp-limit.js";
+import "./helper-published-ax-roles.js";
 import "./pip-session-schema.js";
 
 // 发布包在加载 CuaHelperError 的同一条链上保留这些常量。

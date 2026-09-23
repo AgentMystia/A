@@ -1,8 +1,16 @@
-import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, realpathSync, writeFileSync } from "node:fs";
 import { chmod, mkdir, realpath, rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+
+// 发布包把 execFile、预检用的 existsSync、readFileSync、rmSync 放在前一个模块。
+// 启动守卫仍用本文件自己的 existsSync。两份 existsSync 不是两套安装器。
+import {
+  execFile,
+  existsSync as publishedPreflightExistsSync,
+  readFileSync,
+  rmSync,
+} from "./helper-published-launch-bindings.js";
 
 import { CuaHelperError } from "./broker.js";
 import { brokerRuntimeDir, isWindowsNamedPipePath } from "./helper-broker-runtime.js";
@@ -268,7 +276,9 @@ export function parseHelperScreenRecordingPreflightResult(text) {
 
 function readHelperPreflightResultFile(resultFilePath) {
   try {
-    return existsSync(resultFilePath) ? readFileSync(resultFilePath, "utf8") : null;
+    return publishedPreflightExistsSync(resultFilePath)
+      ? readFileSync(resultFilePath, "utf8")
+      : null;
   } catch {
     return null;
   }

@@ -1,6 +1,4 @@
-import { execFile } from "node:child_process";
-import { realpath } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, execFile, join, realpath } from "./helper-published-launch-bindings.js";
 
 import { CuaHelperError } from "./broker.js";
 import { HELPER_DISPLAY_NAME } from "./broker-helper-constants.js";

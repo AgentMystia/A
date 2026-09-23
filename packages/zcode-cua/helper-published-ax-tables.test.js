@@ -3,13 +3,15 @@ import test from "node:test";
 
 import {
   PUBLISHED_A11Y_FLATTENER_NAMES,
-  PUBLISHED_AX_NATIVE_BINDING,
-  PUBLISHED_AX_ROLE_MAP,
   PUBLISHED_AX_TEXT_ROLES,
-  PUBLISHED_AX_VALUE_ROLES,
-  PUBLISHED_DESKTOP_APP_IDS,
   PUBLISHED_KEY_NAMES,
 } from "./helper-published-ax-tables.js";
+import {
+  PUBLISHED_AX_NATIVE_BINDING,
+  PUBLISHED_AX_ROLE_MAP,
+  PUBLISHED_AX_VALUE_ROLES,
+  PUBLISHED_DESKTOP_APP_IDS,
+} from "./helper-published-ax-roles.js";
 import {
   pipSessionEventSchema,
   pipSessionHandshakeSchema,
