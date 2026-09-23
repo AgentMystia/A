@@ -208,6 +208,7 @@ createRemoteWorkspaceServiceCollection
 - 进程参数带 `--exit-log` 时，同一次加载会把 Helper stderr 追加到该文件，并只保留最近 7 个 `zcode-cua-helper-YYYY-MM-DD.jsonl`。没有这个参数时立即返回，不改 stderr。
 - `reapOrphanedHelpers` 只在 darwin 且能取到 uid 时扫描。它只对 ppid 为 1、可执行文件和随机 socket 都落在安装根里、launcher pid 已死或已变成非 ZCode 命令的 Helper 发 `SIGTERM`，单次最多 32 个。活着的 launcher 默认放过。
 - `isScreenCaptureProbeSuccess` 只接受 `foreign_window` 且内容证据为 `decoded_visible_non_uniform` 的探针。窗口尺寸和采样像素对不上时返回 false。
+- Provider 工作区配置目录只属于 `packages/services/src/paths.ts`。目录表记录 claude、opencode、gemini、codex、glm 的原生文件名，但不扩大 `ZCodeProvider`。`gemini` 落在隔离目录下的 `.gemini`；`glm` 使用数据根下的 runtime `nativeConfigDir`；其它 id 使用 `~/.zcode/v2/agent-config/<id>/<workspaceHash>`。Claude 历史导入的 projects 目录走这一个函数。
 
 - 简单交换只属于 `packages/zcode-cua/broker.js` 的 `brokerExchange`。`callBrokerMethod` / `probeHelperHealth` 走它：先发 `id:0` 的空 `authenticate`，再发 `id:1` 的业务方法。鉴权被拒是 `CuaHelperError`，`code` 为 `auth_failed`。`probeHelperHealth` 在截止时间前按 `broker_info` 轮询，超时 `code` 为 `health_timeout`。
 - `PermissionBrokerClient` 只属于 `permissionBrokerClient.js`。每条 RPC 新建连接，鉴权帧带 `clientApiVersion:2` 与 `authenticateParams`，业务 id 从 1 递增。默认 peer 检查拒绝 world-writable socket；Windows 管道必须落在 `\\.\pipe\zcode-cua-helper-`。`hold_key` / `hold_key_to_app` 的等待时间是 `max(timeout, min(duration,30)*1000+5000)`。

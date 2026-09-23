@@ -4,7 +4,10 @@ import { cp } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { basename, join, win32 } from "node:path";
 import { homedir } from "node:os";
-import { DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR_ERROR_CODE } from "@zcode/shared";
+import {
+  DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR_ERROR_CODE,
+  ZCODE_AGENT_RUNTIME,
+} from "@zcode/shared";
 
 let _dataBaseDir: string | null = null;
 export const ZCODE_WINDOWS_APP_INSTALL_DIR_ENV = "ZCODE_WINDOWS_APP_INSTALL_DIR";
@@ -212,6 +215,71 @@ export function getLegacyTaskSessionSnapshotPath(
   workspaceIdentity?: string,
 ): string {
   return join(getTaskSessionDir(workspacePath, workspaceIdentity), `${taskId}.json`);
+}
+
+// 发布包把各家 CLI 的原生配置目录放在同一张表里。
+// 这张表不是 ZCodeProvider：核心 provider 仍然只有 glm。
+const PROVIDER_NATIVE_CONFIG = {
+  claude: {
+    nativeConfigDir: ".claude",
+    nativeConfigFileName: "settings.json",
+  },
+  opencode: {
+    nativeConfigDir: ".config/opencode",
+    nativeConfigFileName: "opencode.json",
+  },
+  gemini: {
+    nativeConfigDir: ".gemini",
+    nativeConfigFileName: "settings.json",
+    nativeConfigExtraFiles: ["oauth_creds.json", "google_accounts.json"],
+  },
+  codex: {
+    nativeConfigDir: ".codex",
+    nativeConfigFileName: "config.toml",
+  },
+  glm: {
+    nativeConfigDir: ZCODE_AGENT_RUNTIME.nativeConfigDir,
+    nativeConfigFileName: ZCODE_AGENT_RUNTIME.nativeConfigFileName,
+  },
+} as const;
+
+/** ~/.zcode/v2/agent-config/<provider>/<workspaceHash>；gemini 再加一层 .gemini，glm 用数据根。 */
+export function getProviderWorkspaceConfigDir(
+  providerId: string,
+  workspacePath: string,
+  workspaceIdentity?: string,
+): string {
+  if (providerId === "gemini") {
+    return join(
+      getProviderWorkspaceZCodeConfigIsolationDir(providerId, workspacePath, workspaceIdentity),
+      ".gemini",
+    );
+  }
+  if (providerId === "glm") {
+    const nativeConfig = PROVIDER_NATIVE_CONFIG.glm;
+    return nativeConfig.nativeConfigDir
+      ? join(getDataBaseDir(), nativeConfig.nativeConfigDir)
+      : join(getDataBaseDir(), ".zcode", "cli");
+  }
+  return join(
+    getAppConfigDir(),
+    "agent-config",
+    providerId,
+    getWorkspaceHash(workspacePath, workspaceIdentity),
+  );
+}
+
+export function getProviderWorkspaceZCodeConfigIsolationDir(
+  providerId: string,
+  workspacePath: string,
+  workspaceIdentity?: string,
+): string {
+  return join(
+    getAppConfigDir(),
+    "agent-config",
+    providerId,
+    getWorkspaceHash(workspacePath, workspaceIdentity),
+  );
 }
 
 /** ~/.zcode/v2/sessions/{workspaceHash}/{taskId}.deleted.json */
