@@ -27,6 +27,7 @@ const zcodeTaskModeRealtimeValues = [
 ] as const satisfies readonly ZCodeTaskMode[];
 // Relay 线协议保留历史 provider 名。运行时 ZCodeProvider 仍然只有 glm。
 const zcodeTaskRealtimeProviderValues = ["claude", "opencode", "gemini", "codex", "glm"] as const;
+export const zcodeTaskRealtimeProviderSchema = z.enum(zcodeTaskRealtimeProviderValues);
 const zcodeTaskMigrationSourceRealtimeValues = [
   "claudeCode",
 ] as const satisfies readonly ZCodeTaskMigrationSource[];
@@ -62,7 +63,7 @@ const taskMetaRealtimeSchema = z.object({
   mode: z.enum(zcodeTaskModeRealtimeValues),
   model: z.string().optional(),
   runtimeEpoch: z.number().int().nonnegative().optional(),
-  provider: z.enum(zcodeTaskRealtimeProviderValues).optional(),
+  provider: zcodeTaskRealtimeProviderSchema.optional(),
   migrationSource: z.enum(zcodeTaskMigrationSourceRealtimeValues).optional(),
   forkedFromTaskId: nonEmptyString.optional(),
   unreadAt: z.number().int().nonnegative().optional(),

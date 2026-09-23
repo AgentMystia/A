@@ -37,6 +37,7 @@ import {
   taskRunLeaseTargetSchema,
   taskStreamMirrorPublishOpSchema,
   taskStreamMirrorTargetSchema,
+  zcodeTaskRealtimeProviderSchema,
 } from "./task-realtime-core.js";
 
 export { WSL_USER_MAX_LENGTH, isValidWslUser, wslUserSchema } from "./wslUserValidation.js";
@@ -1284,6 +1285,16 @@ export const zcodeTaskMetaSchema = z.object({
     })
     .optional(),
   target: zcodeTaskGoalSchema.nullable().optional(),
+});
+
+// 发布包在 task meta 与 pinned index 之间保留同步游标 schema。
+// 没有其它读取点，但共享 chunk 会留下这次 zod 构造。
+const zcodeTaskSyncStateSchema = z.enum(["idle", "syncing", "ready", "stale", "failed"]);
+export const zcodeTaskSyncCursorSchema = z.object({
+  provider: zcodeTaskRealtimeProviderSchema,
+  sessionId: nonEmptyStringSchema,
+  lastSyncedTurnIndex: z.number().int(),
+  state: zcodeTaskSyncStateSchema,
 });
 
 export const zcodeTaskIndexEntrySchema = z.object({
