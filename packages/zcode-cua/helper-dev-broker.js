@@ -5,6 +5,8 @@ import { isCuaLocalDevelopmentRuntime, resolveZcodeHome } from "./helper-install
 
 const DEV_EXPOSE_ENV = "ZCODE_CUA_DEV_EXPOSE_BROKER";
 const CREDENTIALS_FILE = "broker-credentials.json";
+// 发布包把这段目录提成顶层 join。main / scheduler 摇掉函数后仍留下这次调用。
+const DEV_BROKER_RUN_DIR = join("computer-use", "run");
 
 export function isDevBrokerExposureEnabled(env) {
   if (!isCuaLocalDevelopmentRuntime(env ?? {})) return false;
@@ -15,7 +17,7 @@ export function isDevBrokerExposureEnabled(env) {
 
 function resolveDevBrokerCredentialsFilePath(env = process.env) {
   const home = resolveZcodeHome(env);
-  return home ? join(home, "computer-use", "run", CREDENTIALS_FILE) : null;
+  return home ? join(home, DEV_BROKER_RUN_DIR, CREDENTIALS_FILE) : null;
 }
 
 export async function writeDevBrokerCredentialsFile(options) {
