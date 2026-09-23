@@ -78,6 +78,7 @@ renderer hook → ProxyChannel → Host 单例
 - 已从 keepNames 唯一还原的 inbound：`bind`、`help`、`status`、`reconnect`、`mode.list`/`mode.set`（回复 `modeLocked`）、`reply.list`/`reply.set`（`reply.set` 走公开 `saveBot`）、unknown、微信首次激活、`new`、`workspace`、`model`、`thoughtLevel`、`task`、`stop`、`permission`、`elicitation`、`message`、`selection.cancel`。
 - `createBotsService` 唯一注入 `zcodeTaskService` 与 `modelSelectionService`。`resolveZCodeTaskServiceForContext` / `resolveModelSelectionServiceForContext`：无 `workspaceIdentity` 用本机服务，否则问 `remoteWorkspaceService`，缺失则抛中文重连错误。
 - 草稿默认 `provider=glm`、`mode=yolo`。`/mode` 仍只回复 `modeLocked`。`listUserConfigOptions` 仍返回 `[]`。
+- `migrateSelection` 是 bot 旧配置的唯一模型选择迁移。已有 `modelSelection` 且 `providerId` 不以 `builtin:` 开头时原样返回；以 `builtin:` 开头时经 `migrateLegacyModelProviderId` 改写，模型名用原来的 provider 走 `migrateLegacyOfficialGlmModelId`。映射失败则丢掉这次选择。没有 `modelSelection` 时，先 `decodeCustomModelValue`，否则按第一个 `/` 拆 `providerId/modelId`，再做同样的身份迁移；`thoughtLevel` 只在这条旧字符串路径上变成 `options.reasoningLevel`。不另写一份 builtin 身份表。
 - `watchAutomationRun` 不写 bot-state；唯一投递是 `watchTaskStream(..., replyMode: "summary_changes")`。
 - callback 只覆盖 webhook/feishu secret、displayName、inbound 去重、acknowledge 与 outbound。
 - 已从 keepNames 唯一还原的附件链路：`sanitizeAttachmentFilename`、`formatAttachmentSize`、`formatAttachmentRejectedReason`、`buildAttachmentCachePath`、`fetchAttachmentDownloadUrl`、`resolveAttachmentBytes`、`cacheResolvedAttachment`、`prepareBotMessageContent`。最多 4 个附件、5MB、下载超时 30s；image/audio 进 `zcodeAttachments`，失败回 `attachmentRejected`。

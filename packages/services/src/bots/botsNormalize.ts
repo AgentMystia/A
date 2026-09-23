@@ -5,6 +5,9 @@ import {
   botCurrentOptionsSchema,
   botDraftOptionsSchema,
   isFeishuBotProvider,
+  decodeCustomModelValue,
+  migrateLegacyModelProviderId,
+  migrateLegacyOfficialGlmModelId,
   modelSelectionSchema,
   normalizeBotReplyGranularity,
   type BotCommandPolicy,
@@ -189,21 +192,42 @@ export function normalizeBotDraftOptions(options: BotDraftOptions): BotDraftOpti
 }
 
 export function migrateSelection(value: Record<string, unknown>): BotCurrentOptions["modelSelection"] {
+  // 发布包把 builtin: 旧身份改成正式 provider，并用原来的 provider 规范官方 GLM 模型名。
+  // 已经是正式选择时原样返回。无法映射的 builtin: 丢掉，避免旧 ID 写进 bot config。
   if (Object.hasOwn(value, "modelSelection")) {
     const parsed = modelSelectionSchema.safeParse(value.modelSelection);
-    return parsed.success ? parsed.data : undefined;
+    if (!parsed.success) {
+      return undefined;
+    }
+    const selection = parsed.data;
+    if (!selection.providerId.startsWith("builtin:")) {
+      return selection;
+    }
+    const providerId = migrateLegacyModelProviderId(selection.providerId);
+    return providerId
+      ? {
+          ...selection,
+          providerId,
+          modelId: migrateLegacyOfficialGlmModelId(selection.providerId, selection.modelId),
+        }
+      : undefined;
   }
   const model = typeof value.model === "string" ? value.model.trim() : "";
+  const decoded = decodeCustomModelValue(model);
   const slash = model.indexOf("/");
-  const providerId = slash > 0 ? model.slice(0, slash) : undefined;
-  const modelId = slash > 0 ? model.slice(slash + 1) : undefined;
-  if (!providerId || !modelId) {
+  const legacyProviderId = decoded?.providerId ?? (slash > 0 ? model.slice(0, slash) : undefined);
+  const legacyModelId = decoded?.modelName ?? (slash > 0 ? model.slice(slash + 1) : undefined);
+  if (!legacyProviderId || !legacyModelId) {
+    return undefined;
+  }
+  const providerId = migrateLegacyModelProviderId(legacyProviderId);
+  if (!providerId) {
     return undefined;
   }
   const thoughtLevel = typeof value.thoughtLevel === "string" ? value.thoughtLevel.trim() : "";
   return {
     providerId,
-    modelId,
+    modelId: migrateLegacyOfficialGlmModelId(legacyProviderId, legacyModelId),
     ...(thoughtLevel ? { options: { reasoningLevel: thoughtLevel } } : {}),
   };
 }
