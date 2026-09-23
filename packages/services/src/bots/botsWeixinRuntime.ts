@@ -1,8 +1,8 @@
 import type { BotConfigEntry, BotsConfig, BotProviderCallbackResult } from "@zcode/shared";
 import type { ServiceLogger } from "../logger/serviceLogger.js";
-import { BOT_RUNTIME_ERROR_RETRY_MS, TELEGRAM_ELSEWHERE_WAIT_MS } from "./botsConstants.js";
+import { BOT_RUNTIME_ERROR_RETRY_MS } from "./botsConstants.js";
 import { waitFor } from "./botsHttp.js";
-import { acquireWeixinPollingLock } from "./botsLocks.js";
+import { acquireWeixinPollingLock, TELEGRAM_ELSEWHERE_WAIT_MS } from "./botsLocks.js";
 import {
   assertBotCallbackSucceeded,
   createBotConnectionFingerprint,

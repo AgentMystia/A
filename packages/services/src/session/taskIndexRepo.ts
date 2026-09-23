@@ -9,7 +9,6 @@ import { createRequire } from "node:module";
 import { dirname } from "node:path";
 import {
   isRemoteWorkspaceIdentity,
-  ZCODE_AGENT_PROVIDER,
   zcodeTaskMetaSchema,
   resolveWorkspaceKey,
   CRON_DEFAULT_GROUP_ID,
@@ -245,7 +244,8 @@ function rowToMeta(row: TaskIndexRow): ZCodeTaskMeta {
     updatedAt: row.updated_at,
     mode: row.mode as ZCodeTaskMeta["mode"],
     model: row.model ?? undefined,
-    provider: row.provider === ZCODE_AGENT_PROVIDER ? ZCODE_AGENT_PROVIDER : undefined,
+    // 发布包在 meta_json 解析失败时直接透传列值，不和 glm 常量比较。
+    provider: (row.provider ?? undefined) as ZCodeTaskMeta["provider"],
     migrationSource: (row.migration_source as ZCodeTaskMeta["migrationSource"]) ?? undefined,
     forkedFromTaskId: row.forked_from_task_id ?? undefined,
     cronAutomationId: row.cron_automation_id ?? undefined,
@@ -548,14 +548,15 @@ function migrateLegacyTaskMetaJson(
   } catch {
     stored = {};
   }
-  const traceId =
-    typeof stored.traceId === "string" && stored.traceId
-      ? stored.traceId
-      : `zcode-${fallback.taskId}`;
+  // 发布包把 traceId 三元写进对象，esbuild 先赋给临时变量再 parse。
+  // 先抽成局部变量会让 host paths 里的函数多出约 21 字节。
   return zcodeTaskMetaSchema.parse({
     ...stored,
     taskId: fallback.taskId,
-    traceId,
+    traceId:
+      typeof stored.traceId === "string" && stored.traceId
+        ? stored.traceId
+        : `zcode-${fallback.taskId}`,
     title: fallback.title,
     workspacePath: fallback.workspacePath,
     workspaceIdentity: fallback.workspaceIdentity,

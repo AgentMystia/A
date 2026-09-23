@@ -3,13 +3,12 @@ import type { ServiceLogger } from "../logger/serviceLogger.js";
 import {
   BOT_CONFLICT_RETRY_MS,
   BOT_RUNTIME_ERROR_RETRY_MS,
-  TELEGRAM_ELSEWHERE_WAIT_MS,
   TELEGRAM_GET_UPDATES_TIMEOUT_MS,
   TELEGRAM_LONG_POLL_SECONDS,
 } from "./botsConstants.js";
 import { fetchBotProvider, fetchBotProviderJson, waitFor } from "./botsHttp.js";
 import { isRecord } from "./botsJson.js";
-import { acquireTelegramPollingLock } from "./botsLocks.js";
+import { acquireTelegramPollingLock, TELEGRAM_ELSEWHERE_WAIT_MS } from "./botsLocks.js";
 import {
   assertBotCallbackSucceeded,
   createBotConnectionFingerprint,

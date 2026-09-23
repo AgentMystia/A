@@ -1,6 +1,5 @@
 /** 发布包 host keepNames 常量。 */
 
-export const TELEGRAM_ELSEWHERE_WAIT_MS = 10_000;
 export const TELEGRAM_GET_UPDATES_TIMEOUT_MS = 40_000;
 export const TELEGRAM_LONG_POLL_SECONDS = 25;
 export const BOT_RUNTIME_ERROR_RETRY_MS = 5_000;

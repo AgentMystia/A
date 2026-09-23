@@ -16,7 +16,6 @@ import {
 } from "@zcode/shared/process-diagnostic";
 import {
   ZCODE_AGENT_RUNTIME,
-  ZCODE_AGENT_PROVIDER,
   ZCODE_RUNTIME_ENV_KEY,
   resolveWorkspaceKey,
   resolveZCodeRuntimeEnv,
@@ -720,7 +719,8 @@ export class ZCodeAgentProcessManager {
     this.reportProcessLifecycle((reporter) =>
       reporter.onReady?.({
         pid: managed.child.pid!,
-        provider: ZCODE_AGENT_PROVIDER,
+        // 发布包 host paths 把生命周期 provider 写成字面量，不引用跨 chunk 常量。
+        provider: "glm",
         ...(this.lane ? { lane: this.lane } : {}),
         workspacePath: managed.workspace.workspacePath,
         readyAt: managed.readyAt!,
@@ -1043,7 +1043,7 @@ export class ZCodeAgentProcessManager {
           this.reportProcessLifecycle((reporter) =>
             reporter.onException?.({
               pid: child.pid!,
-              provider: ZCODE_AGENT_PROVIDER,
+              provider: "glm",
               ...(this.lane ? { lane: this.lane } : {}),
               workspacePath: params.workspacePath,
               runtimeGeneration,
@@ -1157,7 +1157,7 @@ export class ZCodeAgentProcessManager {
         this.reportProcessLifecycle((reporter) =>
           reporter.onSpawn({
             pid: child.pid!,
-            provider: ZCODE_AGENT_PROVIDER,
+            provider: "glm",
             ...(this.lane ? { lane: this.lane } : {}),
             workspacePath: params.workspacePath,
             command: effectiveCommand.command,
@@ -1194,7 +1194,7 @@ export class ZCodeAgentProcessManager {
       this.reportProcessLifecycle((reporter) =>
         reporter.onError?.({
           pid: typeof child.pid === "number" ? child.pid : null,
-          provider: ZCODE_AGENT_PROVIDER,
+          provider: "glm",
           ...(this.lane ? { lane: this.lane } : {}),
           workspacePath: params.workspacePath,
           command: effectiveCommand.command,
@@ -1253,7 +1253,7 @@ export class ZCodeAgentProcessManager {
         this.reportProcessLifecycle((reporter) =>
           reporter.onExit({
             pid: child.pid!,
-            provider: ZCODE_AGENT_PROVIDER,
+            provider: "glm",
             ...(this.lane ? { lane: this.lane } : {}),
             workspacePath: params.workspacePath,
             exitCode: code,

@@ -5,6 +5,11 @@ import { getAppConfigDir } from "../paths.js";
 import { BOT_RUNTIME_LOCKS_DIRECTORY_NAME } from "./botsPaths.js";
 import type { BotConfigEntry, BotProviderId } from "@zcode/shared";
 
+// 发布包把 10 秒等待和下面的锁租约打成同一条 var，三处 elsewhere 引用绑定而不是内联 1e4。
+// const 会被 esbuild 折成字面量，所以这里必须是 var。
+// oxlint-disable-next-line eslint(no-var) -- 见上；改成 const 会让 host index 多出两处 1e4
+export var TELEGRAM_ELSEWHERE_WAIT_MS = 10_000;
+
 const LOCK_HELD_TTL_MS = 30_000;
 const LEASE_TOUCH_MS = 10_000;
 /** 发布包 `sle`：删除锁目录遇到占用时的重试间隔。 */
@@ -51,7 +56,9 @@ async function readBotRuntimeLockOwner(
 ): Promise<{ pid: number; botId: string; nonce: string; createdAt: number } | null> {
   try {
     const raw = JSON.parse(await readFile(join(lockPath, "owner.json"), "utf8"));
-    return typeof raw.pid === "number" && typeof raw.botId === "string" && typeof raw.nonce === "string"
+    return typeof raw.pid === "number" &&
+      typeof raw.botId === "string" &&
+      typeof raw.nonce === "string"
       ? {
           pid: raw.pid,
           botId: raw.botId,
@@ -157,7 +164,11 @@ export async function acquireBotRuntimeLock(
         async release() {
           clearInterval(timer);
           const current = await readBotRuntimeLockOwner(lockPath);
-          if (current?.pid === owner.pid && current.botId === owner.botId && current.nonce === owner.nonce) {
+          if (
+            current?.pid === owner.pid &&
+            current.botId === owner.botId &&
+            current.nonce === owner.nonce
+          ) {
             await removeBotRuntimeLockPath(lockPath);
           }
         },

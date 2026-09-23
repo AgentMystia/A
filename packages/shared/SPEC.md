@@ -38,6 +38,9 @@
 - 任务 mode 词表是 `default`、`yolo`、`plan`、`edit`、`acceptEdits`、`auto`、`dontAsk`、`bypassPermissions`、`autoEdit`、`build`。Relay task meta 的 provider 词表接受历史值 `claude`、`opencode`、`gemini`、`codex`、`glm`，但不扩大运行时 `ZCodeProvider`。同一份词表用于任务同步游标：`provider`、`sessionId`、`lastSyncedTurnIndex` 和状态 `idle`、`syncing`、`ready`、`stale`、`failed`。持久化 task meta 另有可选 `repairState`，只记录 Claude / Codex 原生快照修复版本。
 - `zcodeProviderSchema` 是 `providers.ts` 里那一个历史枚举：`claude`、`opencode`、`gemini`、`codex`、`glm`。`zcodeAgentProviderSchema` 就是这个对象。进程事件和持久化 task meta 的 `provider` 都用它。运行时类型 `ZCodeProvider` 仍只在 `zcode-task-types-core.ts`，值只有 `glm`。不要再写 `z.literal("glm")`。
 - `ZCODE_AGENT_RUNTIME.missingBinaryMessage` 在 `GLM_BINARY_PATH` 前写 `ZCODE_AGENT_WORKDIR、`。这句出现在 main 大共享 chunk、host 大共享 chunk 和 scheduler index，各一次。
+- `zcodeAgentProcessManager` 的 onReady、onException、onSpawn、onError、onExit 把 `provider` 写成字面量 `"glm"`。跨 chunk 常量会留成绑定；发布包 host paths 是五处 `"glm"`。
+- `migrateLegacyTaskMetaJson` 把 traceId 三元写进返回对象，不先抽成局部变量。`rowToMeta` 在 meta_json 无法解析时使用 `row.provider ?? undefined`，不再和 `ZCODE_AGENT_PROVIDER` 比较。
+- `TELEGRAM_ELSEWHERE_WAIT_MS` 定义在 `botsLocks.ts`，必须是 `export var`，并且排在锁租约常量前面。飞书、Telegram、微信三处“另一窗口已占用”的等待引用这个绑定。`const` 会被折成三处 `1e4`。发布包 host index 只保留一条 `var td=1e4,ole=3e4,ile=1e4,sle=[100,250,500]`。
 - `publishedHourMark.ts` 放在 `zcode-task-types-core.ts` 后面再导出。模块里有一个空的 `if (0)`，以及没有导出的 `var publishedUnusedHourMs = 3600 * 1e3`。纯常量赋值会被 esbuild 删掉，`if (0)` 让它留下；`if` 压缩后消失。发布包把它留在 main/host 共享 chunk、scheduler 和每份 preload 里，压缩后是没有引用的 `3600*1e3`。不要放进 renderer，也不要再写一份到 help config。
 - 设置字段 `enabledBuiltinAgentCliProviders` 是这个枚举的数组，`transform` 固定展开 `bots.ts` 里的 `ZCODE_BUILTIN_AGENT_CLI_PROVIDERS`（`["glm"]`）。完整 settings 的默认值也是这份数组的拷贝；patch 上该字段可选。`migrateLegacyBuiltinAgentCliProviders` 是 settings preprocess 的最内层：对象入参一律写成 `[...ZCODE_BUILTIN_AGENT_CLI_PROVIDERS]`，非对象原样返回。这不启用其它 Agent。
 - Desktop tsup 把 `sharp` 与 `@larksuiteoapi/node-sdk` 标为 external。发布包产物里这两处仍是动态 `import`，不内联进 main/host。
