@@ -1,13 +1,15 @@
-import { resolveWorkspaceKey } from "@zcode/shared";
 import type {
   WebRemoteControlTaskSnapshot,
   WebRemoteControlWorkspaceSnapshot,
 } from "@zcode/shared";
+import { resolveWebRemoteControlWorkspaceKey } from "@zcode/shared";
 import type {
   WebRemoteControlBridge,
   WebRemoteControlMobileView,
   WebRemoteControlRuntime,
 } from "./runtimeTypes.js";
+
+export { resolveWebRemoteControlWorkspaceKey };
 
 export function getPathLabel(workspacePath: string): string {
   const parts = workspacePath.replace(/\\/g, "/").split("/").filter(Boolean);
@@ -15,13 +17,6 @@ export function getPathLabel(workspacePath: string): string {
 }
 
 export { getPathLabel as webRemoteControlPathLabel };
-
-export function resolveWebRemoteControlWorkspaceKey(target: {
-  workspacePath: string;
-  workspaceIdentity?: string;
-}): string {
-  return resolveWorkspaceKey(target);
-}
 
 export function isBridgeableRemoteTarget(target: {
   kind: "local" | "remote";

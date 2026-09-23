@@ -1,3 +1,4 @@
+import { resolveWorkspaceKey } from "./task-realtime-core.js";
 import { crc32WireBytes, encodeWireBytesBase64 } from "./zcode-protocol-v4/wire-binary.js";
 import {
   assertPositiveSafeRpcInteger,
@@ -197,4 +198,50 @@ export function encodeWebRemoteControlRpcTransportMessage(
     frames.push(Object.freeze(frame));
   }
   return Object.freeze(frames);
+}
+
+// 发布包把心跳抖动和 workspace key 跟 codec 放在同一个 main 大共享 chunk。
+// 声明留在这里，host 不引用 codec，所以不会把这几个函数打进 host。
+export function safeRandom(random: () => number = Math.random): number {
+  const value = random();
+  return Number.isFinite(value) ? Math.min(0.999999999, Math.max(0, value)) : 0;
+}
+
+export function getWebRemoteControlHeartbeatJitterMs(
+  intervalMs = 10_000,
+  requested?: number,
+): number {
+  const interval = Number.isFinite(intervalMs) && intervalMs > 0 ? Math.floor(intervalMs) : 10_000;
+  const defaultJitter = Math.min(2_000, Math.floor(interval * 0.2));
+  const jitter = requested ?? defaultJitter;
+  if (!Number.isFinite(jitter) || jitter <= 0) return 0;
+  return Math.min(Math.floor(jitter), Math.max(0, interval - 1));
+}
+
+export function getWebRemoteControlHeartbeatDelayMs(
+  intervalMs = 10_000,
+  requestedJitter?: number,
+  random: () => number = Math.random,
+): number {
+  const interval = Number.isFinite(intervalMs) && intervalMs > 0 ? Math.floor(intervalMs) : 10_000;
+  const jitter = getWebRemoteControlHeartbeatJitterMs(interval, requestedJitter);
+  const low = Math.max(1, interval - jitter);
+  const high = interval + jitter;
+  return low + Math.floor(safeRandom(random) * (high - low + 1));
+}
+
+export function getWebRemoteControlReconnectJitterMs(
+  delayMs = 2_000,
+  random: () => number = Math.random,
+): number {
+  if (!Number.isFinite(delayMs) || delayMs <= 0) return 0;
+  const delay = Math.floor(delayMs);
+  return Math.floor(safeRandom(random) * (delay + 1));
+}
+
+export function resolveWebRemoteControlWorkspaceKey(target: {
+  workspacePath: string;
+  workspaceIdentity?: string;
+}): string {
+  return resolveWorkspaceKey(target);
 }
