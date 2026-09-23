@@ -276,7 +276,7 @@ Root 挂载隐藏宿主 + 每个 workspace 订阅
 - 有 active workspaceIdentity 时，只有远程 workspace 能解析到 task service。远程会话服务来自现有 remote session store；本地 workspace 用当前 `useServices()`。断连或重连中的 workspace 不参与批量删除归档。
 - 置顶、归档、取消归档和删除归档都调用该 workspace 已有的 `IZCodeTaskService`。成功后只改展示快照。置顶和归档失败用现有 toast；取消归档和删除失败只记 `[WebRemoteControlTaskIndex]` 警告。
 - 打开任务先通知侧栏是否跨 workspace。同一 workspace 走现有 `onSelectTask`，并调用 switcher 的 `updateMobileViewState`。跨 workspace 只调用 `switchWorkspace`。成功后不清除壳上的切换标志；失败才清。壳在该标志为真时盖住会话列并显示 `common.loading`。
-- 侧栏另有一条 effect：active task 变化时调用 `updateMobileViewState`，失败记 `[WorkspaceSidebar] 同步远控 mobileViewState 失败`。Switcher 存在时隐藏本地置顶区，并把 grouped 视图按 workspace 交给索引。工具栏渲染在索引内部、置顶区之前。
+- 侧栏另有一条 effect：active task 变化时调用 `updateMobileViewState`，失败记 `[WorkspaceSidebar] 同步远控 mobileViewState 失败`。Switcher 存在时隐藏本地置顶区，并把 grouped 视图按 workspace 交给索引。工具栏渲染在索引内部、置顶区之前，索引不再包一层 `-mx-4`。远控任务索引为真时，工具栏根节点追加 `-mx-4`，分组切换改成静态的 `workspaceSidebar.organizeByProject` 标签。本地侧栏仍用原来的分组页签。
 - Switcher 的构造仍不在 renderer。没有 switcher 时继续用本地任务区。
 - 远控导航滚动容器在 `webRemoteControlWorkspaceSwitcher` 或 `isWebRemoteControl` 为真时写 `data-web-remote-navigation-scroll="true"`，并加上 `max-md:overflow-y-auto`。内容区补 `max-md:pt-11`，拖拽占位在窄屏隐藏。这个标志只改侧栏滚动，不另存一份导航高度。
 
@@ -463,6 +463,15 @@ key = mobileConnected 且 activeWorkspaceKey、activeTaskId 都非空
 - 置顶和时间线是带边框的卡片，高度分别是 48px 和 56px。工作区行没有边框，高度 48px，时间只用 `updatedAt`。
 - 置顶行左侧是图钉，未读点叠在图钉右上角。时间线和工作区行在未切换时用未读点作为左侧图标。
 - 三处都展示 `displayStatus`，缺省是 idle。断开的远端工作区不能打开任务。
+
+### 发布包里仍要保留的短文案
+
+这些字符串属于发布包 styles，不另建状态。
+
+- `restore-legacy-sessions` 的中英文说明写在内置技能表。插件名集合和官方插件路径标记也包含它。说明只替换展示文案。
+- Renderer 的 `createCommandEnvelope` 在 CAS 命令缺少 `baseRevision` 时抛出 `command ${type} 是 CAS 命令，必须携带 baseRevision（10-protocol-spec §6.4）`。
+- `CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID` 仍是 `claude-plugins-official`。同一对象上的 `$comment` 保留「默认个人市场」说明。
+- 营销失败弹窗的说明节点再写 `data-slot="alert-description"`。
 
 ### 对话遥测 parity 用例
 

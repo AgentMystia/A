@@ -30,7 +30,10 @@ export function MarketingFailureDialog({
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <Alert className="min-w-0 border-0 bg-transparent p-0">
           <TriangleAlert aria-hidden className="size-4" />
-          <AlertDescription className="min-w-0 max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-foreground">
+          <AlertDescription
+            data-slot="alert-description"
+            className="min-w-0 max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-foreground"
+          >
             {message}
           </AlertDescription>
         </Alert>

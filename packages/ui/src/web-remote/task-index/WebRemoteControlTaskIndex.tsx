@@ -263,7 +263,7 @@ export function WebRemoteControlTaskIndex({
 
   return (
     <section className="flex min-h-0 flex-col gap-2 px-2">
-      {renderBeforePinnedTasks ? <div className="-mx-4">{renderBeforePinnedTasks()}</div> : null}
+      {renderBeforePinnedTasks ? renderBeforePinnedTasks() : null}
       {taskViewMode === "archived" ? (
         <DeleteAllArchivedTasksButton
           actionsContainer={archivedActionsContainer}

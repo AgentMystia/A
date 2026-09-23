@@ -1102,7 +1102,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       resizeObserver?.disconnect();
       window.removeEventListener("resize", scheduleUpdate);
     };
-  }, [activePrimaryTaskMode]);
+  }, [activePrimaryTaskMode, isWebRemoteTaskIndex]);
 
   const archivedTasksActionLabel = intl.formatMessage({
     // 归档视图打开后按钮图标会切换为 X，之前 tooltip 仍固定显示“归档”，
@@ -1111,59 +1111,68 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   });
   // 性能修复：workspaceTaskToolbar 会随 chat streaming 被重复创建并传给远控任务索引。
   // 这里把 render prop 稳定在真正影响工具栏展示的状态上，避免消息流更新污染侧栏任务区。
+  // 发布包在远控任务索引里把负边距写在工具栏根上，并用静态项目标签替换分组页签。
   const workspaceTaskToolbar = useCallback(
     () => (
-      <div className="pl-2.5 pr-3">
+      <div className={cn("pl-2.5 pr-3", isWebRemoteTaskIndex && "-mx-4")}>
         <div className="flex min-w-0 items-center justify-between gap-2">
           <div className="flex min-w-0 shrink-0 items-center gap-1">
-            <Tabs
-              value={activePrimaryTaskMode}
-              onValueChange={handlePrimaryTaskModeChange}
-              className="w-fit shrink-0"
-              aria-label={intl.formatMessage({
-                id: "workspaceSidebar.organize",
-              })}
-            >
-              {/* TabsList 默认横向态是 h-8；这里同步覆盖 variant，避免实际 Radix 横向态把外壳撑高。 */}
-              <TabsList
-                ref={primaryTaskTabsListRef}
-                className="relative h-7 w-fit overflow-hidden rounded-full bg-surface p-0.5 group-data-horizontal/tabs:h-7"
+            {isWebRemoteTaskIndex ? (
+              <div className="inline-flex h-7 min-w-0 items-center rounded-full border border-border bg-surface px-2 text-ui-xs font-medium text-foreground">
+                {intl.formatMessage({
+                  id: "workspaceSidebar.organizeByProject",
+                })}
+              </div>
+            ) : (
+              <Tabs
+                value={activePrimaryTaskMode}
+                onValueChange={handlePrimaryTaskModeChange}
+                className="w-fit shrink-0"
+                aria-label={intl.formatMessage({
+                  id: "workspaceSidebar.organize",
+                })}
               >
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0.5 left-0 rounded-full bg-background transition-[opacity,transform,width] duration-200 ease-out"
-                  style={primaryTaskIndicatorStyle}
-                />
-                <TabsTrigger
-                  ref={(node) => {
-                    primaryTaskTabTriggerRefs.current.grouped = node;
-                  }}
-                  value="grouped"
-                  className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+                {/* TabsList 默认横向态是 h-8；这里同步覆盖 variant，避免实际 Radix 横向态把外壳撑高。 */}
+                <TabsList
+                  ref={primaryTaskTabsListRef}
+                  className="relative h-7 w-fit overflow-hidden rounded-full bg-surface p-0.5 group-data-horizontal/tabs:h-7"
                 >
-                  <Hash aria-hidden="true" className="size-3 shrink-0" />
-                  <span>
-                    {intl.formatMessage({
-                      id: "workspaceSidebar.organizeGrouped",
-                    })}
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger
-                  ref={(node) => {
-                    primaryTaskTabTriggerRefs.current.workspace = node;
-                  }}
-                  value="workspace"
-                  className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
-                >
-                  <Folder aria-hidden="true" className="size-3 shrink-0" />
-                  <span>
-                    {intl.formatMessage({
-                      id: "workspaceSidebar.organizeByProject",
-                    })}
-                  </span>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-0.5 left-0 rounded-full bg-background transition-[opacity,transform,width] duration-200 ease-out"
+                    style={primaryTaskIndicatorStyle}
+                  />
+                  <TabsTrigger
+                    ref={(node) => {
+                      primaryTaskTabTriggerRefs.current.grouped = node;
+                    }}
+                    value="grouped"
+                    className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+                  >
+                    <Hash aria-hidden="true" className="size-3 shrink-0" />
+                    <span>
+                      {intl.formatMessage({
+                        id: "workspaceSidebar.organizeGrouped",
+                      })}
+                    </span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    ref={(node) => {
+                      primaryTaskTabTriggerRefs.current.workspace = node;
+                    }}
+                    value="workspace"
+                    className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+                  >
+                    <Folder aria-hidden="true" className="size-3 shrink-0" />
+                    <span>
+                      {intl.formatMessage({
+                        id: "workspaceSidebar.organizeByProject",
+                      })}
+                    </span>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
             {toggleAllTaskGroupsPresentation ? (
               <ControlHintTooltip
                 title={intl.formatMessage({
@@ -1327,6 +1336,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     [
       activePrimaryTaskMode,
       archivedTasksActionLabel,
+      isWebRemoteTaskIndex,
       createGroupedTaskGroupAction,
       handlePrimaryTaskModeChange,
       handleToggleAllTaskGroups,

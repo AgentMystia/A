@@ -12,8 +12,14 @@ export const ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "zcode-plugins-official";
 /**
  * 发布包个人市场默认 id。精选 pluginNames 策展名单已下线，
  * 这里只给商店分组标题覆盖，不加入官方市场或默认市场列表。
+ * `$comment` 必须留在对象上：压缩器会删掉只读取 marketplace 的说明。
  */
-export const CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID = "claude-plugins-official";
+const claudePluginsOfficialMarketplace = {
+  $comment: "默认个人市场 id（客户端精选推荐区已下线，pluginNames 策展名单随之下线）。",
+  marketplace: "claude-plugins-official",
+};
+void claudePluginsOfficialMarketplace;
+export const CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID = claudePluginsOfficialMarketplace.marketplace;
 
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([
