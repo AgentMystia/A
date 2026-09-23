@@ -2,8 +2,8 @@ import type { BotConfigEntry, BotsConfig, BotProviderCallbackResult } from "@zco
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 import { BOT_RUNTIME_ERROR_RETRY_MS } from "./botsConstants.js";
 import { waitFor } from "./botsHttp.js";
-import { acquireWeixinPollingLock } from "./botsLocks.js";
 import {
+  acquireWeixinPollingLock,
   assertBotCallbackSucceeded,
   createBotConnectionFingerprint,
   createLatestRuntimeRefreshQueue,

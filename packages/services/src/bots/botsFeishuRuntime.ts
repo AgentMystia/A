@@ -8,8 +8,8 @@ import {
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 import { BOT_RUNTIME_ERROR_RETRY_MS } from "./botsConstants.js";
 import { waitFor, waitForAbort } from "./botsHttp.js";
-import { acquireFeishuWebSocketLock } from "./botsLocks.js";
 import {
+  acquireFeishuWebSocketLock,
   assertBotCallbackSucceeded,
   createBotConnectionFingerprint,
   createLatestRuntimeRefreshQueue,

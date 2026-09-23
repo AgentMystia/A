@@ -8,8 +8,8 @@ import {
 } from "./botsConstants.js";
 import { fetchBotProvider, fetchBotProviderJson, waitFor } from "./botsHttp.js";
 import { isRecord } from "./botsJson.js";
-import { acquireTelegramPollingLock } from "./botsLocks.js";
 import {
+  acquireTelegramPollingLock,
   assertBotCallbackSucceeded,
   createBotConnectionFingerprint,
   createLatestRuntimeRefreshQueue,
