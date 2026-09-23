@@ -234,7 +234,7 @@ export declare function clearCuaProductHelperAgentEnvUnavailable(
 export declare function reapOrphanedHelpers(options: {
   logger?: unknown;
   env?: NodeJS.ProcessEnv;
-}): Promise<void>;
+}): { scanned: number; reaped: number[] };
 
 export interface HelperPermissionRequestResult {
   ok: boolean;

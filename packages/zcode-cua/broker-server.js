@@ -16,6 +16,8 @@ import {
   cuaBrokerRefreshMarkerPath,
   publishCuaBrokerRefreshMarker,
 } from "./helper-refresh-marker.js";
+import { reapOrphanedHelpers } from "./helper-reap.js";
+import { isScreenCaptureProbeSuccess } from "./helper-screen-probe.js";
 
 export {
   isCuaLocalDevelopmentRuntime,
@@ -31,6 +33,8 @@ export {
   markCuaProductHelperAgentEnvUnavailable,
   hasCuaProductHelperAgentEnvUnavailable,
   clearCuaProductHelperAgentEnvUnavailable,
+  reapOrphanedHelpers,
+  isScreenCaptureProbeSuccess,
 };
 
 export const HELPER_ADDON_ENV = "ZCODE_CUA_HELPER_ADDON";
@@ -99,12 +103,6 @@ export class CuaProductHelperWorkspaceRegistry {
 export function isOfficialCuaPluginEnabledForWorkspace(_options) {
   return false;
 }
-
-export function isScreenCaptureProbeSuccess(_probe) {
-  return false;
-}
-
-export async function reapOrphanedHelpers(_options) {}
 
 export async function requestHelperAccessibilityPermissionViaLaunchServices(_options) {
   return { ok: false, reason: UNAVAILABLE };

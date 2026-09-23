@@ -205,6 +205,9 @@ createRemoteWorkspaceServiceCollection
 - 稳定 socket 是运行时目录里的 `broker.sock`。随机启动 socket 才是 `broker-<16 hex>.sock`。Windows 管道前缀是 `\\.\pipe\zcode-cua-helper-`。`waitForCuaHelperStartup` 超时抛 `caller_timeout`。权限刷新标记和启动取消哨兵都写在这条传输旁边，不另建一套 Host。
 - `CuaHelperHost` 的原型方法只在构造时挂上。没有构造产品 Host 的进程不能因为加载了 broker 就把启动和终止实现打进包。
 - 加载 `broker.js` 时带上发布包里的 broker 方法表、16MiB 帧上限、项目配置文件名，以及 `broker_not_accepting` / `caller_timeout` / `restart_deferred_active_turn` 这组恢复码和提示文案。这些常量和 `CuaHelperError` 在同一条加载链上，main、host、scheduler 都有。
+- 进程参数带 `--exit-log` 时，同一次加载会把 Helper stderr 追加到该文件，并只保留最近 7 个 `zcode-cua-helper-YYYY-MM-DD.jsonl`。没有这个参数时立即返回，不改 stderr。
+- `reapOrphanedHelpers` 只在 darwin 且能取到 uid 时扫描。它只对 ppid 为 1、可执行文件和随机 socket 都落在安装根里、launcher pid 已死或已变成非 ZCode 命令的 Helper 发 `SIGTERM`，单次最多 32 个。活着的 launcher 默认放过。
+- `isScreenCaptureProbeSuccess` 只接受 `foreign_window` 且内容证据为 `decoded_visible_non_uniform` 的探针。窗口尺寸和采样像素对不上时返回 false。
 
 - 简单交换只属于 `packages/zcode-cua/broker.js` 的 `brokerExchange`。`callBrokerMethod` / `probeHelperHealth` 走它：先发 `id:0` 的空 `authenticate`，再发 `id:1` 的业务方法。鉴权被拒是 `CuaHelperError`，`code` 为 `auth_failed`。`probeHelperHealth` 在截止时间前按 `broker_info` 轮询，超时 `code` 为 `health_timeout`。
 - `PermissionBrokerClient` 只属于 `permissionBrokerClient.js`。每条 RPC 新建连接，鉴权帧带 `clientApiVersion:2` 与 `authenticateParams`，业务 id 从 1 递增。默认 peer 检查拒绝 world-writable socket；Windows 管道必须落在 `\\.\pipe\zcode-cua-helper-`。`hold_key` / `hold_key_to_app` 的等待时间是 `max(timeout, min(duration,30)*1000+5000)`。

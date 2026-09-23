@@ -33,7 +33,7 @@ export function helperExecutablePathForApp(appPath) {
   return join(appPath, "Contents", "MacOS", HELPER_EXECUTABLE_NAME);
 }
 
-function standaloneHelperExecutablePaths(env = process.env) {
+export function standaloneHelperExecutablePaths(env = process.env) {
   const standalone = standaloneHelperCandidatePaths(env);
   const rooted = recognizedCuaHelperInstallRoots(env).flatMap((root) => [
     join(root, HELPER_APP_NAME),
@@ -57,7 +57,7 @@ function parsePsProcessRows(text) {
   return rows;
 }
 
-function defaultListProcesses() {
+export function defaultListProcesses() {
   return parsePsProcessRows(execFileSync(HELPER_TOOLS.ps, PS_ARGS, { encoding: "utf8" }));
 }
 
@@ -65,11 +65,11 @@ export function listProcesses() {
   return execFileText(HELPER_TOOLS.ps, PS_ARGS).then(({ stdout }) => parsePsProcessRows(stdout));
 }
 
-function messageOf(error) {
+export function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-function defaultIsProcessAlive(pid) {
+export function defaultIsProcessAlive(pid) {
   try {
     process.kill(pid, 0);
     return true;
@@ -78,7 +78,7 @@ function defaultIsProcessAlive(pid) {
   }
 }
 
-function addCanonicalPathAliases(paths, canonicalize) {
+export function addCanonicalPathAliases(paths, canonicalize) {
   const aliases = new Set(paths);
   for (const path of paths) {
     try {
@@ -94,7 +94,7 @@ function commandStartsWithExactExecutable(command, executable) {
   return command === executable || command.startsWith(`${executable} `);
 }
 
-function extractFlagValue(command, flag) {
+export function extractFlagValue(command, flag) {
   const parts = command.split(/\s+/u);
   const index = parts.indexOf(flag);
   return index < 0 || index + 1 >= parts.length ? null : (parts[index + 1] ?? null);
@@ -219,7 +219,7 @@ export function createDefaultHelperPidEvidenceProvider(options = {}) {
   };
 }
 
-function rowLooksLikeHelperProcess(row, uid, executables, socketPath) {
+export function rowLooksLikeHelperProcess(row, uid, executables, socketPath) {
   if (
     row.uid !== uid ||
     !executables.some((executable) => commandStartsWithExactExecutable(row.command, executable))

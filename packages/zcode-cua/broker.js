@@ -1,8 +1,9 @@
 import { createConnection } from "node:net";
 import { join } from "node:path";
 
-// 发布包把方法表和恢复码跟 CuaHelperError 放在同一条加载链上，main/host/scheduler 都有。
+// 发布包把方法表、恢复码和 exit-log 镜像跟 CuaHelperError 放在同一条加载链上。
 import "./helper-broker-catalog.js";
+import "./helper-exit-log.js";
 
 import {
   brokerRuntimeDir,
