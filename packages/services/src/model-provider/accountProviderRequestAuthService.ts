@@ -16,7 +16,8 @@ export interface AccountRequestAuthInput {
   providerId: string;
   modelId?: string;
   accountAccess: ZCodeProviderAccountAccess | ZCodeAccountAccess;
-  reason: "model-request" | "off-peak" | "usage";
+  // 协议 reason 含 captcha-retry。解析器不按 reason 分支，非 Start Plan 仍走同一套账号材料。
+  reason: "model-request" | "captcha-retry" | "off-peak" | "usage";
 }
 
 export interface AccountAccessIdentityInput {
