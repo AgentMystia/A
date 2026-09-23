@@ -1,3 +1,5 @@
+import "./cloudDialogPayload.js";
+
 /**
  * 快捷键命令表与绑定序列化格式 —— 全仓库快捷键的唯一数据源。
  *

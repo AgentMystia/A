@@ -202,6 +202,7 @@ createRemoteWorkspaceServiceCollection
 发布包 renderer 的 styles chunk 渲染 `cloud-content-dialog`。资源 URL 与 zip 租约仍只属于 Host 的 `cloud-content`；弹窗自己的 pending、复制成功提示和焦点归还只活在弹窗组件里。
 
 - Hero 视图类型是 `image`、`video`、`lottie`、`interactive_bundle`。营销 schema 仍只有 `image`、`video`、`bundle`。`resolveMarketingHero` 是唯一投影：image/video 先解码再交给视图；`bundle` 仅桌面端 `prepare`，运行时 `zcode-hero-sandbox-v1`，通道 `zcode-cloud-hero-v1`。没有 media port 时 hero 为空，不另开下载。
+- 云弹窗 payload 的 zod 只属于 `cloudDialogPayload.ts`。`schemaVersion` 为 1；kind 是 `campaign`、`feature`、`notice`；按钮 variant 含 `link`；navigate 目的地含 `model_settings`。重复按钮 id，或 `actionId` 在 `actions` 里不存在时，问题文案是 `Duplicate button or missing action`。`buildCloudDialogPayload` 不调用这份 schema，投影后的 hero 可以是本地媒体地址。
 - Lottie 只从 `lottie-web` 5.13.0 的 `lottie_light_canvas` 动态加载。文档校验拒绝外链、字体、表达式和超限帧；下载超过 2MiB 失败。失败且有 fallback 时回退图片。
 - 弹窗按钮动作由 `buildCloudDialogPayload` 从 popup 拷贝生成。除 `plugin_marketplace` 记为 `plugin_store` 外，navigate 在视图里收成 `settings`；执行时仍用按钮序号回查原始 action。
 - 活动展示的唯一所有者是 `createMarketingTouchController`。它保存 banner、待展示 popup、对话框、pending 和错误。Hero URL 与 zip 租约仍只经过 `resolveMarketingHero`。轮询器只负责按可见性和退避调用 `refresh`，不保存投放内容。
