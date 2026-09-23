@@ -255,6 +255,7 @@ Root 挂载隐藏宿主 + 每个 workspace 订阅
 - 手机壳（switcher 且 `(max-width: 767px)`）把侧栏渲染成 `mobileOverlay`。这时不用可调整面板：尺寸为 100%，可见性直接是 `isSidePaneOpen`，窗口控件和截图 surface 关闭。外框不写 `data-workspace-side-frame`，也不套桌面圆角。面板引用用壳上单独的 overlay ref，不复用桌面 `useAnimatedResizablePanel` 的 ref。
 - 有 switcher 但不是 overlay 时，可调整面板在窄屏改为 `max-md:!h-[min(45dvh,24rem)]`、顶边框，并隐藏分隔条。外框去掉圆角和边框，宽度拉满。
 - 粗指针窄屏 `(max-width: 767px) and (hover: none) and (pointer: coarse)` 由侧栏面板自己订阅。overlay 或该视口为真时不提供辅助对话入口。overlay 时预览重内容保持挂载。
+- 壳层 `renderSidePanePanel` 的参数默认是 `{}`。窗口控件、可见性、面板引用和截图 surface 都直接读 `options.mobileOverlay`，不先拷进局部布尔。手机壳传入 `{ mobileOverlay: true }`。
 
 ### 桌面远控导航收起
 
@@ -334,6 +335,32 @@ SessionPane 写入行上下文，并把同一值传给时间线 compactEmptyStat
 - 用户行、助手行和轮尾操作栏改为常显 `opacity-100`。助手复制、反馈和分叉在 compact 时不传 tooltip。
 - 草稿头的分支按钮只留图标：`size-8 px-0`，不渲染分支名和 chevron。workspace chip 从 `max-w-[15rem]` 收成 `max-w-44`。
 - 完成态 PPTX 自动打开只在桌面且不是 compact 时交给现有壳层处理。
+
+### 应用运行时偏好投影
+
+`askUserQuestionAutoResolutionEnabled` 与 `modelIoFullRetentionEnabled` 的已接受值只在 settings。Root 和 `useSettings` 只把同一份 payload 投影到现有 `zcodeAgentService` 与 `botsService`，不另存一份偏好。
+
+```text
+useSettings.update
+  → settingService.update + syncAppSettings + refresh
+  → Promise.allSettled([agent.syncAppRuntimePreferences, bots.syncAppRuntimePreferences])
+  → broadcast settings:app-runtime-preferences
+  → 任一侧拒绝则在广播发出后抛出先失败的原因
+Root 收到广播
+  → refreshAppSettings
+  → agent 失败记「同步跨窗口运行时偏好失败」
+  → bots 失败记「同步跨窗口 Bot 运行时偏好失败」
+Root 初始化
+  → 两份相同的对象字面量
+  → agent 失败记「初始化运行时偏好失败」
+  → bots 失败记「初始化 Bot 运行时偏好失败」
+```
+
+- 一侧同步失败不回滚另一侧，也不取消广播。Bots 走已有 `IBotsService.syncAppRuntimePreferences`。
+
+### 分享选择面板动效
+
+非减弱动效的进入和退出 transform 固定为字面量 `translate3d(-8px, -50%, 0)`。可见态是 `translate3d(0, -50%, 0)`。时长 0.2 秒，缓动 `[0.4, 0, 0.2, 1]`。减弱动效时 `initial` 为 false，时长为 0。面板不另存偏移像素。
 
 ### 对话遥测 parity 用例
 

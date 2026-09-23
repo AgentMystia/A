@@ -1459,8 +1459,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       });
     }
   }, [activeTaskId, workspaceKey]);
-  const renderSidePanePanel = (options?: { mobileOverlay?: boolean }) => {
-    const mobileOverlay = options?.mobileOverlay === true;
+  // 发布包在每个布局属性上读 options.mobileOverlay。先拷到局部布尔会在压缩后丢掉这些属性访问。
+  const renderSidePanePanel = (options: { mobileOverlay?: boolean } = {}) => {
     return (
       <AnimatedSidePanePanel
         services={services}
@@ -1475,8 +1475,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           supportsNativeRoundedCorners:
             desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
         })}
-        showWindowControls={!mobileOverlay && usesInlineWindowControls}
-        isVisible={mobileOverlay ? isSidePaneOpen : isSidePaneVisible}
+        showWindowControls={!options.mobileOverlay && usesInlineWindowControls}
+        isVisible={options.mobileOverlay ? isSidePaneOpen : isSidePaneVisible}
         onCloseSidePane={handleToggleSidePane}
         toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
         sidePaneState={sidePaneState}
@@ -1490,15 +1490,15 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         sidePaneOwnerId={sidePaneOwnerId}
         gitState={gitState}
         activeGitSourceId={activeGitSourceId}
-        panelRef={mobileOverlay ? mobileOverlaySidePanePanelRef : sidePanePanelRef}
+        panelRef={options.mobileOverlay ? mobileOverlaySidePanePanelRef : sidePanePanelRef}
         panelElementRef={
-          mobileOverlay ? mobileOverlaySidePanePanelElementRef : sidePanePanelElementRef
+          options.mobileOverlay ? mobileOverlaySidePanePanelElementRef : sidePanePanelElementRef
         }
         browserNavigationRequest={browserNavigationRequest}
         browserRestoreUrls={browserRestoreUrls}
-        screenshotSurfaceRequest={mobileOverlay ? null : screenshotSurfaceRequest}
-        screenshotSurfaceTabId={mobileOverlay ? null : (screenshotSurfaceTab?.id ?? null)}
-        mobileOverlay={mobileOverlay}
+        screenshotSurfaceRequest={options.mobileOverlay ? null : screenshotSurfaceRequest}
+        screenshotSurfaceTabId={options.mobileOverlay ? null : (screenshotSurfaceTab?.id ?? null)}
+        mobileOverlay={options.mobileOverlay}
         mobileStacked={webRemoteControlWorkspaceSwitcher != null}
         fileChangeFindActiveIndex={fileChangeFindActiveIndex}
         fileChangeFindNavigationRequestId={fileChangeFindNavigationRequestId}

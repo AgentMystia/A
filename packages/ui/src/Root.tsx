@@ -288,8 +288,12 @@ function RootInner({
           return;
         }
         void refreshAppSettings();
+        // 已接受偏好同时投影到 agent 与 bots。一侧失败只记自己的日志，不回滚另一侧。
         void services.zcodeAgentService.syncAppRuntimePreferences(parsed.data).catch((error) => {
           logger.warn("[settings] 同步跨窗口运行时偏好失败", error);
+        });
+        void services.botsService.syncAppRuntimePreferences(parsed.data).catch((error) => {
+          logger.warn("[settings] 同步跨窗口 Bot 运行时偏好失败", error);
         });
         return;
       }
@@ -322,12 +326,18 @@ function RootInner({
     return () => {
       disposable.dispose();
     };
-  }, [refreshAppSettings, services.broadcastService, services.zcodeAgentService]);
+  }, [
+    refreshAppSettings,
+    services.botsService,
+    services.broadcastService,
+    services.zcodeAgentService,
+  ]);
 
   useEffect(() => {
     if (!appSettings) {
       return;
     }
+    // 两份对象字面量与发布包一致，压缩后仍各保留一次字段访问。bots 失败不回滚 agent。
     void services.zcodeAgentService
       .syncAppRuntimePreferences({
         askUserQuestionAutoResolutionEnabled:
@@ -337,9 +347,19 @@ function RootInner({
       .catch((error) => {
         logger.warn("[settings] 初始化运行时偏好失败", error);
       });
+    void services.botsService
+      .syncAppRuntimePreferences({
+        askUserQuestionAutoResolutionEnabled:
+          appSettings.askUserQuestionAutoResolutionEnabled !== false,
+        modelIoFullRetentionEnabled: appSettings.modelIoFullRetentionEnabled === true,
+      })
+      .catch((error) => {
+        logger.warn("[settings] 初始化 Bot 运行时偏好失败", error);
+      });
   }, [
     appSettings?.askUserQuestionAutoResolutionEnabled,
     appSettings?.modelIoFullRetentionEnabled,
+    services.botsService,
     services.zcodeAgentService,
   ]);
 
