@@ -52,7 +52,7 @@ function utf8Bytes(value: string): number {
   return new TextEncoder().encode(value).byteLength;
 }
 
-export function relayEnvelopeFor(
+function relayEnvelopeFor(
   payload: unknown,
   timestamps: { clientTimestamp?: number | null; serverTimestamp?: number | null } = {},
 ): {

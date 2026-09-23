@@ -109,7 +109,7 @@ export type WebRemoteControlRpcTransportPayload = z.infer<
   typeof webRemoteControlRpcTransportPayloadSchema
 >;
 
-export function identityFrom(value: WebRemoteControlRpcIdentity): WebRemoteControlRpcIdentity {
+function identityFrom(value: WebRemoteControlRpcIdentity): WebRemoteControlRpcIdentity {
   const parsed = webRemoteControlRpcIdentitySchema.safeParse({
     bridgeSessionId: value.bridgeSessionId,
     ...(value.bridgeGeneration === undefined ? {} : { bridgeGeneration: value.bridgeGeneration }),
@@ -128,10 +128,7 @@ export function parseWebRemoteControlRpcTransportPayload(
   return parsed.success ? parsed.data : null;
 }
 
-export function hasRawIdentityMismatch(
-  identity: WebRemoteControlRpcIdentity,
-  value: unknown,
-): boolean {
+function hasRawIdentityMismatch(identity: WebRemoteControlRpcIdentity, value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   const mentionsIdentity = ["bridgeSessionId", "bridgeGeneration", "recoveryId"].some(
@@ -145,7 +142,7 @@ export function hasRawIdentityMismatch(
   );
 }
 
-export function sameIdentity(
+function sameIdentity(
   identity: WebRemoteControlRpcIdentity,
   frame: { bridgeSessionId: string; bridgeGeneration?: number; recoveryId?: string },
 ): boolean {
@@ -161,7 +158,7 @@ export interface WebRemoteControlFrameFingerprint {
   value: string;
 }
 
-export function frameFingerprint(
+function frameFingerprint(
   frame: WebRemoteControlRpcFrame,
   bytes: Uint8Array,
 ): WebRemoteControlFrameFingerprint {
@@ -184,7 +181,7 @@ export function frameFingerprint(
   };
 }
 
-export function sameFingerprint(
+function sameFingerprint(
   left: WebRemoteControlFrameFingerprint,
   right: WebRemoteControlFrameFingerprint,
 ): boolean {

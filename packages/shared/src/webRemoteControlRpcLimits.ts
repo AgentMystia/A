@@ -19,17 +19,13 @@ export class WebRemoteControlRpcTransportEncodingError extends Error {
   }
 }
 
-export function assertPositiveSafe(value: number, reasonCode: string): void {
+function assertPositiveSafe(value: number, reasonCode: string): void {
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new WebRemoteControlRpcTransportEncodingError(reasonCode);
   }
 }
 
-export function boundedPositive(
-  value: number | undefined,
-  ceiling: number,
-  reasonCode: string,
-): number {
+function boundedPositive(value: number | undefined, ceiling: number, reasonCode: string): number {
   const resolved = value ?? ceiling;
   if (!Number.isSafeInteger(resolved) || resolved <= 0) {
     throw new WebRemoteControlRpcTransportEncodingError(reasonCode);
