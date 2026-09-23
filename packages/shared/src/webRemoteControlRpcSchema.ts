@@ -46,7 +46,7 @@ const checksumSchema = z
   })
   .strict();
 
-export function isCanonicalWebRemoteControlBase64(value: string): boolean {
+export function isCanonicalBase64(value: string): boolean {
   if (value.length < 4 || value.length > limits.maxPhysicalFrameBytes) return false;
   const decoded = decodeWireBase64(value);
   return decoded !== null && decoded.byteLength > 0 && encodeWireBytesBase64(decoded) === value;
@@ -68,11 +68,7 @@ export const webRemoteControlRpcFrameSchema = z
     fragmentCount: z.number().int().positive().max(limits.maxFragments),
     messageBytes: z.number().int().positive().max(limits.maxMessageBytes),
     checksum: checksumSchema,
-    dataBase64: z
-      .string()
-      .min(4)
-      .max(limits.maxPhysicalFrameBytes)
-      .refine(isCanonicalWebRemoteControlBase64),
+    dataBase64: z.string().min(4).max(limits.maxPhysicalFrameBytes).refine(isCanonicalBase64),
   })
   .strict()
   .superRefine((frame, context) => {

@@ -6,7 +6,7 @@
 
 - 频道字符串只在 `packages/shared/src/channels.ts` 定义。
 - Web 远程控制的对外状态、workspace/task 快照和失败原因在 `packages/shared/src/webRemoteControl.ts`。
-- RPC 物理帧的编码、校验和重组在 `webRemoteControlRpc.ts` 一族。它们不持有连接。
+- RPC 物理帧的编码、校验和重组在 `webRemoteControlRpc.ts` 一族。它们不持有连接。帧负载是否为规范 base64 的判定函数名是 `isCanonicalBase64`。
 - 应用层 payload 的 zod 约束在 `webRemoteControlPayload.ts`。非法 payload 在进 manager 之前丢掉。
 - 二维码、v4 版本门槛和 relay WebSocket 地址在 `webRemoteControlEndpoint.ts`。`buildZCodeEndpointUrls` 同时给出 `remoteUrl` / `webRemoteCallbackUrl` / `relayWsUrl`；manager 实际拨号仍走 `resolveWebRemoteControlRelayWsUrl`，生产默认是 `wss://zcode.z.ai/ws`，测试域 `https://zcode.chatglm.site` 用 `wss://zcode.chatglm.site/ws`，`ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL` 优先。
 - 可变会话只属于 Desktop main 的 `createWebRemoteControlManager`。每条 workspace bridge 自己的 acknowledged relay 持有那条桥的重放缓冲；拆桥或降级时清掉，不另做进程级队列。Settings 只存 `webRemoteControlExternalRelayDevice.deviceSid` 和 `webRemoteControlLastEnabledContext`。`pass_hash` 只进凭据服务，键为 `web-remote-control:external-relay:pass_hash`。Renderer 只提交草稿和同步快照，不保存已接受的 relay 会话。
@@ -58,7 +58,9 @@ renderer hook → ProxyChannel → Host 单例
 
 - marketing GET `/api/v1/marketing/touch?seq=`，POST `/api/v1/marketing/touch/action`。token 在 query/report 之间变化则抛 `marketing_identity_changed`。
 - 资源只允许 https（测试可放行 loopback）。image 8MiB、video 16MiB，按 sha256 校验。
-- cloud-content zip 入口必须是 `.html`，单文件 8MiB，解包合计 32MiB，磁盘 cache 128MiB。loopback 只监听 `127.0.0.1`。
+- cloud-content zip 入口必须是 `.html`，单文件 8MiB，解包合计 32MiB，磁盘 cache 128MiB。这三个上限定义在 `contentBundleExtract.ts`，和 `yauzl` 的 import 放在同一模块，避免被折叠成整数。路径校验和 `.bundle.json` 仍只属于 `contentBundlePath.ts`。loopback 只监听 `127.0.0.1`。
+- 官方 Computer Use 插件是否启用只由 `packages/zcode-cua/helper-official-plugin.js` 读取。插件 id 复用 `computer-use@zcode-plugins-official`。项目配置文件名复用 broker catalog 里的 `zcode.json` / `.zcode/config.json`，不另写一份。用户配置默认是 `~/.zcode/cli/config.json`。没有 `.git` 工作树标记时只看起始目录。`features.mcp`、`plugins.enabled` 和 `enabledPlugins` 里该插件 id 必须都为真。这段逻辑只随 host 的 `isOfficialCuaPluginEnabledForWorkspace` 加载。
+- broker catalog 随 `CuaHelperError` 保留一个未引用的 128MiB 上限 `PUBLISHED_UNUSED_BYTE_CEILING`。它不是 content bundle cache。发布包把这个上限放在未使用的 `execFileSync` / `platform` import 旁边；当前打包器会丢掉那个空模块，所以上限跟 catalog 的 side effect 走。
 - bots provider：telegram / webhook / feishu / lark / weixin 可用；discord / wecom 仅占位。
 - 远端 workspace 的 bots 不跑 startup polling（`runStartupBackgroundTasks: false`），也不注册 marketing / cloud-content。
 - 飞书 App ID 必须匹配 `/^cli_[0-9a-fA-F]{16}$/`。飞书注册走 `accounts.feishu.cn` / `accounts.larksuite.com` 的 `/oauth/v1/app/registration`，`source=node-sdk/zcode`。

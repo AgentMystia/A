@@ -2,7 +2,7 @@ import { BROKER_SOCKET_ENV } from "./broker.js";
 import { resolveZCodeCuaBrokerRefreshMarkerPath } from "./helper-refresh-marker.js";
 
 const PLUGIN_ID_ENV = "ZCODE_PLUGIN_ID";
-const OFFICIAL_PLUGIN_ID = "computer-use@zcode-plugins-official";
+export const OFFICIAL_PLUGIN_ID = "computer-use@zcode-plugins-official";
 const PLUGIN_AUTHORITY_ENV = "ZCODE_CUA_PLUGIN_AUTHORITY";
 const COMPUTER_USE_SERVER_NAME = "computer-use";
 const OFFICIAL_SERVER_NAME = "plugin:computer-use:computer-use";

@@ -198,6 +198,8 @@ export declare function createCuaProductMcpServerResolver(
 export interface IsOfficialCuaPluginEnabledForWorkspaceOptions {
   env?: NodeJS.ProcessEnv;
   workingDirectory?: string;
+  projectConfigPath?: string;
+  userConfigPath?: string;
   [key: string]: unknown;
 }
 

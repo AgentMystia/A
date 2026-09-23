@@ -52,6 +52,9 @@ const BROKER_METHODS = [
 
 export const BROKER_METHOD_SET = new Set(BROKER_METHODS);
 export const BROKER_MAX_FRAME_BYTES = 16 * 1024 * 1024;
+// 发布包在 AX role 表前保留的未引用 128MiB 上限。放在这条 side-effect 链上才会留在
+// main、host、scheduler。它不是 content bundle cache。
+export const PUBLISHED_UNUSED_BYTE_CEILING = 128 * 1024 * 1024;
 
 const BROKER_NOT_ACCEPTING = "broker_not_accepting";
 const PERMISSION_REFRESH_IN_PROGRESS = "permission_refresh_in_progress";

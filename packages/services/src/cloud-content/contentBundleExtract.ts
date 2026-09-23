@@ -2,12 +2,13 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fromBuffer, type Entry, type ZipFile } from "yauzl";
-import {
-  BUNDLE_EXPANDED_MAX_BYTES,
-  BUNDLE_FILE_MAX_BYTES,
-  BUNDLE_MANIFEST_FILE_NAME,
-  validateContentBundlePath,
-} from "./contentBundlePath.js";
+import { BUNDLE_MANIFEST_FILE_NAME, validateContentBundlePath } from "./contentBundlePath.js";
+
+// 这三个上限必须和 yauzl import 同模块。纯模块里的 const 会被折叠成 134217728，
+// 发布包保留的是 8*1024*1024 / 32*1024*1024 / 128*1024*1024。
+export const BUNDLE_FILE_MAX_BYTES = 8 * 1024 * 1024;
+export const BUNDLE_EXPANDED_MAX_BYTES = 32 * 1024 * 1024;
+export const BUNDLE_CACHE_MAX_BYTES = 128 * 1024 * 1024;
 
 export interface ContentBundleFileManifest {
   sha256: string;
@@ -59,7 +60,10 @@ export async function extractContentBundle(
   destination: string,
 ): Promise<ContentBundleManifest> {
   const zipFile = await openZipFromBuffer(bytes);
-  const manifest: ContentBundleManifest = { files: Object.create(null) as Record<string, ContentBundleFileManifest>, size: 0 };
+  const manifest: ContentBundleManifest = {
+    files: Object.create(null) as Record<string, ContentBundleFileManifest>,
+    size: 0,
+  };
   const seen = new Set<string>();
   let entries = 0;
   try {
@@ -99,7 +103,10 @@ export async function extractContentBundle(
             for await (const chunk of stream as AsyncIterable<Buffer | Uint8Array>) {
               const buffer = Buffer.from(chunk);
               size += buffer.length;
-              if (size > BUNDLE_FILE_MAX_BYTES || manifest.size + size > BUNDLE_EXPANDED_MAX_BYTES) {
+              if (
+                size > BUNDLE_FILE_MAX_BYTES ||
+                manifest.size + size > BUNDLE_EXPANDED_MAX_BYTES
+              ) {
                 throw new Error("bundle_expanded_size");
               }
               chunks.push(buffer);
@@ -109,7 +116,10 @@ export async function extractContentBundle(
               ? relativePath.slice(0, relativePath.lastIndexOf("/"))
               : "";
             await mkdir(join(destination, parent), { recursive: true });
-            await writeFile(join(destination, relativePath), fileBytes, { flag: "wx", mode: 0o600 });
+            await writeFile(join(destination, relativePath), fileBytes, {
+              flag: "wx",
+              mode: 0o600,
+            });
             manifest.files[relativePath] = { sha256: hashBytes(fileBytes), size };
             manifest.size += size;
           }

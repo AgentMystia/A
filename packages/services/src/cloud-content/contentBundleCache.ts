@@ -2,14 +2,14 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rm, stat, utimes, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { cloudContentBundleSchema, type CloudContentBundle } from "@zcode/shared";
+import { BUNDLE_MANIFEST_FILE_NAME, validateContentBundlePath } from "./contentBundlePath.js";
 import {
   BUNDLE_CACHE_MAX_BYTES,
   BUNDLE_EXPANDED_MAX_BYTES,
   BUNDLE_FILE_MAX_BYTES,
-  BUNDLE_MANIFEST_FILE_NAME,
-  validateContentBundlePath,
-} from "./contentBundlePath.js";
-import { extractContentBundle, type ContentBundleManifest } from "./contentBundleExtract.js";
+  extractContentBundle,
+  type ContentBundleManifest,
+} from "./contentBundleExtract.js";
 
 export interface ContentBundleLease {
   leaseId: string;
@@ -49,7 +49,12 @@ export function createContentBundleCache(options: {
 
   function trustedUrl(value: string): URL {
     const url = new URL(value);
-    if (!/^https?:$/u.test(url.protocol) || url.username || url.password || !options.isTrustedUrl(url)) {
+    if (
+      !/^https?:$/u.test(url.protocol) ||
+      url.username ||
+      url.password ||
+      !options.isTrustedUrl(url)
+    ) {
       throw new Error("bundle_source");
     }
     return url;
@@ -82,7 +87,10 @@ export function createContentBundleCache(options: {
       let size = 0;
       for await (const chunk of response.body) {
         size += (chunk as Uint8Array).byteLength;
-        if (size > BUNDLE_FILE_MAX_BYTES || (bundle.sizeBytes !== undefined && size > bundle.sizeBytes)) {
+        if (
+          size > BUNDLE_FILE_MAX_BYTES ||
+          (bundle.sizeBytes !== undefined && size > bundle.sizeBytes)
+        ) {
           throw new Error("bundle_download_size");
         }
         chunks.push(Buffer.from(chunk));
@@ -117,7 +125,11 @@ export function createContentBundleCache(options: {
       }
     }
     const fileStat = await stat(current);
-    if (!fileStat.isFile() || fileStat.size !== expected.size || fileStat.size > BUNDLE_FILE_MAX_BYTES) {
+    if (
+      !fileStat.isFile() ||
+      fileStat.size !== expected.size ||
+      fileStat.size > BUNDLE_FILE_MAX_BYTES
+    ) {
       throw new Error("bundle_cache_size");
     }
     const bytes = await readFile(current);
@@ -132,7 +144,11 @@ export function createContentBundleCache(options: {
     try {
       const manifestPath = join(directory, BUNDLE_MANIFEST_FILE_NAME);
       const manifestStat = await stat(manifestPath);
-      if (!manifestStat.isFile() || manifestStat.isSymbolicLink() || manifestStat.size > 64 * 1024) {
+      if (
+        !manifestStat.isFile() ||
+        manifestStat.isSymbolicLink() ||
+        manifestStat.size > 64 * 1024
+      ) {
         return undefined;
       }
       const parsed = JSON.parse(await readFile(manifestPath, "utf8")) as ContentBundleManifest;

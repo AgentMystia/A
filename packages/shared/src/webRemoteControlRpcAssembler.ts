@@ -7,7 +7,7 @@ import {
 import { measureWebRemoteControlRpcRelayEnvelopeBytes } from "./webRemoteControlRpcCodec.js";
 import {
   hasWebRemoteControlRawIdentityMismatch,
-  isCanonicalWebRemoteControlBase64,
+  isCanonicalBase64,
   parseWebRemoteControlRpcIdentity,
   sameWebRemoteControlFrameFingerprint,
   sameWebRemoteControlRpcIdentity,
@@ -124,8 +124,7 @@ export class WebRemoteControlRpcTransportAssembler {
         : undefined;
     if (
       typeof rawBase64 === "string" &&
-      (rawBase64.length > this.maxPhysicalFrameBytes ||
-        !isCanonicalWebRemoteControlBase64(rawBase64))
+      (rawBase64.length > this.maxPhysicalFrameBytes || !isCanonicalBase64(rawBase64))
     ) {
       return this.fault("remote.rpcFrame.invalidBase64", true);
     }
