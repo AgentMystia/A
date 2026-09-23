@@ -91,6 +91,15 @@ export function createDesktopPlatform(options: {
       : undefined,
     showTaskNotification: (payload) => window.zcode.showTaskNotification(payload),
     syncWindowTabs: (paths) => window.zcode.syncWindowTabs(paths),
+    syncWebRemoteControlWorkspaces: window.zcode.syncWebRemoteControlWorkspaces
+      ? (workspaces) => window.zcode.syncWebRemoteControlWorkspaces!(workspaces)
+      : undefined,
+    syncWebRemoteControlTasks: window.zcode.syncWebRemoteControlTasks
+      ? (tasks) => window.zcode.syncWebRemoteControlTasks!(tasks)
+      : undefined,
+    onWebRemoteControlReconnectWorkspace: window.zcode.onWebRemoteControlReconnectWorkspace
+      ? (callback) => window.zcode.onWebRemoteControlReconnectWorkspace!(callback)
+      : undefined,
     syncWindowUnreadCount: (count) => window.zcode.syncWindowUnreadCount(count),
     syncActiveTaskSession: (sessionId) => window.zcode.syncActiveTaskSession(sessionId),
     syncAppSettings: (patch) => window.zcode.syncAppSettings?.(patch),

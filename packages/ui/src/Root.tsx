@@ -81,7 +81,12 @@ import { ensureProviderFamilyDomainMigration } from "@/lib/providerFamilyDomainM
 import { useSettings } from "@/hooks/useSettingService.js";
 import { CLOSE_ACTIVE_CONTEXT_REQUEST_EVENT } from "@/lib/closeActiveContext.js";
 import { AssistantCodeCommentFeatureProvider } from "@/AssistantCodeCommentFeatureProvider.js";
-import { WebRemoteControlFeatureProvider } from "@/web-remote/webRemoteControlFeature.js";
+import {
+  WebRemoteControlFeatureProvider,
+  useWebRemoteControlFeatureEnabled,
+} from "@/web-remote/webRemoteControlFeature.js";
+import { useWebRemoteControlStatus } from "@/web-remote/useWebRemoteControlStatus.js";
+import { WebRemoteControlTaskSync } from "@/web-remote/sync/WebRemoteControlTaskSync.js";
 import {
   disposeConversationTelemetrySupervisors,
   reconcileConversationTelemetryWorkspaceScopes,
@@ -564,6 +569,34 @@ function RootInner({
   });
 
   useEffect(() => {
+    if (!platform.onWebRemoteControlReconnectWorkspace) {
+      return;
+    }
+    // 远控重连不能激活 workspace，也不能弹历史重连 toast。失败必须抛出，preload 才能把错误送回 main。
+    return platform.onWebRemoteControlReconnectWorkspace(async (request) => {
+      try {
+        await handleReconnectRemoteWorkspace(request.workspaceKey, {
+          activateWorkspaceAfterReconnect: false,
+          showErrorToast: false,
+          throwOnFailure: true,
+        });
+        return {
+          requestId: request.requestId,
+          workspaceKey: request.workspaceKey,
+          success: true,
+        };
+      } catch (error) {
+        return {
+          requestId: request.requestId,
+          workspaceKey: request.workspaceKey,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+  }, [handleReconnectRemoteWorkspace, platform]);
+
+  useEffect(() => {
     // fileDisplay 默认不传 basePath 时需要落到“当前激活 workspace”。
     // 之前纯工具层拿不到窗口内的 workspace 上下文，只能退回绝对路径，导致 mention / 文件展示在输入框里不够简洁。
     // 这里由 Root 在 workspace 切换时同步一份当前上下文，既保留工具层复用性，也不把 Zustand 依赖硬塞进工具函数。
@@ -640,6 +673,15 @@ function RootInner({
     });
   }, [isStartupRenderBlocked, welcomeScreenOpenReason]);
 
+  const webRemoteControlFeatureEnabled = useWebRemoteControlFeatureEnabled();
+  const webRemoteControlStatus = useWebRemoteControlStatus({
+    enabled: Boolean(
+      webRemoteControlFeatureEnabled && isDesktop && platform.syncWebRemoteControlTasks,
+    ),
+  });
+  const webRemoteControlSessionActive =
+    webRemoteControlStatus.status === "running" || webRemoteControlStatus.status === "active";
+
   useRootPlatformEffects({
     initialWorkspaceAbsPath,
     initialWorkspaceIdentity,
@@ -669,6 +711,8 @@ function RootInner({
     reconnectingRemoteWorkspaceKeys,
     remoteWorkspaceErrorByWorkspaceKey,
     totalUnreadTaskCount,
+    webRemoteControlFeatureEnabled,
+    webRemoteControlSessionActive,
     hasCompletedFullTabRestore: hasCompletedFullRestore,
     intl,
     isRestoringOAuthSession: isResolvingStartupAuthState || providerStartupSyncPending,
@@ -961,12 +1005,24 @@ function RootInner({
     onLogout: user ? handleLogout : undefined,
     user,
   };
+  const webRemoteControlTaskSyncNode =
+    hasCompletedFullRestore &&
+    webRemoteControlFeatureEnabled &&
+    webRemoteControlSessionActive &&
+    isDesktop &&
+    platform.syncWebRemoteControlTasks ? (
+      <WebRemoteControlTaskSync
+        syncWebRemoteControlTasks={platform.syncWebRemoteControlTasks}
+        workspaceTabs={windowWorkspaceTabs}
+      />
+    ) : null;
 
   if (isStartupRenderBlocked) {
     const loadingLabel = intl.formatMessage({ id: "common.loading" });
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
+        {webRemoteControlTaskSyncNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
         {/* HTML 启动壳已经展示 ZCode SVG，但 React 接管 root 后旧壳会被整棵替换。
@@ -981,6 +1037,7 @@ function RootInner({
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
+        {webRemoteControlTaskSyncNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
         <WelcomeScreen onComplete={handleWelcomeScreenComplete} />
@@ -999,6 +1056,7 @@ function RootInner({
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
+        {webRemoteControlTaskSyncNode}
         {initialWorkspaceLoadingFallback}
         {directoryBrowserDialog}
       </RootShell>
@@ -1008,6 +1066,7 @@ function RootInner({
   return (
     <RootShell>
       {rootModelSelectionErrorNode}
+      {webRemoteControlTaskSyncNode}
       {remoteConnectionDialog}
       {directoryBrowserDialog}
       <OccupationOnboarding

@@ -32,8 +32,12 @@ import type {
   RemoteConnectionRuntimeLog,
   RemoteSessionClosedEvent,
   RemoteTarget,
+  WebRemoteControlReconnectWorkspaceRequest,
+  WebRemoteControlReconnectWorkspaceResult,
   WebRemoteControlStartRequest,
   WebRemoteControlStatus,
+  WebRemoteControlTaskSnapshot,
+  WebRemoteControlWorkspaceSnapshot,
   SSHConfigAliasOption,
   RendererTelemetryEventPayload,
   RendererActionTraceBatchV1,
@@ -119,6 +123,16 @@ declare global {
       activateOrSetWorkspace?(path: string): Promise<{ activated: boolean }>;
       /** 同步当前窗口所有 tab 的 workspace 路径到 main 进程 */
       syncWindowTabs(paths: string[]): void;
+      /** 同步当前窗口里 Web 远程控制允许切换的 workspace */
+      syncWebRemoteControlWorkspaces?(workspaces: WebRemoteControlWorkspaceSnapshot[]): void;
+      /** 同步当前窗口里 Web 远程控制可展示的 task 快照 */
+      syncWebRemoteControlTasks?(tasks: WebRemoteControlTaskSnapshot[]): void;
+      /** Main 请求重连远控 workspace，结果经同一通道送回 */
+      onWebRemoteControlReconnectWorkspace?(
+        callback: (
+          request: WebRemoteControlReconnectWorkspaceRequest,
+        ) => Promise<WebRemoteControlReconnectWorkspaceResult>,
+      ): () => void;
       /** 同步当前窗口的未读 task 数到 main 进程 */
       syncWindowUnreadCount(count: number): void;
       syncActiveTaskSession(sessionId: string | null): void;

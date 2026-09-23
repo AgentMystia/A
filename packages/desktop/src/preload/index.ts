@@ -4,7 +4,7 @@ import {
   databaseStartupPortPayloadSchema,
 } from "@zcode/shared";
 /* eslint-disable max-lines -- preload bridge 集中暴露桌面平台 IPC，拆散会让 contextBridge 权限边界更难审计。 */
-import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
+import { contextBridge, ipcRenderer, webFrame, webUtils, type IpcRendererEvent } from "electron";
 import {
   installArmsRumBridgeIpcForward,
   scheduleArmsEventBridgePatch,
@@ -70,6 +70,7 @@ import type {
   PrintPageToPdfResult,
   SSHConfigAliasOption,
   RemoteConnectionRuntimeLog,
+  WebRemoteControlReconnectWorkspaceRequest,
   WebRemoteControlStartRequest,
   WebRemoteControlStatus,
   WindowControlsOverlayMetrics,
@@ -345,7 +346,38 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 同步当前窗口所有 tab 的 workspace 路径到 main 进程 */
   syncWindowTabs: (paths: string[]) => ipcRenderer.send(PlatformChannels.SyncWindowTabs, paths),
   /** 同步当前窗口里 Web 远程控制允许切换的 workspace */
+  syncWebRemoteControlWorkspaces: (workspaces: unknown) =>
+    ipcRenderer.send(PlatformChannels.SyncWebRemoteControlWorkspaces, workspaces),
   /** 同步当前窗口里 Web 远程控制可展示的 task 快照 */
+  syncWebRemoteControlTasks: (tasks: unknown) =>
+    ipcRenderer.send(PlatformChannels.SyncWebRemoteControlTasks, tasks),
+  /**
+   * Main 把重连请求发到当前窗口。回调结果必须回到同一通道，main 侧按 requestId 收口。
+   * 回调自己抛错时也要回失败，否则 main 会一直等到超时。
+   */
+  onWebRemoteControlReconnectWorkspace: (
+    callback: (request: WebRemoteControlReconnectWorkspaceRequest) => Promise<unknown>,
+  ) => {
+    const handler = async (
+      event: IpcRendererEvent,
+      request: WebRemoteControlReconnectWorkspaceRequest,
+    ) => {
+      try {
+        const result = await callback(request);
+        event.sender.send(PlatformChannels.WebRemoteControlReconnectWorkspace, result);
+      } catch (error) {
+        event.sender.send(PlatformChannels.WebRemoteControlReconnectWorkspace, {
+          requestId: request.requestId,
+          workspaceKey: request.workspaceKey,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+    ipcRenderer.on(PlatformChannels.WebRemoteControlReconnectWorkspace, handler);
+    return () =>
+      ipcRenderer.removeListener(PlatformChannels.WebRemoteControlReconnectWorkspace, handler);
+  },
   /** 同步当前窗口的未读 task 数到 main 进程 */
   syncWindowUnreadCount: (count: number) =>
     ipcRenderer.send(PlatformChannels.SyncWindowUnreadCount, count),

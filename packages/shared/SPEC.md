@@ -278,7 +278,29 @@ Root 挂载隐藏宿主 + 每个 workspace 订阅
 - 侧栏另有一条 effect：active task 变化时调用 `updateMobileViewState`，失败记 `[WorkspaceSidebar] 同步远控 mobileViewState 失败`。Switcher 存在时隐藏本地置顶区，并把 grouped 视图按 workspace 交给索引。工具栏渲染在索引内部、置顶区之前。
 - Switcher 的构造仍不在 renderer。没有 switcher 时继续用本地任务区。
 
-### 任务菜单里的 provider 配置与错误文案
+### 桌面发布远控任务与 workspace 快照
+
+已接受的远控 workspace 列表和 task 快照只存在 `createWebRemoteControlManager`。Renderer 只做当前窗口的投影，通过已有 IPC 整表替换，不另存一份队列。
+
+```text
+hasCompletedFullRestore
+  → 已连接远程 tab 先 syncWebRemoteControlWorkspaces
+  → feature 开启且状态为 running 或 active 时再发完整 workspace 快照
+useGlobalTaskList(pinned / timeline / archived)
+  → 三个列表都加载完才 syncWebRemoteControlTasks
+  → manager.syncAvailableTasks / syncAvailableWorkspaces
+Main 重连请求
+  → onWebRemoteControlReconnectWorkspace
+  → handleReconnectRemoteWorkspace（不激活、不 toast、失败抛出）
+  → 同一通道按 requestId 回结果
+```
+
+- 完整 workspace 快照和任务投影都要等 tab 全量恢复。未恢复前不发布，避免把启动期的半套 tab 当成远控可切换集合。
+- 已同时带有 `workspaceIdentity` 与 `remoteSessionId` 的远程 tab 会先单独发布，即使远控会话还没 running/active。功能关闭或会话未激活时不再发包含本地 tab 的完整列表。
+- 完整列表里的远程连接态按 identity（没有 identity 时用路径）查重连集合：命中为 reconnecting，有 session id 为 connected，否则 disconnected。非空的 `lastConnectionError` 只挂在远程 tab 上。
+- 任务投影分别读取 pinned、timeline、archived。对不上当前 workspace tab 的任务丢掉。`pinned` / `archived` 只在对应列表上写成 true。展示状态优先用会话 phase，draft 再退回 runtime status。三个列表按 pinned、timeline、archived 拼接后，按 updatedAt、createdAt、taskId 降序。
+- 任一列表仍在加载时不发送任务快照，并记录 `[Root] 暂缓同步 Web 远控任务快照，等待任务列表加载完成`。过早发送会用空列表覆盖 manager 里已经接受的快照。
+- 重连回调只复用现有历史重连。成功回 `{ success: true }`，失败回错误文本。Main 侧超时和校验仍由现有 `reconnectWebRemoteControlWorkspaceInRenderer` 负责。
 
 发布包任务菜单在复制 session id 之后提供「前往配置」。配置路径只由 `IZCodeTaskService.getWorkspaceProviderConfigFile` 回答；菜单和 hook 不另存一份已接受路径。
 

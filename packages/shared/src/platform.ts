@@ -32,6 +32,12 @@ import type {
   UpdateCheckResultPayload,
   UpdateStatePayload,
 } from "./update.js";
+import type {
+  WebRemoteControlReconnectWorkspaceRequest,
+  WebRemoteControlReconnectWorkspaceResult,
+  WebRemoteControlTaskSnapshot,
+  WebRemoteControlWorkspaceSnapshot,
+} from "./webRemoteControl.js";
 export type {
   PostUpdateReleaseNotesPayload,
   UpdateCheckResultPayload,
@@ -740,6 +746,22 @@ export interface IPlatformService {
 
   /** 同步当前窗口所有 tab 的 workspace 路径到 main 进程（用于跨窗口去重） */
   syncWindowTabs(paths: string[]): void;
+
+  /** 同步当前窗口里 Web 远程控制允许切换的 workspace。Main manager 保存已接受列表。 */
+  syncWebRemoteControlWorkspaces?(workspaces: WebRemoteControlWorkspaceSnapshot[]): void;
+
+  /** 同步当前窗口里 Web 远程控制可展示的 task 快照。Main manager 保存已接受列表。 */
+  syncWebRemoteControlTasks?(tasks: WebRemoteControlTaskSnapshot[]): void;
+
+  /**
+   * Main 请求重连一个远控 workspace。回调结果由 preload 送回同一通道。
+   * Web 端没有这条桥。
+   */
+  onWebRemoteControlReconnectWorkspace?(
+    callback: (
+      request: WebRemoteControlReconnectWorkspaceRequest,
+    ) => Promise<WebRemoteControlReconnectWorkspaceResult>,
+  ): () => void;
 
   /** 同步当前窗口的未读 task 数给宿主环境，用于 Dock / 任务栏徽标聚合 */
   syncWindowUnreadCount(count: number): void;

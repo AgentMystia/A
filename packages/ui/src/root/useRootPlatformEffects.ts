@@ -12,6 +12,7 @@ import { isShortcutRecordingActive } from "@/shortcuts/bindings.js";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { shouldPublishCompleteWorkspaceSnapshot } from "@/root/rootPlatformWorkspaceSync.js";
+import { resolveWebRemoteControlWorkspaceSyncPayloads } from "@/web-remote/sync/webRemoteControlSnapshotSync.js";
 import {
   createShareImportIntent,
   isShareImportIntentSame,
@@ -43,6 +44,8 @@ export function useRootPlatformEffects({
   reconnectingRemoteWorkspaceKeys = [],
   remoteWorkspaceErrorByWorkspaceKey = {},
   totalUnreadTaskCount,
+  webRemoteControlFeatureEnabled = false,
+  webRemoteControlSessionActive = false,
   hasCompletedFullTabRestore = true,
   intl,
   isRestoringOAuthSession,
@@ -76,6 +79,10 @@ export function useRootPlatformEffects({
   reconnectingRemoteWorkspaceKeys?: string[];
   remoteWorkspaceErrorByWorkspaceKey?: Record<string, string>;
   totalUnreadTaskCount: number;
+  /** 发布包默认 false。Root 传入功能开关；关闭时不发包含本地 tab 的完整快照。 */
+  webRemoteControlFeatureEnabled?: boolean;
+  /** 远控状态为 running 或 active。未激活时只保留已连接远程 tab 的提前发布。 */
+  webRemoteControlSessionActive?: boolean;
   hasCompletedFullTabRestore?: boolean;
   intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["intl"];
   isRestoringOAuthSession: boolean;
@@ -504,6 +511,36 @@ export function useRootPlatformEffects({
       .map((tab) => tab.workspacePath);
     platform.syncWindowTabs(paths);
   }, [hasCompletedFullTabRestore, isDesktop, platform, tabs]);
+
+  useEffect(() => {
+    if (
+      !isDesktop ||
+      !shouldPublishCompleteWorkspaceSnapshot(hasCompletedFullTabRestore) ||
+      !platform.syncWebRemoteControlWorkspaces
+    ) {
+      return;
+    }
+    // 已连接的远程 tab 先发。功能关闭或会话还没 running/active 时，不能把本地 tab 放进可切换列表。
+    const payloads = resolveWebRemoteControlWorkspaceSyncPayloads({
+      tabs,
+      reconnectingRemoteWorkspaceKeys,
+      remoteWorkspaceErrorByWorkspaceKey,
+      featureEnabled: webRemoteControlFeatureEnabled,
+      sessionActive: webRemoteControlSessionActive,
+    });
+    for (const payload of payloads) {
+      platform.syncWebRemoteControlWorkspaces(payload);
+    }
+  }, [
+    hasCompletedFullTabRestore,
+    isDesktop,
+    platform,
+    reconnectingRemoteWorkspaceKeys,
+    remoteWorkspaceErrorByWorkspaceKey,
+    tabs,
+    webRemoteControlFeatureEnabled,
+    webRemoteControlSessionActive,
+  ]);
 
   useEffect(() => {
     if (isDesktop) {
