@@ -110,9 +110,16 @@ function createSharedDefines() {
     __ZCODE_CUA_HELPER_BUILD_ID__: JSON.stringify(
       process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() || "pipeline-291748-cead36fd",
     ),
-    // 客户端只有一个 CDN 配置，与发布端 OSS 目标列表分离。
-    // 未设置时注入发布包 main chunk 的那一条发布根；显式主机名仍由 remoteCdn 补上 releases 后缀。
+    // 字符串 define 会在用到的位置直接折叠。数组 define 会被 esbuild 收成共享初始化模块。
     __ZCODE_CDN_BASE_URL__: JSON.stringify(env.ZCODE_CDN_BASE_URL?.trim() || ""),
+  };
+}
+
+function createMainDefines() {
+  // 发布包 main 的 runtime chunk 持有这一条 CDN 列表。host/preload/scheduler 不读它；
+  // 若同样 define 这个数组，esbuild 会在那些产物里再留一个空的 __esm，每个模块多一次初始化。
+  return {
+    ...createSharedDefines(),
     __ZCODE_REMOTE_CDN_BASE_URLS__: JSON.stringify(
       env.ZCODE_CDN_BASE_URL?.trim()
         ? [env.ZCODE_CDN_BASE_URL.trim()]
@@ -179,7 +186,7 @@ export default defineConfig([
       "@zcode/zcode-cua",
     ],
     // OTLP 端点与鉴权只在运行时读取；构建环境中的凭据不能写进公开安装包。
-    define: createSharedDefines(),
+    define: createMainDefines(),
     // main/host 同时 watch 且共享 out 根目录时，默认 chunk 命名会互相覆盖，
     // 可能让 main 的 import 指向被 host 刚重写的 chunk，触发“缺少命名导出”的偶发启动报错。
     // 这里按目标分目录输出 chunk，确保并发构建下产物隔离。
