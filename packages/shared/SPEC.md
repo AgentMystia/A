@@ -214,13 +214,13 @@ createRemoteWorkspaceServiceCollection
 - 产品 Helper 的运行态只属于 `CuaHelperHost`。`createProductCuaHelperHost` 在 macOS 上创建它，并固定 ghost cursor 与 PiP。启动前先占住 socket 预留；校验失败或 `stop()` 介入时终止已拉起的 pid。终止失败是 `termination_failed`，活进程身份对不上是 `verification_failed`。没有候选包是 `helper_missing`。
 - 稳定 socket 是运行时目录里的 `broker.sock`。随机启动 socket 才是 `broker-<16 hex>.sock`。Windows 管道前缀是 `\\.\pipe\zcode-cua-helper-`。`waitForCuaHelperStartup` 超时抛 `caller_timeout`。权限刷新标记和启动取消哨兵都写在这条传输旁边，不另建一套 Host。
 - `CuaHelperHost` 的原型方法只在构造时挂上。没有构造产品 Host 的进程不能因为加载了 broker 就把启动和终止实现打进包。
-- 加载 `broker.js` 时带上发布包里的 broker 方法表、16MiB 帧上限、项目配置文件名，以及 `broker_not_accepting` / `caller_timeout` / `restart_deferred_active_turn` 这组恢复码和提示文案。这些常量和 `CuaHelperError` 在同一条加载链上，main、host、scheduler 都有。
-- 进程参数带 `--exit-log` 时，同一次加载会把 Helper stderr 追加到该文件，并只保留最近 7 个 `zcode-cua-helper-YYYY-MM-DD.jsonl`。没有这个参数时立即返回，不改 stderr。
+- 加载 `broker.js` 时带上发布包里的 broker 方法表、16MiB 帧上限、项目配置文件名，以及 `broker_not_accepting` / `caller_timeout` / `restart_deferred_active_turn` 这组恢复码和提示文案。main 的 paths chunk、host index、scheduler index 都有这份表。`@zcode/zcode-cua/broker/helperHealth` 只加载 `broker-exchange.js`，不把方法表带进交换 chunk。
+- 进程参数带 `--exit-log` 时，加载 `broker.js` 会把 Helper stderr 追加到该文件，并只保留最近 7 个 `zcode-cua-helper-YYYY-MM-DD.jsonl`。没有这个参数时立即返回，不改 stderr。这段安装代码和 broker 方法表在同一条静态链上，不在 helperHealth 的交换 chunk 里。
 - `reapOrphanedHelpers` 只在 darwin 且能取到 uid 时扫描。它只对 ppid 为 1、可执行文件和随机 socket 都落在安装根里、launcher pid 已死或已变成非 ZCode 命令的 Helper 发 `SIGTERM`，单次最多 32 个。活着的 launcher 默认放过。
 - `isScreenCaptureProbeSuccess` 只接受 `foreign_window` 且内容证据为 `decoded_visible_non_uniform` 的探针。窗口尺寸和采样像素对不上时返回 false。
 - Provider 工作区配置目录只属于 `packages/services/src/paths.ts`。目录表记录 claude、opencode、gemini、codex、glm 的原生文件名，但不扩大 `ZCodeProvider`。`gemini` 落在隔离目录下的 `.gemini`；`glm` 使用数据根下的 runtime `nativeConfigDir`；其它 id 使用 `~/.zcode/v2/agent-config/<id>/<workspaceHash>`。Claude 历史导入的 projects 目录走这一个函数。
 
-- 简单交换只属于 `packages/zcode-cua/broker.js` 的 `brokerExchange`。`callBrokerMethod` / `probeHelperHealth` 走它：先发 `id:0` 的空 `authenticate`，再发 `id:1` 的业务方法。鉴权被拒是 `CuaHelperError`，`code` 为 `auth_failed`。`probeHelperHealth` 在截止时间前按 `broker_info` 轮询，超时 `code` 为 `health_timeout`。
+- 简单交换只属于 `packages/zcode-cua/broker-exchange.js` 的 `brokerExchange`。`CuaHelperError` 和 `isCuaHelperError` 也在这个文件里，`code` 是类字段。`broker.js` 再导出它们。`callBrokerMethod` / `probeHelperHealth` 走它：先发 `id:0` 的空 `authenticate`，再发 `id:1` 的业务方法。鉴权被拒是 `CuaHelperError`，`code` 为 `auth_failed`。`probeHelperHealth` 在截止时间前按 `broker_info` 轮询，超时 `code` 为 `health_timeout`。helperHealth 同时转出 `brokerExchange`，不转出 `isCuaHelperError`。host 会调用这个判断，所以它留在交换 chunk；main 和 scheduler 没有调用。
 - `PermissionBrokerClient` 只属于 `permissionBrokerClient.js`。每条 RPC 新建连接，鉴权帧带 `clientApiVersion:2` 与 `authenticateParams`，业务 id 从 1 递增。默认 peer 检查拒绝 world-writable socket；Windows 管道必须落在 `\\.\pipe\zcode-cua-helper-`。`hold_key` / `hold_key_to_app` 的等待时间是 `max(timeout, min(duration,30)*1000+5000)`。
 - PiP 客户端只属于 `pip-session-node.js`。它排队调用 `PermissionBrokerClient`，角色 `presentation`，协议 `2` / `zcode-cua-pip-session-v2`。事件 schema 与发布包 strict object 一致：`focus-changed`、`turn-started`、`turn-ended`、`session-closed`。握手不一致时记 `version_mismatch` 并不再发送。`broker_unavailable` 在 `reconnectAttempts` 内重试，其它错误立即抛出。诊断回调只发第一次。
 

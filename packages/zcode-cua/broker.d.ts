@@ -14,6 +14,21 @@ export declare class CuaHelperError extends Error {
 
 export declare function isCuaHelperError(value: unknown): value is CuaHelperError;
 
+export interface BrokerExchangeArgs {
+  socketPath: string;
+  method: string;
+  params?: unknown;
+  timeoutMs: number;
+}
+
+export interface BrokerExchangeMessage {
+  ok?: boolean;
+  result?: unknown;
+  error?: unknown;
+}
+
+export declare function brokerExchange(args: BrokerExchangeArgs): Promise<BrokerExchangeMessage>;
+
 export declare const notAuthorized: (message?: string, details?: unknown) => BrokerError;
 export declare const notSelectable: (message?: string, details?: unknown) => BrokerError;
 export declare const notSettable: (message?: string, details?: unknown) => BrokerError;
