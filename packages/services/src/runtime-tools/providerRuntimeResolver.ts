@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { resolve as resolvePath } from "node:path";
+import { dirname, resolve as resolvePath } from "node:path";
 import { ZCODE_AGENT_RUNTIME } from "@zcode/shared";
+
+// 发布包这条 path import 同时带 dirname。解析函数不用它。
+// void 保住绑定，压缩后 void 消失，不读目录。
+void dirname;
 
 const packagedResourcesPath =
   typeof (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath === "string"

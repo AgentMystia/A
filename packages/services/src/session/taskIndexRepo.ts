@@ -548,9 +548,9 @@ function migrateLegacyTaskMetaJson(
   } catch {
     stored = {};
   }
-  // 发布包把 traceId 三元写进对象，esbuild 先赋给临时变量再 parse。
-  // 先抽成局部变量会让 host paths 里的函数多出约 21 字节。
-  return zcodeTaskMetaSchema.parse({
+  // 发布包先把对象放进局部绑定再 parse。写在参数位置会被压成一次调用，host paths 少 8 字节。
+  // 必须是 let：const 会留成 const，对不上发布包的 let。
+  let migrated = {
     ...stored,
     taskId: fallback.taskId,
     traceId:
@@ -567,7 +567,8 @@ function migrateLegacyTaskMetaJson(
     model: typeof stored.model === "string" ? stored.model : fallback.model,
     status: typeof stored.status === "string" ? stored.status : fallback.status,
     migrationSource: undefined,
-  });
+  };
+  return zcodeTaskMetaSchema.parse(migrated);
 }
 
 export class TaskIndexRepo {
@@ -2107,7 +2108,7 @@ export class TaskIndexRepo {
         FROM tasks
         WHERE (@workspace_key IS NULL OR workspace_key = @workspace_key)
           AND (@include_deleted = 1 OR deleted = 0)
-          -- 按请求指定的 runtime provider 过滤；迁移来源另存于 migration_source。
+          -- Bugfix: ZCode Agent 列表只接受当前 glm provider；Claude Code 导入也属于非 glm 历史数据。
           AND (@provider IS NULL OR provider = @provider)
           AND (@pinned IS NULL OR pinned = @pinned)
           AND (@archived IS NULL OR archived = @archived)
