@@ -362,6 +362,30 @@ Root 初始化
 
 非减弱动效的进入和退出 transform 固定为字面量 `translate3d(-8px, -50%, 0)`。可见态是 `translate3d(0, -50%, 0)`。时长 0.2 秒，缓动 `[0.4, 0, 0.2, 1]`。减弱动效时 `initial` 为 false，时长为 0。面板不另存偏移像素。
 
+### 职业引导关闭决策
+
+引导是否再次出现只由 `onboarding-record.json` 回答。settings 里的职业仍是运行时偏好，不另存一份已关闭标志。文件的唯一所有者是 `createOnboardingRecordService`。
+
+```text
+关闭引导
+  → UI 先结束本次会话展示
+  → dismissOnboarding(deviceMid)
+  → 该 userId 已有 entry 则不写文件
+  → 否则按 userId upsert decision：status=dismissed，reason=user_closed
+  → 失败只记「写入关闭决策失败」
+shouldOnboard(deviceMid)
+  → entry 或 decision 已有该 userId：false
+  → 否则本地任务索引非空：追加 existing_local_user / existing_local_task，返回 false
+  → 否则 true
+appendRecord
+  → 覆盖该 userId 的 entry，并删除该 userId 的 decisions
+```
+
+- 磁盘版本是 2，带 `decisions`。读到版本 1 时补空数组；写出总是版本 2。
+- 同一 userId（未登录是 null）在 decisions 里至多一条。关闭覆盖旧决策。已有本地任务只在还没有该身份的 entry 或 decision 时追加，不覆盖已关闭决策。
+- `claimAnonymousRecord` 仅在登录用户还没有 entry 或 decision 时移交。先改写最后一条匿名 entry，否则改写最后一条匿名 decision。没有可移交对象时不写文件。
+- 本地任务是否存在只调用现有 `TaskIndexRepo.listTaskMetas({})`。索引在宿主装配时创建，不另建任务库。
+
 ### 对话遥测 parity 用例
 
 发布包 styles 在模块初始化时建好 `TDP01`–`TDP19` 用例表，并在桌面且 `VITE_ZCODE_E2E_STORE_BRIDGE=1` 时把 `window.__zcodeConversationTelemetryParityE2E` 设为 `{ variant: "current", run }`。这张表不拥有会话遥测；每次 `run` 只创建当次的 `ConversationTelemetrySupervisor`，结束时 flush 并 dispose。

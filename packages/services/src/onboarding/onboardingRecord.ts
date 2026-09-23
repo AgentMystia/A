@@ -21,8 +21,17 @@ export interface IOnboardingRecordService {
    * userId 由服务内部按当前登录态补全，调用方不传。
    */
   appendRecord(deviceMid: string, entry: OnboardingRecordEntryInput): Promise<void>;
-  /** 触发判定：当前用户（登录→userId；apikey/未登录→null）没有对应记录或文件不存在时为 true。 */
-  shouldOnboard(): Promise<boolean>;
+  /**
+   * 触发判定。entry 或 decision 已有当前 userId 时为 false。
+   * 都没有、但本地任务索引非空时写入 existing_local_user 并返回 false。
+   * deviceMid 只在此时创建新文件使用。
+   */
+  shouldOnboard(deviceMid: string): Promise<boolean>;
+  /**
+   * 用户关闭引导。该 userId 已有 entry 时不写。
+   * 否则按 userId 覆盖或追加 dismissed / user_closed。
+   */
+  dismissOnboarding(deviceMid: string): Promise<void>;
   /**
    * 登录认领：当前 userId 没有条目而存在匿名（null）条目时，把 null 条目移交给该 userId
    * （改写而非复制，避免同一引导行为产生双条目污染上传统计）。同一人"未登录答一次→登录"
@@ -56,6 +65,8 @@ export interface IOnboardingRecordService {
 /** 工厂入参：userId 解析注入（正式装配用 oauthCredentialRepo，测试用桩）。 */
 export interface CreateOnboardingRecordServiceOptions {
   loadUserId: () => Promise<string | null>;
+  /** 本地任务索引是否已有任务。只读现有 TaskIndexRepo，不另建索引。 */
+  hasExistingLocalTask: () => Promise<boolean>;
 }
 
 export type OnboardingRecordServiceFactory = (

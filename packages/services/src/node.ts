@@ -1455,8 +1455,11 @@ export function createLocalServices(options: {
   });
   const systemService = createSystemService();
   // onboarding 完成记录：userId 由登录态补全（apikey/未登录为 null）。
+  // 任务索引构造本身不打开数据库。提前创建是为了让 shouldOnboard 读取同一份本地任务列表。
+  const taskIndexRepo = new TaskIndexRepo();
   const onboardingRecordService = createOnboardingRecordService({
     loadUserId: async () => (await oauthCredentialRepo.loadActiveUserProfile())?.id ?? null,
+    hasExistingLocalTask: async () => (await taskIndexRepo.listTaskMetas({})).length > 0,
   });
   let handleOAuthProviderLogout: ReturnType<typeof createOAuthProviderLogoutHandler> | null = null;
   const oauthCredentialRepo = new OAuthCredentialRepo(credentialService, {
@@ -2290,9 +2293,7 @@ export function createLocalServices(options: {
   hasActiveTurnRef = () => zcodeAgentService.hasActiveCuaOperationTurn();
   // desktop-continuous UI 直接订阅 zcodeSessionService，绕开 ZCode task adapter 的
   // mapServiceEvent 路径，导致 task_complete 永远不会写回 sqlite，侧边栏 spinner 不停。
-  // 在 services 层装配一个共享的 taskIndexRepo + syncer，session 任意入口都会唤醒
-  // shadow 订阅，把 runtime 终态收敛进 sqlite。
-  const taskIndexRepo = new TaskIndexRepo();
+  // taskIndexRepo 已在引导判定处创建；这里继续用同一实例把 runtime 终态收敛进 sqlite。
   const zcodeTaskIndexSyncer = createZCodeTaskIndexSyncer({
     agentService: zcodeAgentService,
     taskIndexRepo,
