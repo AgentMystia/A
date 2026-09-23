@@ -109,6 +109,31 @@ export function getRuntimeInitialViewState(
   };
 }
 
+// 发布包 main 的 bootstrap 结果是具名函数。内联在 switch 里不会留下 buildBootstrapResult。
+export function buildBootstrapResult(input: {
+  runtime: WebRemoteControlRuntime;
+  appVersion?: string;
+  workspaces: readonly WebRemoteControlWorkspaceSnapshot[];
+  tasks: readonly WebRemoteControlTaskSnapshot[];
+}): {
+  windowControlSessionId: string;
+  desktopAppVersion?: string;
+  workspaces: WebRemoteControlWorkspaceSnapshot[];
+  tasks: WebRemoteControlTaskSnapshot[];
+  initialViewState: WebRemoteControlMobileView | undefined;
+  mobileViewState: WebRemoteControlMobileView | undefined;
+} {
+  const { runtime } = input;
+  return {
+    windowControlSessionId: runtime.deviceSid,
+    desktopAppVersion: input.appVersion,
+    workspaces: getAvailableWorkspaces(runtime, input.workspaces),
+    tasks: getAvailableTasks(runtime, input.workspaces, input.tasks),
+    initialViewState: getRuntimeInitialViewState(runtime),
+    mobileViewState: runtime.mobileViewState,
+  };
+}
+
 export function buildWorkspaceListPushSignature(input: {
   workspaces: readonly WebRemoteControlWorkspaceSnapshot[];
   tasks: readonly WebRemoteControlTaskSnapshot[];

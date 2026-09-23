@@ -110,17 +110,25 @@ export const logger = {
   fromRenderer: (level: LogLevel, args: unknown[]) => write(level, "renderer", ...args),
 };
 
-function writeDedicatedRelayLine(level: Exclude<LogLevel, "debug">, ...args: unknown[]): void {
+// 发布包 keepName 是 writeDedicated(fileStem, level, source, ...args)。
+// relay 日志的文件名前缀和行内 source 都是 web-remote-control-relay。
+function writeDedicated(
+  fileStem: string,
+  level: Exclude<LogLevel, "debug">,
+  source: string,
+  ...args: unknown[]
+): void {
   const now = new Date();
-  const source = "web-remote-control-relay";
   const message = args
     .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
     .join(" ");
   const line = `[${formatTimestamp(now)}] [${level}] [pid:${process.pid}] [${source}] ${message}\n`;
-  const directory = join(getLogDir(), "web-remote-control");
-  const filePath = join(directory, `${source}-${formatDate(now)}.log`);
+  const logDir = getLogDir();
+  mkdirSync(logDir, { recursive: true });
+  const directory = join(logDir, "web-remote-control");
+  mkdirSync(directory, { recursive: true });
+  const filePath = join(directory, `${fileStem}-${formatDate(now)}.log`);
   try {
-    mkdirSync(directory, { recursive: true });
     maybeThrowInjectedFsFault({ operation: "appendFile", path: filePath });
     appendFileSync(filePath, line);
   } catch {
@@ -130,7 +138,10 @@ function writeDedicatedRelayLine(level: Exclude<LogLevel, "debug">, ...args: unk
 
 /** 发布包把 relay 报文写到 logs/web-remote-control/，不进主日志。 */
 export const webRemoteControlRelayLogger = {
-  info: (...args: unknown[]) => writeDedicatedRelayLine("info", ...args),
-  warn: (...args: unknown[]) => writeDedicatedRelayLine("warn", ...args),
-  error: (...args: unknown[]) => writeDedicatedRelayLine("error", ...args),
+  info: (...args: unknown[]) =>
+    writeDedicated("web-remote-control-relay", "info", "web-remote-control-relay", ...args),
+  warn: (...args: unknown[]) =>
+    writeDedicated("web-remote-control-relay", "warn", "web-remote-control-relay", ...args),
+  error: (...args: unknown[]) =>
+    writeDedicated("web-remote-control-relay", "error", "web-remote-control-relay", ...args),
 };

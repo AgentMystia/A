@@ -77,6 +77,8 @@ function toBuffer(data: RawData): Buffer {
 }
 
 function parseRelayMessage(data: RawData): Record<string, unknown> | null {
+  // 发布包在解析前用同一字节上限丢掉超限帧。只留在 message 回调里会少这段判断。
+  if (estimateRawDataBytes(data) > WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes) return null;
   try {
     const parsed: unknown = JSON.parse(toBuffer(data).toString("utf8"));
     if (!parsed || typeof parsed !== "object" || !("type" in parsed)) return null;
@@ -84,6 +86,64 @@ function parseRelayMessage(data: RawData): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function safePayloadMetadata(payload: unknown): {
+  zcode_type?: string;
+  requestId?: string;
+  bridgeSessionId?: string;
+} {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+  const record = payload as Record<string, unknown>;
+  return {
+    zcode_type: typeof record.zcode_type === "string" ? record.zcode_type : undefined,
+    requestId: typeof record.requestId === "string" ? record.requestId : undefined,
+    bridgeSessionId:
+      typeof record.bridgeSessionId === "string" ? record.bridgeSessionId : undefined,
+  };
+}
+
+function summarizeRelayMessageForTrace(message: {
+  type?: unknown;
+  payload?: unknown;
+  pair_status?: unknown;
+  role?: unknown;
+  code?: unknown;
+}): Record<string, unknown> {
+  if (message.type === "pair_status_ack")
+    return { type: message.type, pair_status: message.pair_status };
+  if (message.type === "auth_init") return { type: message.type, role: message.role };
+  if (message.type === "data") {
+    const payload = message.payload;
+    const seq =
+      payload && typeof payload === "object" && !Array.isArray(payload) && "seq" in payload
+        ? (payload as { seq?: unknown }).seq
+        : undefined;
+    return {
+      type: message.type,
+      payload: safePayloadMetadata(message.payload),
+      ...(typeof seq === "number" ? { seq } : {}),
+    };
+  }
+  return message.type === "error"
+    ? { type: message.type, code: message.code }
+    : { type: message.type };
+}
+
+function createMessageHashFromRaw(data: RawData): string {
+  const bytes =
+    typeof data === "string"
+      ? Buffer.from(data, "utf8")
+      : data instanceof ArrayBuffer
+        ? Buffer.from(data)
+        : ArrayBuffer.isView(data)
+          ? Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+          : Buffer.from(String(data), "utf8");
+  return createHash("sha1").update(bytes).digest("hex").slice(0, 16);
+}
+
+function createMessageHashFromText(text: string): string {
+  return createHash("sha1").update(text, "utf8").digest("hex").slice(0, 16);
 }
 
 export class WebRemoteControlDeviceTransport implements WebRemoteControlDeviceTransportSession {
@@ -212,7 +272,11 @@ export class WebRemoteControlDeviceTransport implements WebRemoteControlDeviceTr
         this.options.logger.warn("[web-remote-control] invalid external relay message");
         return;
       }
-      this.logRelayTrace("recv", { type: message.type, bytes });
+      this.logRelayTrace("recv", {
+        ...summarizeRelayMessageForTrace(message),
+        bytes,
+        contentHash: createMessageHashFromRaw(data),
+      });
       void handleRelayMessage(this, message);
     });
     socket.on("error", (error) => {
@@ -288,9 +352,9 @@ export class WebRemoteControlDeviceTransport implements WebRemoteControlDeviceTr
   ): boolean {
     if (this.socket?.readyState !== WebSocket.OPEN) return false;
     this.logRelayTrace("send", {
-      type: message.type,
+      ...summarizeRelayMessageForTrace(message),
       bytes: Buffer.byteLength(json, "utf8"),
-      contentHash: createHash("sha1").update(json, "utf8").digest("hex").slice(0, 16),
+      contentHash: createMessageHashFromText(json),
     });
     this.socket.send(json);
     return true;

@@ -1,7 +1,7 @@
 import { buildWebRemoteControlExternalQrUrl, type WebRemoteControlStatus } from "@zcode/shared";
 import { resetExternalRelayDeviceAuth } from "./auth.js";
 import { mapTransportState, emitRuntimeStatus, type BridgeRouterState } from "./bridgeRouter.js";
-import { routeRawTransportPayload, routeWebRemoteControlPayload } from "./bridgeSession.js";
+import { routeRawTransportCandidate, routeWebRemoteControlPayload } from "./bridgeSession.js";
 import { WebRemoteControlDeviceTransport } from "./deviceTransport.js";
 import {
   clearMobileDisconnectGraceTimer,
@@ -105,7 +105,7 @@ export async function startWebRemoteControlSession(input: {
           resolveReady();
       },
       onPayload: (payload) => routeWebRemoteControlPayload(deps, state, runtime, payload),
-      onRawTransportPayload: (payload) => routeRawTransportPayload(runtime, payload),
+      onRawTransportPayload: (payload) => routeRawTransportCandidate(runtime, payload),
       onRawTransportFault: (reasonCode) =>
         runtime.currentBridge?.relayProtocol?.markDegraded(reasonCode),
       onSendReady: () => {

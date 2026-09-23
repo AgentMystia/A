@@ -24,11 +24,10 @@ import {
   type WebRemoteControlRuntime,
 } from "./runtimeTypes.js";
 import {
-  getAvailableTasks,
+  buildBootstrapResult,
   getAvailableWorkspaces,
   bridgeIdentityFields,
   isBridgeableRemoteWorkspace,
-  getRuntimeInitialViewState,
   toExternalBridge,
   resolveWebRemoteControlWorkspaceKey,
 } from "./workspaceProjection.js";
@@ -228,21 +227,12 @@ export function routeWebRemoteControlPayload(
           zcode_type: "bootstrap-response",
           requestId: payload.requestId,
           success: true,
-          result: {
-            windowControlSessionId: runtime.deviceSid,
-            desktopAppVersion: deps.appVersion,
-            workspaces: getAvailableWorkspaces(
-              runtime,
-              state.workspaces.get(runtime.windowId) ?? [],
-            ),
-            tasks: getAvailableTasks(
-              runtime,
-              state.workspaces.get(runtime.windowId) ?? [],
-              state.tasks.get(runtime.windowId) ?? [],
-            ),
-            initialViewState: getRuntimeInitialViewState(runtime),
-            mobileViewState: runtime.mobileViewState,
-          },
+          result: buildBootstrapResult({
+            runtime,
+            appVersion: deps.appVersion,
+            workspaces: state.workspaces.get(runtime.windowId) ?? [],
+            tasks: state.tasks.get(runtime.windowId) ?? [],
+          }),
         },
         deps.logger,
       );
@@ -263,42 +253,23 @@ export function routeWebRemoteControlPayload(
       void respondToPlatformRequest(deps, runtime, payload);
       return;
     case "mobile-view-state-update":
-      runtime.mobileViewState = payload.viewState;
-      if (payload.deviceInfo) runtime.mobileDeviceInfo = payload.deviceInfo;
+      applyMobileViewStateUpdate(runtime, payload.viewState, payload.deviceInfo);
       return;
     case "workspace-bridge-open":
       void respondToWorkspaceBridgeOpen(deps, state, runtime, payload);
       return;
     case "workspace-reconnect-request":
-      void respondToReconnect(deps, runtime, payload);
+      void respondToWorkspaceReconnectRequest(deps, runtime, payload);
       return;
     case "rpc-frame":
     case "rpc-frame-ack":
-      if (!runtime.currentBridge || runtime.currentBridge.degraded) return;
-      runtime.currentBridge.relayProtocol?.acceptPayload(payload);
+      routeRpcTransportPayload(runtime, payload);
       return;
     case "telemetry-report":
       deps.reportRendererTelemetryEvent?.(payload.event);
       return;
     case "mobile-diagnostic":
-      deps.logger.info("[web-remote-control] mobile diagnostic", {
-        window: runtime.windowId,
-        session: runtime.deviceSid,
-        event: payload.event,
-        state: payload.state,
-        previousState: payload.previousState,
-        pairStatus: payload.pairStatus,
-        closeCode: payload.closeCode,
-        closeReason: payload.closeReason,
-        wasClean: payload.wasClean,
-        wasPaired: payload.wasPaired,
-        failureReason: payload.failureReason,
-        failureMessage: payload.failureMessage,
-        visibilityState: payload.visibilityState,
-        online: payload.online,
-        hiddenDurationMs: payload.hiddenDurationMs,
-        timestamp: payload.timestamp,
-      });
+      logMobileDiagnostic(deps, runtime, payload);
       return;
     default:
       return;
@@ -342,7 +313,8 @@ async function respondToPlatformRequest(
   }
 }
 
-async function respondToReconnect(
+// 发布包 keepNames 认 respondToWorkspaceReconnectRequest。缩短后的名字对不上 main。
+async function respondToWorkspaceReconnectRequest(
   deps: WebRemoteControlManagerDependencies,
   runtime: WebRemoteControlRuntime,
   request: Extract<WebRemoteControlAppPayload, { zcode_type: "workspace-reconnect-request" }>,
@@ -374,11 +346,50 @@ async function respondToReconnect(
   }
 }
 
-export function routeRawTransportPayload(
+// 发布包把 rpc 帧先交给 routeRpcTransportPayload，再由 routeRawTransportCandidate 决定是否收下。
+function routeRpcTransportPayload(runtime: WebRemoteControlRuntime, payload: unknown): void {
+  routeRawTransportCandidate(runtime, payload);
+}
+
+export function routeRawTransportCandidate(
   runtime: WebRemoteControlRuntime,
   payload: unknown,
 ): boolean {
   const bridge = runtime.currentBridge;
   if (!bridge || bridge.degraded) return false;
   return bridge.relayProtocol?.acceptPayload(payload) ?? false;
+}
+
+function applyMobileViewStateUpdate(
+  runtime: WebRemoteControlRuntime,
+  viewState: WebRemoteControlRuntime["mobileViewState"],
+  deviceInfo: WebRemoteControlRuntime["mobileDeviceInfo"],
+): void {
+  runtime.mobileViewState = viewState;
+  if (deviceInfo) runtime.mobileDeviceInfo = deviceInfo;
+}
+
+function logMobileDiagnostic(
+  deps: WebRemoteControlManagerDependencies,
+  runtime: WebRemoteControlRuntime,
+  payload: Extract<WebRemoteControlAppPayload, { zcode_type: "mobile-diagnostic" }>,
+): void {
+  deps.logger.info("[web-remote-control] mobile diagnostic", {
+    window: runtime.windowId,
+    session: runtime.deviceSid,
+    event: payload.event,
+    state: payload.state,
+    previousState: payload.previousState,
+    pairStatus: payload.pairStatus,
+    closeCode: payload.closeCode,
+    closeReason: payload.closeReason,
+    wasClean: payload.wasClean,
+    wasPaired: payload.wasPaired,
+    failureReason: payload.failureReason,
+    failureMessage: payload.failureMessage,
+    visibilityState: payload.visibilityState,
+    online: payload.online,
+    hiddenDurationMs: payload.hiddenDurationMs,
+    timestamp: payload.timestamp,
+  });
 }

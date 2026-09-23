@@ -33,14 +33,14 @@ export function ensureDesktopDeviceMidSync(options?: EnsureDesktopDeviceMidSyncO
     const configDir = options?.configDir ?? getAppConfigDir();
     const stateFile = join(configDir, "telemetry-state.json");
 
-    const state = readDeviceStateSync(stateFile);
+    const state = readTelemetryStateSync(stateFile);
     if (typeof state.deviceMid === "string" && state.deviceMid) {
       return state.deviceMid;
     }
 
     const deviceMid = createId();
     state.deviceMid = deviceMid;
-    writeDeviceStateSync(stateFile, state);
+    writeTelemetryStateSync(stateFile, state);
     return deviceMid;
   } catch {
     // fs / JSON 异常兜底：保证一定有返回值，窗口创建不阻塞
@@ -48,7 +48,8 @@ export function ensureDesktopDeviceMidSync(options?: EnsureDesktopDeviceMidSyncO
   }
 }
 
-function readDeviceStateSync(stateFile: string): Record<string, unknown> {
+// 发布包 keepName 是 readTelemetryStateSync，不是 readDeviceStateSync。
+function readTelemetryStateSync(stateFile: string): Record<string, unknown> {
   try {
     const raw = readFileSync(stateFile, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
@@ -58,7 +59,8 @@ function readDeviceStateSync(stateFile: string): Record<string, unknown> {
   }
 }
 
-function writeDeviceStateSync(stateFile: string, state: Record<string, unknown>): void {
+// 发布包 keepName 是 writeTelemetryStateSync。原子写仍是临时文件加 rename。
+function writeTelemetryStateSync(stateFile: string, state: Record<string, unknown>): void {
   const dir = dirname(stateFile);
   mkdirSync(dir, { recursive: true });
   const tempFile = `${stateFile}.${process.pid}.tmp`;
