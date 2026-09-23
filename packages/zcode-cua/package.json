@@ -2,7 +2,7 @@
   "name": "@zcode/zcode-cua",
   "version": "0.6.3",
   "private": true,
-  "description": "Computer Use protocol package. Helper install still fails closed; broker RPC and the PiP session client follow the published host.",
+  "description": "Computer Use protocol package. macOS Helper auto-install follows the published host; broker RPC and the PiP session client do too.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {

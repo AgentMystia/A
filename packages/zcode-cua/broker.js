@@ -16,10 +16,11 @@ export class BrokerError extends Error {
 }
 
 export class CuaHelperError extends Error {
-  constructor(message, options = {}) {
-    super(message ?? "Computer Use Helper is unavailable.");
+  constructor(code, message, options) {
+    super(message);
     this.name = "CuaHelperError";
-    this.code = options.code ?? "helper_unavailable";
+    this.code = code;
+    if (options?.cause !== undefined) this.cause = options.cause;
   }
 }
 
@@ -116,7 +117,7 @@ export async function callBrokerMethod(args) {
     response = await brokerExchange({ socketPath, method, params, timeoutMs });
   } catch (error) {
     if (error instanceof BrokerAuthRejectedError) {
-      throw new CuaHelperError(sanitize("broker auth rejected"), { code: "auth_failed" });
+      throw new CuaHelperError("auth_failed", sanitize("broker auth rejected"));
     }
     throw error;
   }
@@ -156,8 +157,8 @@ export async function probeHelperHealth(socketPath, options = {}) {
     } catch (error) {
       if (error instanceof BrokerAuthRejectedError) {
         throw new CuaHelperError(
+          "auth_failed",
           "ZCode Computer Use rejected this process as a broker peer (code-signature gate). ZCode and the helper may be version-mismatched; reinstall or repair the helper component.",
-          { code: "auth_failed" },
         );
       }
       lastError = error;
@@ -168,8 +169,8 @@ export async function probeHelperHealth(socketPath, options = {}) {
   const detail =
     lastError instanceof Error ? lastError.message : String(lastError ?? "no connection");
   throw new CuaHelperError(
+    "health_timeout",
     `ZCode Computer Use did not become ready within ${timeoutMs}ms. It may have failed to launch or lacks required permissions (${detail}).`,
-    { code: "health_timeout" },
   );
 }
 
@@ -209,11 +210,11 @@ export function serializeResponse(response) {
 }
 
 export async function dispatchRequest(_backend, _request) {
-  throw new CuaHelperError("Computer Use is not available in this build.");
+  throw new CuaHelperError("helper_unavailable", "Computer Use is not available in this build.");
 }
 
 export async function handleRequestLine(_backend, _line) {
-  throw new CuaHelperError("Computer Use is not available in this build.");
+  throw new CuaHelperError("helper_unavailable", "Computer Use is not available in this build.");
 }
 
 export function isBrokerMethod(_method) {

@@ -193,7 +193,13 @@ createRemoteWorkspaceServiceCollection
 
 ### 发布包权限 broker 与 PiP 客户端
 
-发布包 host 把两套互不替代的 socket 客户端打进了不同 chunk。Helper 安装、原生 addon 和 frame 谓词在本仓库仍是 fail-closed 占位，不从混淆产物另写一套安装器。
+发布包 host 把两套互不替代的 socket 客户端打进了不同 chunk。原生 addon 与 frame 谓词仍是 fail-closed 占位。macOS Helper 自动安装只属于现有的 `createCuaHelperInstaller`，不另起一套安装器。
+
+- `CuaHelperError` 的参数顺序是 `code`、`message`、`options`。安装失败的 `code` 是 `install_failed`，校验失败是 `verification_failed`，缺少本地包是 `helper_missing`，下载失败是 `download_failed`。
+- 安装计划在创建 installer 时同步决定。非 macOS、解析不到 `${ZCODE_HOME:-$HOME/.zcode}`、打包态缺少内嵌 build id 或 bundled `.app`、安装根不在 `stable` / `preview` / `dev-desktop` / `standalone` 时直接抛 `install_failed`。本地开发才允许 `ZCODE_TARGET_OS` / `ZCODE_TARGET_ARCH` 覆盖平台。打包态版本字面量是 `3.14.1`，Team ID 是 `8A5X4JJ39T`。
+- `ensureInstalled` 以解析后的 app 路径做单飞。macOS 安装租约是安装根目录里的 `.zcode-cua-helper-install.lock`（`O_EXLOCK`，等待 120s）。已安装包校验通过且本地 bundled 载荷没变时直接返回；否则暂存、校验、替换、清 quarantine、写 `.zcode-cua-helper-meta.json`。
+- 下载根只认 `ZCODE_CUA_HELPER_DOWNLOAD_BASE_URL`、`ZCODE_DEPS_BASE_URL` 或调用方自己的 `INTRANET_MACHINE_HOST`。发布包里的内网默认主机名不写入仓库。
+- 内嵌 Helper build id 来自 `__ZCODE_CUA_HELPER_BUILD_ID__`。未注入时桌面打包使用发布包里的 `pipeline-291748-cead36fd`，环境变量仍可覆盖。这不是应用提交号。
 
 - 简单交换只属于 `packages/zcode-cua/broker.js` 的 `brokerExchange`。`callBrokerMethod` / `probeHelperHealth` 走它：先发 `id:0` 的空 `authenticate`，再发 `id:1` 的业务方法。鉴权被拒是 `CuaHelperError`，`code` 为 `auth_failed`。`probeHelperHealth` 在截止时间前按 `broker_info` 轮询，超时 `code` 为 `health_timeout`。
 - `PermissionBrokerClient` 只属于 `permissionBrokerClient.js`。每条 RPC 新建连接，鉴权帧带 `clientApiVersion:2` 与 `authenticateParams`，业务 id 从 1 递增。默认 peer 检查拒绝 world-writable socket；Windows 管道必须落在 `\\.\pipe\zcode-cua-helper-`。`hold_key` / `hold_key_to_app` 的等待时间是 `max(timeout, min(duration,30)*1000+5000)`。

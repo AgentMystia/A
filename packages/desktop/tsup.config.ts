@@ -105,10 +105,10 @@ function createSharedDefines() {
     __ZCODE_ENDPOINT_ENV__: JSON.stringify(pickProductEndpointEnv(env)),
     __ZCODE_PRODUCT_FLAVOR__: JSON.stringify(zcodeProductFlavor),
     // Computer Use Helper build identity — helperInstaller 读它决定下载哪个 Helper bundle。
-    // 缺失时 installer 抛 "Packaged ZCode is missing its embedded Computer Use Helper build identity"。
-    // CI 构建时通过 ZCODE_CUA_HELPER_BUILD_ID env 注入；dev 为空串走兜底（dev helper 不走下载）。
+    // 发布包 host 折叠的是 pipeline-291748-cead36fd。这是 Helper 构件身份，不是应用提交号。
+    // 显式 ZCODE_CUA_HELPER_BUILD_ID 仍覆盖该默认值。
     __ZCODE_CUA_HELPER_BUILD_ID__: JSON.stringify(
-      process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? "",
+      process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() || "pipeline-291748-cead36fd",
     ),
     // 客户端只有一个 CDN 配置，与发布端 OSS 目标列表分离。
     // 未设置时注入发布包 main chunk 的那一条发布根；显式主机名仍由 remoteCdn 补上 releases 后缀。

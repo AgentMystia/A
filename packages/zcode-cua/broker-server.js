@@ -1,4 +1,13 @@
 import { CuaHelperError } from "./broker.js";
+import { isCuaLocalDevelopmentRuntime } from "./helper-install-plan.js";
+import { defaultCuaHelperVerifierDependencies } from "./helper-install-verify.js";
+import { createCuaHelperInstaller } from "./helper-install-stage.js";
+
+export {
+  isCuaLocalDevelopmentRuntime,
+  defaultCuaHelperVerifierDependencies,
+  createCuaHelperInstaller,
+};
 
 export const HELPER_ADDON_ENV = "ZCODE_CUA_HELPER_ADDON";
 export const WINDOWS_DEV_CONTROL_PROTOCOL = "zcode-cua-windows-dev/v1";
@@ -6,7 +15,7 @@ export const WINDOWS_DEV_CONTROL_PROTOCOL = "zcode-cua-windows-dev/v1";
 const UNAVAILABLE = "Computer Use is not available in this build.";
 
 function unavailableReject() {
-  return Promise.reject(new CuaHelperError(UNAVAILABLE));
+  return Promise.reject(new CuaHelperError("helper_unavailable", UNAVAILABLE));
 }
 
 export function buildHelperOpenArgs(_spec, _launcherPid) {
@@ -14,25 +23,8 @@ export function buildHelperOpenArgs(_spec, _launcherPid) {
 }
 
 export async function resolveHelperPermissionSubjectIdentity(_appPath) {
-  throw new CuaHelperError(UNAVAILABLE);
+  throw new CuaHelperError("helper_unavailable", UNAVAILABLE);
 }
-
-export function isCuaLocalDevelopmentRuntime(_env, _compiledLocalDevelopmentRuntime) {
-  return false;
-}
-
-export function createCuaHelperInstaller(_options) {
-  return {
-    ensureInstalled: unavailableReject,
-    verifyInstalled: unavailableReject,
-  };
-}
-
-export const defaultCuaHelperVerifierDependencies = {
-  readExecutableArchs: unavailableReject,
-  verifyCodeSignature: unavailableReject,
-  verifyTeamIdentifier: unavailableReject,
-};
 
 export function cuaBrokerRefreshMarkerPath(_socketPath) {
   return undefined;
@@ -43,7 +35,7 @@ export async function publishCuaBrokerRefreshMarker(_socketPath, _options) {
 }
 
 export function loadRealNativeAddon(_options) {
-  throw new CuaHelperError(UNAVAILABLE);
+  throw new CuaHelperError("helper_unavailable", UNAVAILABLE);
 }
 
 export function resolvePackagedNativeAddonPath(_options) {
