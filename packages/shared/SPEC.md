@@ -61,6 +61,7 @@ renderer hook → ProxyChannel → Host 单例
 - cloud-content zip 入口必须是 `.html`，单文件 8MiB，解包合计 32MiB，磁盘 cache 128MiB。这三个上限定义在 `contentBundleExtract.ts`，和 `yauzl` 的 import 放在同一模块，避免被折叠成整数。路径校验和 `.bundle.json` 仍只属于 `contentBundlePath.ts`。loopback 只监听 `127.0.0.1`。
 - 官方 Computer Use 插件是否启用只由 `packages/zcode-cua/helper-official-plugin.js` 读取。插件 id 复用 `computer-use@zcode-plugins-official`。项目配置文件名复用 broker catalog 里的 `zcode.json` / `.zcode/config.json`，不另写一份。用户配置默认是 `~/.zcode/cli/config.json`。没有 `.git` 工作树标记时只看起始目录。`features.mcp`、`plugins.enabled` 和 `enabledPlugins` 里该插件 id 必须都为真。这段逻辑只随 host 的 `isOfficialCuaPluginEnabledForWorkspace` 加载。
 - broker catalog 随 `CuaHelperError` 保留一个未引用的 128MiB 上限 `PUBLISHED_UNUSED_BYTE_CEILING`。它不是 content bundle cache。发布包把这个上限放在未使用的 `execFileSync` / `platform` import 旁边；当前打包器会丢掉那个空模块，所以上限跟 catalog 的 side effect 走。
+- `win32NamedPipeParentSchema` 跟 catalog 走同一条 `CuaHelperError` 加载链，main、host、scheduler 都保留这个未引用的 zod 对象。`platform` 只能是 `win32`。`socketPath` 必须通过 `isWindowsNamedPipePath` 且长度大于 9。`parentPid` 是 coerce 后的正整数。协议字符串 `zcode-cua-windows-dev/v1` 仍只在 host 的 broker server 里。
 - bots provider：telegram / webhook / feishu / lark / weixin 可用；discord / wecom 仅占位。
 - 远端 workspace 的 bots 不跑 startup polling（`runStartupBackgroundTasks: false`），也不注册 marketing / cloud-content。
 - 飞书 App ID 必须匹配 `/^cli_[0-9a-fA-F]{16}$/`。飞书注册走 `accounts.feishu.cn` / `accounts.larksuite.com` 的 `/oauth/v1/app/registration`，`source=node-sdk/zcode`。

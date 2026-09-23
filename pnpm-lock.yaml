@@ -1335,7 +1335,11 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
 
-  packages/zcode-cua: {}
+  packages/zcode-cua:
+    dependencies:
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
 
   packages/zcode-server-cli:
     dependencies:

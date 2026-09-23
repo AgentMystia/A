@@ -54,5 +54,8 @@
       "types": "./broker-helper-health.d.ts",
       "import": "./broker-helper-health.js"
     }
+  },
+  "dependencies": {
+    "zod": "4.6.5"
   }
 }
