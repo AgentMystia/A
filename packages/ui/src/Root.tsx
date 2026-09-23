@@ -86,6 +86,7 @@ import {
   disposeConversationTelemetrySupervisors,
   reconcileConversationTelemetryWorkspaceScopes,
 } from "@/v4/telemetry/ConversationTelemetryAttachment.js";
+import { installConversationTelemetryParityE2E } from "@/v4/telemetry/conversationTelemetryParityE2E.js";
 
 const DEFAULT_LUCIDE_STROKE_WIDTH = 1.5;
 interface RemoteConnectionOpenPreference {
@@ -186,6 +187,11 @@ function RootInner({
       setSendFunnelArmsReporter(null);
     };
   }, [isDesktop, platform]);
+
+  useEffect(
+    () => installConversationTelemetryParityE2E({ platform, isDesktop: isDesktop === true }),
+    [isDesktop, platform],
+  );
 
   useEffect(
     () => () => {

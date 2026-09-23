@@ -287,3 +287,14 @@ Root 挂载隐藏宿主 + 每个 workspace 订阅
 - `exists === false` 时打开父目录。盘符根目录保持 `X:\\`。优先用上次选择的已安装编辑器，失败再交给现有 `openInFileManager`。手机远控隐藏该菜单项。
 - 个人市场 id `claude-plugins-official` 的分组标题使用 `settings.plugins.marketplace.claudeCodePlugins`。它不是官方市场，也不恢复已下线的 pluginNames 精选名单。列表分组 memo 和市场源对话框都无条件格式化这条文案。该 id 排在官方市场之后，不能移除，刷新失败也不展示。
 - `CLAUDE_UNKNOWN_COMMAND` 在「没有可用模型」之后、provider business 文案之前解析。消息匹配 `Claude Code 未知命令 <command>（参数：<args>）。` 时分别使用 `zcode.error.CLAUDE_UNKNOWN_COMMAND` 与 `_WITH_ARGS`。解析失败则显示原始 message，不再走后续本地化。
+
+### 对话遥测 parity 用例
+
+发布包 styles 在模块初始化时建好 `TDP01`–`TDP19` 用例表，并在桌面且 `VITE_ZCODE_E2E_STORE_BRIDGE=1` 时把 `window.__zcodeConversationTelemetryParityE2E` 设为 `{ variant: "current", run }`。这张表不拥有会话遥测；每次 `run` 只创建当次的 `ConversationTelemetrySupervisor`，结束时 flush 并 dispose。
+
+- Root 静态引入安装函数，目录留在主样式包里。桥未打开或不是桌面时不挂全局对象，清理函数只删除自己写下的引用。
+- 用例 id 未知时抛出 `Unknown conversation telemetry parity case`。额度横幅和验证码 provider 断言失败时抛出 `conversation telemetry parity state assertion failed`。报表计数和 proof 只随结果返回，runner 内部不另判一份库存。
+- 每个用例开始时清空 message telemetry 的 composer、排队 prompt、活动 prompt、agent step 四张进程内表，避免上一个用例的输入计时串到下一个用例。
+- `web.noop` 使用空的 telemetry platform，并把 UI perf reporter 暂时置空；子步骤结束后恢复为本用例传入的 platform，再记下 `web:no-final-output`。
+- 额度断言只调用现有 `buildSessionQuotaBannerState` / `buildSessionQuotaBannerDismissKey`。验证码断言只解析 `taskMeta.model` 的 provider 前缀，期望 `BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan`。不另造验证码控件。
+- scope key 为 `telemetry-parity\\0${caseId}\\0${scope}`，默认 scope 是 `default`。web 子步骤是 `telemetry-parity\\0${caseId}\\0web\\0${scope}`，默认 `web`。
