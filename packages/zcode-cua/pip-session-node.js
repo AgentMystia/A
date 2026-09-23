@@ -3,86 +3,10 @@ import {
   PermissionBrokerClient,
   PermissionBrokerError,
 } from "./permissionBrokerClient.js";
+import { pipSessionEventSchema } from "./pip-session-schema.js";
 
 const PIP_PROTOCOL_VERSION = 2;
 const PIP_RUNTIME_ID = "zcode-cua-pip-session-v2";
-const RESERVED_PIP_IDENTIFIER = "__zcode_pip_no_active_session_v2__";
-
-function parseIdentifier(value) {
-  if (typeof value !== "string") throw new Error("identifier must be a string");
-  const trimmed = value.trim();
-  if (trimmed.length < 1 || trimmed.length > 255)
-    throw new Error("identifier length is outside 1..255");
-  if (trimmed.includes("\0")) throw new Error("identifier cannot contain NUL");
-  if (trimmed === RESERVED_PIP_IDENTIFIER) {
-    throw new Error("identifier is reserved by the PiP session runtime");
-  }
-  return trimmed;
-}
-
-function parseNonNegativeInt(value) {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
-    throw new Error("expected a nonnegative safe integer");
-  }
-  return value;
-}
-
-function assertExactKeys(value, keys) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("PiP event must be an object");
-  }
-  const actual = Object.keys(value);
-  if (actual.length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) {
-    throw new Error("PiP event fields do not match the published schema");
-  }
-}
-
-/** 发布包 host `$h`。strict object，多出来的 kind 或字段直接拒绝。 */
-export function parsePipSessionEvent(value) {
-  if (value.kind === "focus-changed") {
-    assertExactKeys(value, ["kind", "revision", "sourceWindowId", "sessionId"]);
-    return {
-      kind: "focus-changed",
-      revision: parseNonNegativeInt(value.revision),
-      sourceWindowId: parseIdentifier(value.sourceWindowId),
-      sessionId: value.sessionId === null ? null : parseIdentifier(value.sessionId),
-    };
-  }
-  if (value.kind === "turn-started") {
-    assertExactKeys(value, ["kind", "sessionId", "turnId", "sequenceNumber", "eventId"]);
-    return {
-      kind: "turn-started",
-      sessionId: parseIdentifier(value.sessionId),
-      turnId: parseIdentifier(value.turnId),
-      sequenceNumber: parseNonNegativeInt(value.sequenceNumber),
-      eventId: parseIdentifier(value.eventId),
-    };
-  }
-  if (value.kind === "turn-ended") {
-    assertExactKeys(value, ["kind", "sessionId", "turnId", "sequenceNumber", "eventId", "outcome"]);
-    if (value.outcome !== "completed" && value.outcome !== "failed") {
-      throw new Error("turn-ended outcome must be completed or failed");
-    }
-    return {
-      kind: "turn-ended",
-      sessionId: parseIdentifier(value.sessionId),
-      turnId: parseIdentifier(value.turnId),
-      sequenceNumber: parseNonNegativeInt(value.sequenceNumber),
-      eventId: parseIdentifier(value.eventId),
-      outcome: value.outcome,
-    };
-  }
-  if (value.kind === "session-closed") {
-    assertExactKeys(value, ["kind", "sessionId", "sequenceNumber", "eventId"]);
-    return {
-      kind: "session-closed",
-      sessionId: parseIdentifier(value.sessionId),
-      sequenceNumber: parseNonNegativeInt(value.sequenceNumber),
-      eventId: parseIdentifier(value.eventId),
-    };
-  }
-  throw new Error("PiP event kind is not in the published schema");
-}
 
 /**
  * 发布包 host `createPipSessionClient`。
@@ -181,7 +105,8 @@ export function createPipSessionClient(options = {}) {
     send: (event) =>
       enqueue(async () => {
         if (mismatch) throw mismatch;
-        const parsed = parsePipSessionEvent(event);
+        // 发布包 host 直接 `$h.parse`，没有 parsePipSessionEvent keepName。
+        const parsed = pipSessionEventSchema.parse(event);
         await connectTransport();
         return callWithReconnect("pip_session_event", { event: parsed });
       }),

@@ -1,5 +1,8 @@
 import { join } from "node:path";
 
+import "./helper-published-ax-tables.js";
+import "./pip-session-schema.js";
+
 // 发布包在加载 CuaHelperError 的同一条链上保留这些常量。
 // main、host、scheduler 都有；它们不是第二套 Host。
 
