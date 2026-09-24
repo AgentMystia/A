@@ -20,6 +20,8 @@ import { buildBrowserViewCloseTabNotification } from "./browserView/browserClose
 import { BrowserGuestManager } from "./browserView/browserGuestManager.js";
 import { createElectronBrowserWebmRecorder } from "./browserView/electronBrowserWebmRecorder.js";
 import { installBrowserRestoreBootstrapProtocol } from "./browserView/browserRestoreBootstrapProtocol.js";
+import { installCaptchaNetworkDiagnostics } from "./captchaNetworkDiagnostics.js";
+import { installDevBadgeIcon, resolveAppIcon } from "./devBadgeIconInstall.js";
 import {
   createLocalMediaPreviewPathRegistry,
   installLocalMediaPreviewProtocol,
@@ -75,13 +77,14 @@ import {
   ZCODE_TELEMETRY_ENABLED,
   ZCODE_ARMS_RUM_ENDPOINT,
   buildZCodeEndpointUrls,
+  resolveWebRemoteControlRelayWsUrl,
   resolveZCodeEndpointOrigin,
   shouldEnableE2ETestBridge,
   type UpdateStatePayload,
   type TelemetryEventPayload,
   HostMessageTypes,
 } from "@zcode/shared";
-import { logger } from "./logger.js";
+import { logger, webRemoteControlRelayLogger } from "./logger.js";
 import { markMainLaunchAppReady } from "./desktopLaunchMarks.js";
 import { createCuaPipFocusRouter, resolveCuaPipWindowKey } from "./cuaPipFocusRouter.js";
 import { createDesktopTelemetryFetch } from "./desktopTelemetryFetch.js";
@@ -112,7 +115,6 @@ import {
   type AppShutdownKind,
 } from "./appShutdownPolicy.js";
 import { createPrimaryWindowCoordinator } from "./primaryWindowCoordinator.js";
-import { createTempTextAttachment } from "./tempTextAttachment.js";
 import { flushMainE2ECoverage } from "./e2eCoverage.js";
 import { resolveStartupWindowBootstrap, type StartupWindowBootstrap } from "./startupWorkspace.js";
 import {
@@ -187,6 +189,7 @@ import {
   isWorkspaceOpenUrl,
 } from "./desktopDeepLinkUrl.js";
 import { createRemoteWorkspaceSessionManager } from "./desktopRemoteSessions.js";
+import { createBotRemoteWorkspaceHostHandlers } from "./botRemoteWorkspaceHostDispatch.js";
 import {
   reportRemoteConnectionStateChangedToArms,
   reportRemoteDisconnectToArms,
@@ -200,10 +203,19 @@ import {
 import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
 import {
-  loadCliMcpFromUserDirectory,
-  migrateLegacyCommonMcp,
-  saveCliMcpToUserDirectory,
-} from "./mcpUserDirectory/index.js";
+  createNodeWebRemoteControlRelayAuthProvider,
+  createWebRemoteControlFeatureGate,
+  createWebRemoteControlRelayAuthStorageProvider,
+} from "./webRemoteControl/auth.js";
+import {
+  reconnectWebRemoteControlWorkspaceInRenderer,
+  registerWebRemoteControlIpcHandlers,
+  registerWebRemoteControlSyncListeners,
+  sendWebRemoteControlStatusChangedToWindow,
+} from "./webRemoteControl/ipc.js";
+import { createWebRemoteControlManager } from "./webRemoteControl/manager.js";
+import { createWebRemoteControlPlatformHandlers } from "./webRemoteControl/platformHandlers.js";
+import { createWebRemoteControlSharedHostAttachments } from "./webRemoteControl/sharedHostAttachments.js";
 import { registerRemoteIpcHandlers } from "./desktopMainIpcRemote.js";
 import {
   configureDesktopStabilityTelemetry,
@@ -778,6 +790,9 @@ app.on("browser-window-created", (_event, win) => {
   win.once("closed", () => cuaPipFocusRouter.removeWindow(windowKey));
 });
 
+const webRemoteControlManagerRef: {
+  current: ReturnType<typeof createWebRemoteControlManager> | null;
+} = { current: null };
 const remoteSessionManager = createRemoteWorkspaceSessionManager({
   logger,
   windowHostProcessMap,
@@ -786,9 +801,89 @@ const remoteSessionManager = createRemoteWorkspaceSessionManager({
   resolveWslTarget: resolveCanonicalWslTarget,
   reportRemoteConnectionStateChanged: reportRemoteConnectionStateChangedToArms,
   reportRemoteDisconnect: reportRemoteDisconnectToArms,
+  onRemoteSessionConnectionClosed: (remoteSessionId) => {
+    webRemoteControlManagerRef.current?.failRemoteSession(
+      remoteSessionId,
+      "window-host:connection-closed",
+      {
+        reason: "workspace-closed",
+        message: "远程工作区连接已结束，请在桌面端重新连接。",
+      },
+    );
+  },
 });
 
 const deviceMid = ensureDesktopDeviceMidSync();
+const webRemoteControlAppVersion = ZCODE_VERSION || app.getVersion();
+const webRemoteControlRelayOverride = process.env.ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL?.trim();
+const webRemoteControlUrlOverride = process.env.ZCODE_WEB_REMOTE_CONTROL_URL?.trim();
+const webRemoteControlDefaultEndpoints = buildZCodeEndpointUrls(DEFAULT_ZCODE_ENDPOINT_ORIGIN, {
+  appVersion: webRemoteControlAppVersion,
+});
+const webRemoteControlHosts = createWebRemoteControlSharedHostAttachments({
+  logger,
+  windowHostProcessMap,
+  attachRemoteWorkspaceSessionHost: remoteSessionManager.attachRemoteWorkspaceSessionHost,
+});
+const webRemoteControlManager = createWebRemoteControlManager({
+  getEndpointUrls: async () => {
+    const built = buildZCodeEndpointUrls(await resolveCurrentZCodeEndpointOrigin(), {
+      appVersion: webRemoteControlAppVersion,
+    });
+    return {
+      relayWsUrl: resolveWebRemoteControlRelayWsUrl({
+        endpointOrigin: built.origin,
+        overrideUrl: webRemoteControlRelayOverride,
+      }),
+      remoteUrl: webRemoteControlUrlOverride || built.remoteUrl,
+    };
+  },
+  relayWsUrl: resolveWebRemoteControlRelayWsUrl({
+    endpointOrigin: DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+    overrideUrl: webRemoteControlRelayOverride,
+  }),
+  mobileRemoteControlUrl: webRemoteControlUrlOverride || webRemoteControlDefaultEndpoints.remoteUrl,
+  deviceMid,
+  deviceName: hostname(),
+  appVersion: webRemoteControlAppVersion,
+  authProvider: createNodeWebRemoteControlRelayAuthProvider(),
+  authStorageProvider: createWebRemoteControlRelayAuthStorageProvider({
+    credentialService: appTelemetryCredentialService,
+    loadSettings: () => mainSettingService.get(),
+    patchSettings: (patch) => mainSettingService.update(patch),
+    logger,
+  }),
+  startupRestoreStorageProvider: {
+    load: async () => (await mainSettingService.get()).webRemoteControlLastEnabledContext,
+    save: async (context) => {
+      await mainSettingService.update({ webRemoteControlLastEnabledContext: context });
+    },
+    clear: async () => {
+      await mainSettingService.update({ webRemoteControlLastEnabledContext: undefined });
+    },
+  },
+  featureGate: createWebRemoteControlFeatureGate(),
+  logger,
+  relayMessageLogger: webRemoteControlRelayLogger,
+  platformHandlers: createWebRemoteControlPlatformHandlers(logger),
+  reconnectWorkspace: reconnectWebRemoteControlWorkspaceInRenderer,
+  reportRendererTelemetryEvent: (event) => {
+    void appTelemetryCore.reportEvent(event).catch(() => {});
+  },
+  reportRemoteUsageEvent: (windowId, event) => {
+    const win = BrowserWindow.fromId(windowId);
+    if (!win || win.webContents.isDestroyed()) return;
+    reportRemoteUsageEventForRenderer(win.webContents.id, event);
+  },
+  onStatusChanged: sendWebRemoteControlStatusChangedToWindow,
+  attachWorkspaceHost: webRemoteControlHosts.attachWorkspaceHost,
+  releaseWorkspaceHostAttachment: webRemoteControlHosts.releaseAttachment,
+  disposeWorkspaceHostAttachmentsForWindow: (windowId) =>
+    webRemoteControlHosts.disposeWindow(windowId),
+  disposeWorkspaceHostAttachmentsForRemoteSession: (remoteSessionId) =>
+    webRemoteControlHosts.disposeRemoteSession(remoteSessionId),
+});
+webRemoteControlManagerRef.current = webRemoteControlManager;
 // 帮助配置是公开读取，不能复用下面附带账号鉴权的灰度响应缓存。
 const readHelpConfig = createDesktopHelpConfigReader({
   appVersion: ZCODE_VERSION || app.getVersion(),
@@ -1578,7 +1673,7 @@ function openUpdateStatusWindow() {
     transparent: false,
     backgroundColor: "#ffffff",
     title: "",
-    icon: iconPath,
+    icon: resolveAppIcon(iconPath),
     parent: parentWindow,
     modal: false,
     autoHideMenuBar: true,
@@ -1672,7 +1767,7 @@ function openUpdateStatusWindow() {
 function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
   const runtimeProcessEnvPreparation = takeRuntimeProcessEnvPreparation();
   const win = createWindow({
-    iconPath,
+    iconPath: resolveAppIcon(iconPath),
     preloadPath,
     logger,
     forceQuitRef,
@@ -1695,6 +1790,9 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
       }),
     windowHostProcessMap,
     onHostProcessReady: (windowKey) => cuaPipFocusRouter.refreshWindow(windowKey),
+    onWindowClosed: (browserWindowId) => {
+      void webRemoteControlManager.disposeWindow(browserWindowId);
+    },
     awaitFirstHostSpawnDecision,
     spawnHostProcess: (win, label, initMessage) =>
       spawnHostProcess(
@@ -1736,6 +1834,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           // browser-use：main 用 WebContentsView+CDP 执行命令。
           handleBrowserExecuteRequest: ({ win: browserWin, ...request }) =>
             runBrowserCommandOnView({ win: browserWin, ...request }),
+          ...createBotRemoteWorkspaceHostHandlers(remoteSessionManager),
         },
         {
           taskRealtime: {
@@ -1855,6 +1954,7 @@ app.on("second-instance", (_event, argv, _workingDirectory, additionalData) => {
 
 app.whenReady().then(async () => {
   markMainLaunchAppReady();
+  installCaptchaNetworkDiagnostics(session.defaultSession.webRequest, logger);
   installLocalMediaPreviewProtocol(session.defaultSession.protocol, {
     isPathAuthorized: localMediaPreviewPathRegistry.isAuthorized,
   });
@@ -1912,7 +2012,11 @@ app.whenReady().then(async () => {
     );
   }
 
-  applyAppIcon(iconPath);
+  if (!app.isPackaged) {
+    // 发布包只在未打包时绘制 DEV 角标。sharp 不在 app.asar，打包态短路。
+    await installDevBadgeIcon(iconPath);
+  }
+  applyAppIcon(resolveAppIcon(iconPath));
   if (!loadedBootstrapLocale) {
     currentApplicationLocale = resolveSystemApplicationLocale();
   }
@@ -2076,6 +2180,9 @@ app.whenReady().then(async () => {
         taskRealtimeBus.updateHostWorkspaceKeys(hostId, workspaceKeys);
       }
     },
+    restorePreviouslyEnabledWebRemoteControl: (windowId, workspaces) => {
+      void webRemoteControlManager.restorePreviouslyEnabled(windowId, workspaces);
+    },
     getUpdateState: getAutoUpdaterState,
     openUpdateStatusWindow,
     getAutoUpdatePreferences,
@@ -2086,6 +2193,16 @@ app.whenReady().then(async () => {
     syncAppSettings: syncImmediateAppSettings,
     setShortcutRecordingActive,
     deviceMid,
+  });
+  registerWebRemoteControlIpcHandlers({
+    manager: webRemoteControlManager,
+    reportRemoteUsageEvent: reportRemoteUsageEventForRenderer,
+  });
+  registerWebRemoteControlSyncListeners({
+    logger,
+    syncWorkspaces: (windowId, workspaces) =>
+      webRemoteControlManager.syncAvailableWorkspaces(windowId, workspaces),
+    syncTasks: (windowId, tasks) => webRemoteControlManager.syncAvailableTasks(windowId, tasks),
   });
 
   disposeRendererActionTraceIpc = registerRendererActionTraceIpc({

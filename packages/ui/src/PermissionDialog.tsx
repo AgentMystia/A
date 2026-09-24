@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
+import { getProviderOptionNameMessageIds } from "@/lib/permissionOptionNameLabels.js";
 import {
   getPermissionOptionDisplayKind,
   getPermissionRequestPreview,
@@ -157,52 +158,6 @@ function getOptionLabelMessageId(kind: string): string | null {
     default:
       return null;
   }
-}
-
-const PROVIDER_PERMISSION_OPTION_NAME_LABELS: Partial<
-  Record<ZCodeProvider, Record<string, string>>
-> = {
-  glm: {
-    // GLM/ZCode Agent 通过 ZCode Agent 发来的项目级记忆授权文案是英文原文。
-    // 这里把已知 provider-native 权限文案统一归一到 i18n，避免被当成自定义选项直出英文。
-    "always allow in this project": "chat.permission.allowForProject",
-  },
-};
-
-interface PermissionOptionNameMessageIds {
-  label: string;
-  /** 按 name 命中时可覆盖 kind 推导的描述：会话级选项不能沿用「相同请求不再询问」的项目级文案。 */
-  description?: string;
-}
-
-const GLOBAL_PERMISSION_OPTION_NAME_LABELS: Record<string, PermissionOptionNameMessageIds> = {
-  "full access": {
-    label: "chat.permission.fullAccess",
-    description: "chat.permission.fullAccess.description",
-  },
-  "always allow in this project": { label: "chat.permission.allowForProject" },
-  "always allow computer use in this project": { label: "chat.permission.cua.allowForProject" },
-  // workflow 运行确认窗的会话免确认：
-  // CLI 侧 name 是匹配键，wire kind 是 allowAlways（排序 / 样式同 always allow）。
-  "always allow in this session": {
-    label: "chat.permission.workflow.allowForSession",
-    description: "chat.permission.workflow.allowForSession.description",
-  },
-};
-
-function getProviderOptionNameMessageIds(
-  provider: ZCodeProvider | undefined,
-  name: string,
-): PermissionOptionNameMessageIds | null {
-  const normalizedName = name.trim().replace(/\s+/g, " ").toLowerCase();
-  const global = GLOBAL_PERMISSION_OPTION_NAME_LABELS[normalizedName];
-  if (global) {
-    return global;
-  }
-  const providerLabel = provider
-    ? PROVIDER_PERMISSION_OPTION_NAME_LABELS[provider]?.[normalizedName]
-    : undefined;
-  return providerLabel ? { label: providerLabel } : null;
 }
 
 function getOptionDescriptionMessageId(kind: string, scope: PermissionRequestScope): string | null {

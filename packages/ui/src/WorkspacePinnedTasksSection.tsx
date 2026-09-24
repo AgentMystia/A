@@ -9,6 +9,7 @@ import { useLocalWorkspaceScopes } from "@/hooks/useLocalWorkspaceScopes.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
+import { isMobileActiveTask } from "@/web-remote/mobileActiveTaskKey.js";
 import { compareZCodeTaskListItems } from "@/lib/taskListOrdering.js";
 import { resolveTaskFileTreeTargetFromTabs } from "@/lib/taskFileTreeTarget.js";
 import { MemoTaskItem, TaskListItemContextMenuContent } from "@/TaskListItem.js";
@@ -48,6 +49,7 @@ export function WorkspacePinnedTasksSection({
   activeWorkspacePath,
   activeWorkspaceIdentity,
   activeTaskId,
+  mobileActiveTaskKey,
   taskSortBy,
   onSelectTask,
   onOpenFileTree,
@@ -56,6 +58,7 @@ export function WorkspacePinnedTasksSection({
   activeWorkspacePath: string;
   activeWorkspaceIdentity?: string;
   activeTaskId: string | null;
+  mobileActiveTaskKey: string | null;
   taskSortBy: "created" | "updated";
   onSelectTask: (
     targetWorkspacePath: string,
@@ -560,6 +563,11 @@ export function WorkspacePinnedTasksSection({
                     buildTaskWorkspaceKey(item.workspacePath, item.workspaceIdentity) ===
                       activeWorkspaceKey && item.taskId === activeTaskId
                   }
+                  isMobileActive={isMobileActiveTask(
+                    mobileActiveTaskKey,
+                    buildTaskWorkspaceKey(item.workspacePath, item.workspaceIdentity),
+                    item.taskId,
+                  )}
                   onSelectTask={handlers.onSelectTask}
                   onArchiveTaskInline={handlers.onArchiveTaskInline}
                   onCancelArchiveConfirm={handleCancelArchiveConfirm}

@@ -16,6 +16,8 @@ export function createDesktopPlatform(options: {
     createTempTextAttachment: (payload) => window.zcode.createTempTextAttachment(payload),
     onRemoteConnectionLog: (handler) => window.zcode.onRemoteConnectionLog(handler),
     onRemoteSessionClosed: (handler) => window.zcode.onRemoteSessionClosed(handler),
+    onBotRemoteWorkspaceReconnected: (handler) =>
+      window.zcode.onBotRemoteWorkspaceReconnected(handler),
     activateOrSetWorkspace: (path) =>
       window.zcode.activateOrSetWorkspace?.(path) ?? Promise.resolve({ activated: false }),
     connectRemote: (remoteOptions, requestId, context) =>
@@ -24,6 +26,21 @@ export function createDesktopPlatform(options: {
       window.zcode.cancelPendingRemoteConnection?.(requestId) ?? Promise.resolve(),
     bindRemoteWorkspaceSessionContext: (context) =>
       window.zcode.bindRemoteWorkspaceSessionContext?.(context) ?? Promise.resolve(),
+    startWebRemoteControl: window.zcode.startWebRemoteControl
+      ? (request) => window.zcode.startWebRemoteControl!(request)
+      : undefined,
+    refreshWebRemoteControlPairing: window.zcode.refreshWebRemoteControlPairing
+      ? (request) => window.zcode.refreshWebRemoteControlPairing!(request)
+      : undefined,
+    stopWebRemoteControl: window.zcode.stopWebRemoteControl
+      ? () => window.zcode.stopWebRemoteControl!()
+      : undefined,
+    getWebRemoteControlStatus: window.zcode.getWebRemoteControlStatus
+      ? () => window.zcode.getWebRemoteControlStatus!()
+      : undefined,
+    onWebRemoteControlStatusChanged: window.zcode.onWebRemoteControlStatusChanged
+      ? (handler) => window.zcode.onWebRemoteControlStatusChanged!(handler)
+      : undefined,
     disposeRemoteSession: (sessionId) => window.zcode.disposeRemoteSession(sessionId),
     isDockerAvailable: () => window.zcode.isDockerAvailable(),
     listWSLDistros: () => window.zcode.listWSLDistros(),
@@ -76,6 +93,15 @@ export function createDesktopPlatform(options: {
       : undefined,
     showTaskNotification: (payload) => window.zcode.showTaskNotification(payload),
     syncWindowTabs: (paths) => window.zcode.syncWindowTabs(paths),
+    syncWebRemoteControlWorkspaces: window.zcode.syncWebRemoteControlWorkspaces
+      ? (workspaces) => window.zcode.syncWebRemoteControlWorkspaces!(workspaces)
+      : undefined,
+    syncWebRemoteControlTasks: window.zcode.syncWebRemoteControlTasks
+      ? (tasks) => window.zcode.syncWebRemoteControlTasks!(tasks)
+      : undefined,
+    onWebRemoteControlReconnectWorkspace: window.zcode.onWebRemoteControlReconnectWorkspace
+      ? (callback) => window.zcode.onWebRemoteControlReconnectWorkspace!(callback)
+      : undefined,
     syncWindowUnreadCount: (count) => window.zcode.syncWindowUnreadCount(count),
     syncActiveTaskSession: (sessionId) => window.zcode.syncActiveTaskSession(sessionId),
     syncAppSettings: (patch) => window.zcode.syncAppSettings?.(patch),

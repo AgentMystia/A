@@ -3,12 +3,18 @@ import { useState } from "react";
 import type {
   DockerContainerInfo,
   RemoteAssetInstallMode,
+  RemoteConnectionWizardKind,
   RemoteTarget,
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
   WSLDistro,
 } from "@zcode/shared";
-import { TID_REMOTE_KIND_DOCKER, TID_REMOTE_KIND_SSH, TID_REMOTE_KIND_WSL } from "@zcode/shared";
+import {
+  TID_REMOTE_KIND_DOCKER,
+  TID_REMOTE_KIND_SERVER,
+  TID_REMOTE_KIND_SSH,
+  TID_REMOTE_KIND_WSL,
+} from "@zcode/shared";
 import type {
   IMcpSyncService,
   IPluginSyncService,
@@ -19,6 +25,7 @@ import type {
 import {
   AlertTriangleIcon,
   ChevronRightIcon,
+  CloudIcon,
   LoaderIcon,
   MonitorCogIcon,
   ServerIcon,
@@ -37,10 +44,12 @@ import {
 } from "@/settings/RemoteSyncActions.js";
 export { RemoteConnectionConnectingStep } from "@/remote-connection/RemoteConnectionConnectingStep.js";
 
-function getKindIcon(kind: RemoteTarget["kind"]) {
+function getKindIcon(kind: RemoteConnectionWizardKind) {
   switch (kind) {
     case "ssh":
       return ServerIcon;
+    case "server":
+      return CloudIcon;
     case "docker":
       return MonitorCogIcon;
     case "wsl":
@@ -55,9 +64,9 @@ export function RemoteConnectionKindStep({
   onCancel,
   onNext,
 }: {
-  kind: RemoteTarget["kind"];
-  availableKinds: RemoteTarget["kind"][];
-  onKindChange: (value: RemoteTarget["kind"]) => void;
+  kind: RemoteConnectionWizardKind;
+  availableKinds: RemoteConnectionWizardKind[];
+  onKindChange: (value: RemoteConnectionWizardKind) => void;
   onCancel: () => void;
   onNext: () => void;
 }) {
@@ -78,9 +87,11 @@ export function RemoteConnectionKindStep({
               data-testid={
                 value === "ssh"
                   ? TID_REMOTE_KIND_SSH
-                  : value === "wsl"
-                    ? TID_REMOTE_KIND_WSL
-                    : TID_REMOTE_KIND_DOCKER
+                  : value === "server"
+                    ? TID_REMOTE_KIND_SERVER
+                    : value === "wsl"
+                      ? TID_REMOTE_KIND_WSL
+                      : TID_REMOTE_KIND_DOCKER
               }
               className={cn(
                 "flex min-h-32 flex-col items-start gap-4 rounded-2xl border p-4 text-left transition-colors",
@@ -148,6 +159,10 @@ export function RemoteConnectionSettingsStep({
   wslDistros,
   dockerContainer,
   manualDockerContainer,
+  serverUrl,
+  serverName,
+  serverToken,
+  serverWorkspacePath,
   dockerContainers,
   dockerAvailable,
   sshConfigAliases,
@@ -172,12 +187,16 @@ export function RemoteConnectionSettingsStep({
   onWslUserChange,
   onDockerContainerChange,
   onManualDockerContainerChange,
+  onServerUrlChange,
+  onServerNameChange,
+  onServerTokenChange,
+  onServerWorkspacePathChange,
   onDockerContainersRefresh,
   onApplySshConfigAlias,
   onClearSelectedSshConfigAlias,
   onConnect,
 }: {
-  kind: RemoteTarget["kind"];
+  kind: RemoteConnectionWizardKind;
   host: string;
   port: string;
   username: string;
@@ -191,6 +210,10 @@ export function RemoteConnectionSettingsStep({
   wslDistros: WSLDistro[];
   dockerContainer: string;
   manualDockerContainer: string;
+  serverUrl: string;
+  serverName: string;
+  serverToken: string;
+  serverWorkspacePath: string;
   dockerContainers: DockerContainerInfo[];
   dockerAvailable: boolean | null;
   sshConfigAliases: SSHConfigAliasOption[];
@@ -215,6 +238,10 @@ export function RemoteConnectionSettingsStep({
   onWslUserChange?: (value: string) => void;
   onDockerContainerChange: (value: string) => void;
   onManualDockerContainerChange: (value: string) => void;
+  onServerUrlChange: (value: string) => void;
+  onServerNameChange: (value: string) => void;
+  onServerTokenChange: (value: string) => void;
+  onServerWorkspacePathChange: (value: string) => void;
   onDockerContainersRefresh?: () => void;
   onApplySshConfigAlias: (value: SSHConfigAliasOption) => void;
   onClearSelectedSshConfigAlias: () => void;
@@ -252,6 +279,10 @@ export function RemoteConnectionSettingsStep({
           wslDistros={wslDistros}
           dockerContainer={dockerContainer}
           manualDockerContainer={manualDockerContainer}
+          serverUrl={serverUrl}
+          serverName={serverName}
+          serverToken={serverToken}
+          serverWorkspacePath={serverWorkspacePath}
           dockerContainers={dockerContainers}
           dockerAvailable={dockerAvailable}
           sshConfigAliases={sshConfigAliases}
@@ -274,6 +305,10 @@ export function RemoteConnectionSettingsStep({
           setWslUser={onWslUserChange}
           setDockerContainer={onDockerContainerChange}
           setManualDockerContainer={onManualDockerContainerChange}
+          setServerUrl={onServerUrlChange}
+          setServerName={onServerNameChange}
+          setServerToken={onServerTokenChange}
+          setServerWorkspacePath={onServerWorkspacePathChange}
           refreshDockerContainers={onDockerContainersRefresh}
         />
       </div>

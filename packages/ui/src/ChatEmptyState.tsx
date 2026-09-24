@@ -170,6 +170,7 @@ export function ChatEmptyWorkspacePreviewMenu({
   workspacePath,
   workspaceIdentity,
   isWindowsDesktop = false,
+  compactForRemoteControl = false,
   workspaceTabs,
   allowConversationWorkspaceSelection = true,
   allowConversationWorkspaceDetach = allowConversationWorkspaceSelection,
@@ -189,6 +190,7 @@ export function ChatEmptyWorkspacePreviewMenu({
   workspacePath: string;
   workspaceIdentity?: string;
   isWindowsDesktop?: boolean;
+  compactForRemoteControl?: boolean;
   workspaceTabs: ReadonlyArray<ChatEmptyWorkspaceMenuTab>;
   allowConversationWorkspaceSelection?: boolean;
   /** 是否显示项目 chip 的快捷脱离按钮；默认跟随非项目工作区选择能力。 */
@@ -302,7 +304,7 @@ export function ChatEmptyWorkspacePreviewMenu({
             size="default"
             className={cn(
               "min-w-0 rounded-full bg-transparent text-ui-base/relaxed hover:bg-transparent",
-              "max-w-[15rem] pl-3 pr-2",
+              compactForRemoteControl ? "max-w-44 pl-3 pr-2" : "max-w-[15rem] pl-3 pr-2",
               triggerClassName,
             )}
             aria-label={intl.formatMessage({ id: "chat.empty.workspaceMenu" })}

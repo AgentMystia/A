@@ -257,6 +257,7 @@ export interface WorkbenchShellBinding {
   remoteSessionId?: string;
   /** Prompt 模板埋点当前仅覆盖 Desktop。 */
   isDesktop?: boolean;
+  compactForRemoteControl?: boolean;
   readOnly?: boolean;
   sessionId: string | null;
   /** Shell 当前真正激活的 task；split pane 接管 active task 时不等于 primary sessionId。 */
@@ -559,6 +560,7 @@ export function WorkbenchLeafPane({
           workspaceIdentity={scope.workspaceIdentity}
           remoteSessionId={scope.remoteSessionId}
           isDesktop={shell.isDesktop}
+          compactForRemoteControl={shell.compactForRemoteControl ?? false}
           provider={isPrimary && isShellWorkspace ? shell.provider : undefined}
           onSessionCreated={handleSessionCreated}
           onSessionDeleted={handleSessionDeleted}

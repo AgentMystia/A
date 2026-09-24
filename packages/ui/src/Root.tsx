@@ -5,7 +5,7 @@ import {
   APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
   DesktopCommandIds,
   appRuntimePreferencesChangedBroadcastPayloadSchema,
-  type RemoteTarget,
+  type RemoteConnectionWizardKind,
 } from "@zcode/shared";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { Button } from "@/components/ui/button.js";
@@ -19,6 +19,9 @@ import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { SSHDialog } from "@/SSHDialog.js";
 import { SettingsPage } from "@/SettingsPage.js";
+import { AliyunCaptchaHost } from "@/captcha/AliyunCaptchaHost.js";
+import { CaptchaRuntimeHeadersSubscriptions } from "@/captcha/CaptchaRuntimeHeadersSubscriptions.js";
+import { setCaptchaArmsReporter } from "@/captcha/captchaArms.js";
 import { CodingPlanUpgradeDialogProvider } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { WelcomeScreen, type LoginCompleteReason } from "@/WelcomeScreen.js";
 import { setDefaultFileDisplayBasePath } from "@/lib/fileDisplay.js";
@@ -54,6 +57,7 @@ import { consumeZcodeJwtInvalidRestartMarker } from "@/root/zcodeJwtInvalidResta
 import { useDesktopNativeThemeSync } from "@/root/useDesktopNativeThemeSync.js";
 import { useRootPlatformEffects } from "@/root/useRootPlatformEffects.js";
 import { useRootWorkspaceActions } from "@/root/useRootWorkspaceActions.js";
+import { useBotTaskBroadcast } from "@/bots/useBotTaskBroadcast.js";
 import { registerBaseWorkspaceServices } from "@/store/remoteWorkspaceSessionStore.js";
 import type { RootProps } from "@/root/types.js";
 import { DiffsWorkerPoolProvider } from "@/root/DiffsWorkerPoolProvider.js";
@@ -79,13 +83,20 @@ import { useSettings } from "@/hooks/useSettingService.js";
 import { CLOSE_ACTIVE_CONTEXT_REQUEST_EVENT } from "@/lib/closeActiveContext.js";
 import { AssistantCodeCommentFeatureProvider } from "@/AssistantCodeCommentFeatureProvider.js";
 import {
+  WebRemoteControlFeatureProvider,
+  useWebRemoteControlFeatureEnabled,
+} from "@/web-remote/webRemoteControlFeature.js";
+import { useWebRemoteControlStatus } from "@/web-remote/useWebRemoteControlStatus.js";
+import { WebRemoteControlTaskSync } from "@/web-remote/sync/WebRemoteControlTaskSync.js";
+import {
   disposeConversationTelemetrySupervisors,
   reconcileConversationTelemetryWorkspaceScopes,
 } from "@/v4/telemetry/ConversationTelemetryAttachment.js";
+import { installConversationTelemetryParityE2E } from "@/v4/telemetry/conversationTelemetryParityE2E.js";
 
 const DEFAULT_LUCIDE_STROKE_WIDTH = 1.5;
 interface RemoteConnectionOpenPreference {
-  preferredKind?: RemoteTarget["kind"];
+  preferredKind?: RemoteConnectionWizardKind;
   preferredWslDistro?: string;
 }
 
@@ -123,13 +134,19 @@ export function Root(props: RootProps) {
             >
               <TabStoreProvider>
                 <DiffsWorkerPoolProvider>
-                  <AssistantCodeCommentFeatureProvider
-                    enabled={props.assistantCodeCommentCardsEnabled}
+                  <WebRemoteControlFeatureProvider
+                    enabled={props.webRemoteControlFeatureEnabled ?? true}
                   >
-                    <CodingPlanUpgradeDialogProvider>
-                      <RootInner {...props} />
-                    </CodingPlanUpgradeDialogProvider>
-                  </AssistantCodeCommentFeatureProvider>
+                    <AssistantCodeCommentFeatureProvider
+                      enabled={props.assistantCodeCommentCardsEnabled}
+                    >
+                      <CodingPlanUpgradeDialogProvider>
+                        <AliyunCaptchaHost />
+                        <CaptchaRuntimeHeadersSubscriptions />
+                        <RootInner {...props} />
+                      </CodingPlanUpgradeDialogProvider>
+                    </AssistantCodeCommentFeatureProvider>
+                  </WebRemoteControlFeatureProvider>
                 </DiffsWorkerPoolProvider>
               </TabStoreProvider>
             </StoreProvider>
@@ -161,6 +178,8 @@ function RootInner({
 }: RootProps) {
   useEffect(() => {
     setMcpStorePlatform(platform);
+    // 验证码 ARMS 与发布包一样绑定当前 platform，不按桌面端收窄。
+    setCaptchaArmsReporter(platform);
     // 对话 UI perf 只属于 desktop-continuous；Web/mobile 即使能看到权威状态也不装 reporter。
     setUiPerfArmsReporter(isDesktop ? platform : null);
     setSessionOpenArmsReporter(isDesktop ? platform : null);
@@ -168,11 +187,17 @@ function RootInner({
     setSendFunnelArmsReporter(isDesktop ? platform : null);
     return () => {
       setMcpStorePlatform(null);
+      setCaptchaArmsReporter(null);
       setUiPerfArmsReporter(null);
       setSessionOpenArmsReporter(null);
       setSendFunnelArmsReporter(null);
     };
   }, [isDesktop, platform]);
+
+  useEffect(
+    () => installConversationTelemetryParityE2E({ platform, isDesktop: isDesktop === true }),
+    [isDesktop, platform],
+  );
 
   useEffect(
     () => () => {
@@ -264,8 +289,12 @@ function RootInner({
           return;
         }
         void refreshAppSettings();
+        // 已接受偏好同时投影到 agent 与 bots。一侧失败只记自己的日志，不回滚另一侧。
         void services.zcodeAgentService.syncAppRuntimePreferences(parsed.data).catch((error) => {
           logger.warn("[settings] 同步跨窗口运行时偏好失败", error);
+        });
+        void services.botsService.syncAppRuntimePreferences(parsed.data).catch((error) => {
+          logger.warn("[settings] 同步跨窗口 Bot 运行时偏好失败", error);
         });
         return;
       }
@@ -298,12 +327,18 @@ function RootInner({
     return () => {
       disposable.dispose();
     };
-  }, [refreshAppSettings, services.broadcastService, services.zcodeAgentService]);
+  }, [
+    refreshAppSettings,
+    services.botsService,
+    services.broadcastService,
+    services.zcodeAgentService,
+  ]);
 
   useEffect(() => {
     if (!appSettings) {
       return;
     }
+    // 两份对象字面量与发布包一致，压缩后仍各保留一次字段访问。bots 失败不回滚 agent。
     void services.zcodeAgentService
       .syncAppRuntimePreferences({
         askUserQuestionAutoResolutionEnabled:
@@ -313,9 +348,19 @@ function RootInner({
       .catch((error) => {
         logger.warn("[settings] 初始化运行时偏好失败", error);
       });
+    void services.botsService
+      .syncAppRuntimePreferences({
+        askUserQuestionAutoResolutionEnabled:
+          appSettings.askUserQuestionAutoResolutionEnabled !== false,
+        modelIoFullRetentionEnabled: appSettings.modelIoFullRetentionEnabled === true,
+      })
+      .catch((error) => {
+        logger.warn("[settings] 初始化 Bot 运行时偏好失败", error);
+      });
   }, [
     appSettings?.askUserQuestionAutoResolutionEnabled,
     appSettings?.modelIoFullRetentionEnabled,
+    services.botsService,
     services.zcodeAgentService,
   ]);
 
@@ -454,6 +499,7 @@ function RootInner({
     // 这里再以 Root props 兜底注册，避免当前激活远端 workspace 时本地列表误用远端 host。
     registerBaseWorkspaceServices(services);
   }, [services]);
+  useBotTaskBroadcast(services, tabStoreApi);
 
   const handleOpenRemoteConnection = useCallback((preference?: RemoteConnectionOpenPreference) => {
     setRemoteConnectionOpenPreference(preference ?? null);
@@ -545,6 +591,34 @@ function RootInner({
   });
 
   useEffect(() => {
+    if (!platform.onWebRemoteControlReconnectWorkspace) {
+      return;
+    }
+    // 远控重连不能激活 workspace，也不能弹历史重连 toast。失败必须抛出，preload 才能把错误送回 main。
+    return platform.onWebRemoteControlReconnectWorkspace(async (request) => {
+      try {
+        await handleReconnectRemoteWorkspace(request.workspaceKey, {
+          activateWorkspaceAfterReconnect: false,
+          showErrorToast: false,
+          throwOnFailure: true,
+        });
+        return {
+          requestId: request.requestId,
+          workspaceKey: request.workspaceKey,
+          success: true,
+        };
+      } catch (error) {
+        return {
+          requestId: request.requestId,
+          workspaceKey: request.workspaceKey,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+  }, [handleReconnectRemoteWorkspace, platform]);
+
+  useEffect(() => {
     // fileDisplay 默认不传 basePath 时需要落到“当前激活 workspace”。
     // 之前纯工具层拿不到窗口内的 workspace 上下文，只能退回绝对路径，导致 mention / 文件展示在输入框里不够简洁。
     // 这里由 Root 在 workspace 切换时同步一份当前上下文，既保留工具层复用性，也不把 Zustand 依赖硬塞进工具函数。
@@ -621,6 +695,15 @@ function RootInner({
     });
   }, [isStartupRenderBlocked, welcomeScreenOpenReason]);
 
+  const webRemoteControlFeatureEnabled = useWebRemoteControlFeatureEnabled();
+  const webRemoteControlStatus = useWebRemoteControlStatus({
+    enabled: Boolean(
+      webRemoteControlFeatureEnabled && isDesktop && platform.syncWebRemoteControlTasks,
+    ),
+  });
+  const webRemoteControlSessionActive =
+    webRemoteControlStatus.status === "running" || webRemoteControlStatus.status === "active";
+
   useRootPlatformEffects({
     initialWorkspaceAbsPath,
     initialWorkspaceIdentity,
@@ -650,6 +733,8 @@ function RootInner({
     reconnectingRemoteWorkspaceKeys,
     remoteWorkspaceErrorByWorkspaceKey,
     totalUnreadTaskCount,
+    webRemoteControlFeatureEnabled,
+    webRemoteControlSessionActive,
     hasCompletedFullTabRestore: hasCompletedFullRestore,
     intl,
     isRestoringOAuthSession: isResolvingStartupAuthState || providerStartupSyncPending,
@@ -942,12 +1027,24 @@ function RootInner({
     onLogout: user ? handleLogout : undefined,
     user,
   };
+  const webRemoteControlTaskSyncNode =
+    hasCompletedFullRestore &&
+    webRemoteControlFeatureEnabled &&
+    webRemoteControlSessionActive &&
+    isDesktop &&
+    platform.syncWebRemoteControlTasks ? (
+      <WebRemoteControlTaskSync
+        syncWebRemoteControlTasks={platform.syncWebRemoteControlTasks}
+        workspaceTabs={windowWorkspaceTabs}
+      />
+    ) : null;
 
   if (isStartupRenderBlocked) {
     const loadingLabel = intl.formatMessage({ id: "common.loading" });
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
+        {webRemoteControlTaskSyncNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
         {/* HTML 启动壳已经展示 ZCode SVG，但 React 接管 root 后旧壳会被整棵替换。
@@ -962,6 +1059,7 @@ function RootInner({
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
+        {webRemoteControlTaskSyncNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
         <WelcomeScreen onComplete={handleWelcomeScreenComplete} />
@@ -980,6 +1078,7 @@ function RootInner({
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
+        {webRemoteControlTaskSyncNode}
         {initialWorkspaceLoadingFallback}
         {directoryBrowserDialog}
       </RootShell>
@@ -989,6 +1088,7 @@ function RootInner({
   return (
     <RootShell>
       {rootModelSelectionErrorNode}
+      {webRemoteControlTaskSyncNode}
       {remoteConnectionDialog}
       {directoryBrowserDialog}
       <OccupationOnboarding

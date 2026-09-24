@@ -127,6 +127,7 @@ import { ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE } from "./zcodeAgent.js";
 import type {
   ZCodeProtocolRequestId,
   ModelSelection,
+  ZCodeProviderRuntimeHeadersCancelled,
   ZCodeProviderRuntimeHeadersRequestParams,
   ZCodeSessionEvent,
   ZCodeSessionRuntimePreferencesScope,
@@ -161,6 +162,7 @@ import type {
   ZCodeAgentReadSessionMessagesParams,
   ZCodeAgentReadSessionParams,
   ZCodeAgentRemovePluginMarketplaceParams,
+  ZCodeAgentRespondProviderRuntimeHeadersParams,
   ZCodeAgentRespondSessionRuntimePreferencesParams,
   ZCodeAgentResumeSessionParams,
   ZCodeAgentSendPromptParams,
@@ -364,6 +366,7 @@ type SessionSendCompatField =
   | "automationId"
   | "offPeakTaskId"
   | "offPeakRunType"
+  | "botDeliveryTarget"
   | "toolDenylist";
 
 const SESSION_CREATE_OPTIONAL_COMPAT_FIELDS = new Set<SessionCreateCompatField>([
@@ -394,6 +397,7 @@ const SESSION_SEND_OPTIONAL_COMPAT_FIELDS = new Set<SessionSendCompatField>([
   "automationId",
   "offPeakTaskId",
   "offPeakRunType",
+  "botDeliveryTarget",
   "toolDenylist",
 ]);
 // onDynamicSessionEvent 建立上游订阅时若 getClient / sessionSubscribe 瞬时失败
@@ -719,6 +723,9 @@ function buildSessionSendParams(
       : {}),
     ...(params.offPeakRunType !== undefined && !omittedFields.has("offPeakRunType")
       ? { offPeakRunType: params.offPeakRunType }
+      : {}),
+    ...(params.botDeliveryTarget !== undefined && !omittedFields.has("botDeliveryTarget")
+      ? { botDeliveryTarget: params.botDeliveryTarget }
       : {}),
     ...(params.toolDenylist !== undefined && !omittedFields.has("toolDenylist")
       ? { toolDenylist: params.toolDenylist }
@@ -1102,13 +1109,25 @@ export function createZCodeAgentService(
    * 之后仍走 debug。审计线索到"哪个插件、哪个 workspace、什么时候第一次拿"这个粒度。
    */
   const officialMcpIssuanceAudit = createOfficialMcpIssuanceAudit();
+  // workspace 请求 emitter 与取消 emitter 分开。请求只通知已存在的订阅；取消同样不创建。
+  const providerRuntimeHeadersWorkspaceEmitters = new Map<
+    string,
+    Emitter<ZCodeProviderRuntimeHeadersRequestParams>
+  >();
+  const providerRuntimeHeadersCancelledEmitters = new Map<
+    string,
+    Emitter<ZCodeProviderRuntimeHeadersCancelled>
+  >();
   function cancelProviderRuntimeHeaders(
     key: string,
     pending: PendingProviderRuntimeHeadersRequest,
   ): void {
     pendingProviderRuntimeHeaders.delete(key);
     const { requestId, sessionId, workspace } = pending.request;
-    logger.info(undefined, "Provider runtime headers 请求已取消", {
+    providerRuntimeHeadersCancelledEmitters
+      .get(resolveWorkspaceKey(workspace))
+      ?.fire({ requestId, sessionId, workspace });
+    logger.info(undefined, "验证码请求已取消", {
       requestId,
       sessionId,
       workspaceKey: resolveWorkspaceKey(workspace),
@@ -1556,6 +1575,15 @@ export function createZCodeAgentService(
       },
     });
     pluginOperationProgressEmitters.set(operationId, created);
+    return created;
+  }
+
+  function getProviderRuntimeHeadersWorkspaceEmitter(workspace: ZCodeAgentWorkspaceTarget) {
+    const key = resolveWorkspaceKey(workspace);
+    const existing = providerRuntimeHeadersWorkspaceEmitters.get(key);
+    if (existing) return existing;
+    const created = new Emitter<ZCodeProviderRuntimeHeadersRequestParams>();
+    providerRuntimeHeadersWorkspaceEmitters.set(key, created);
     return created;
   }
 
@@ -2263,21 +2291,27 @@ export function createZCodeAgentService(
             workspacePath: workspace.workspacePath,
           });
           const accountAccess = parsed.data.accountAccess;
-          if (accountRequestAuthService && accountAccess) {
-            // Account API Key / Team Runtime Key / Start Plan JWT 都不需要 Renderer 交互。
-            // Host 按 Model 固定的 Account Access 自动应答，避免后台任务和无 pane 会话依赖 UI 订阅者。
+          // 发布包只对非 Start Plan 自动应答。Start Plan 验证码必须留给 Renderer；
+          // 缺 access 或缺账号服务也不再快速失败，否则订阅建立前请求会被丢掉。
+          // 发布包把判断写在调用处。抽成函数会在 host index 留下 keepName。
+          if (
+            accountRequestAuthService !== undefined &&
+            accountAccess !== undefined &&
+            accountAccess.mode !== "start-plan"
+          ) {
             void respondAccountRequestAuthWithoutInteraction({
               key: pendingKey,
               pending,
             });
             return;
           }
-          // 没有账号凭据解析器的请求无人应答只会滞留到 CLI 侧 180s 超时，直接快速失败。
-          pendingProviderRuntimeHeaders.delete(pendingKey);
-          void pending.client.respond(pending.protocolRequestId, {
-            headersApplied: false,
-            errorMessage: "Provider request auth is unavailable",
+          emitSessionEvent(workspace, parsed.data.sessionId, {
+            type: "providerRuntimeHeaders.request",
+            request: parsed.data,
           });
+          providerRuntimeHeadersWorkspaceEmitters
+            .get(resolveWorkspaceKey(workspace))
+            ?.fire(parsed.data);
           return;
         }
 
@@ -2501,6 +2535,7 @@ export function createZCodeAgentService(
                 modelSelection: parsed.data.modelSelection,
                 mode: parsed.data.mode,
                 targetTaskId: parsed.data.targetTaskId,
+                botDeliveryTarget: parsed.data.botDeliveryTarget,
                 workspacePath: workspace.workspacePath,
                 workspaceIdentity: workspace.workspaceIdentity,
                 recurring: parsed.data.recurring ?? true,
@@ -3186,6 +3221,14 @@ export function createZCodeAgentService(
       emitter.dispose();
     }
     sessionEmitters.clear();
+    for (const emitter of providerRuntimeHeadersWorkspaceEmitters.values()) {
+      emitter.dispose();
+    }
+    providerRuntimeHeadersWorkspaceEmitters.clear();
+    for (const emitter of providerRuntimeHeadersCancelledEmitters.values()) {
+      emitter.dispose();
+    }
+    providerRuntimeHeadersCancelledEmitters.clear();
     sessionRuntimePreferencesRequestEmitter.dispose();
     processResourceSampleEmitter.dispose();
     mcpTelemetryEmitter.dispose();
@@ -4733,6 +4776,124 @@ export function createZCodeAgentService(
         }
         return disposable;
       };
+    },
+
+    async respondProviderRuntimeHeaders(
+      params: ZCodeAgentRespondProviderRuntimeHeadersParams,
+    ): Promise<void> {
+      const key = providerRuntimeHeadersRequestKey(params);
+      const pending = pendingProviderRuntimeHeaders.get(key);
+      if (!pending) {
+        throw new Error(`ZCode provider runtime headers request not found: ${params.requestId}`);
+      }
+      if (pending.responding) {
+        throw new Error(
+          `ZCode provider runtime headers response already pending: ${params.requestId}`,
+        );
+      }
+      pending.responding = true;
+      if (!params.response.headersApplied) {
+        pendingProviderRuntimeHeaders.delete(key);
+        await pending.client.respond(pending.protocolRequestId, {
+          headersApplied: false,
+          ...(params.response.errorMessage ? { errorMessage: params.response.errorMessage } : {}),
+        });
+        return;
+      }
+      let material: AccountRequestAuthMaterial | undefined;
+      try {
+        material = await resolveAccountRequestAuth(pending.request);
+      } catch (error) {
+        if (pendingProviderRuntimeHeaders.get(key) !== pending) return;
+        pendingProviderRuntimeHeaders.delete(key);
+        logger.warn(undefined, "ZCode provider runtime headers 应用失败", {
+          modelId: pending.request.modelSelection.modelId,
+          providerId: pending.request.providerId,
+          requestId: pending.request.requestId,
+          sessionId: pending.request.sessionId,
+          error: error instanceof Error ? error.message : String(error),
+          workspaceKey: resolveWorkspaceKey(pending.request.workspace),
+        });
+        await pending.client.respond(pending.protocolRequestId, {
+          headersApplied: false,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+        return;
+      }
+      if (pendingProviderRuntimeHeaders.get(key) !== pending) return;
+      pendingProviderRuntimeHeaders.delete(key);
+      // 发布包在应答处内联合并这两枚验证码头，不经过单独函数。
+      const captchaHeaders = { ...material?.headers };
+      for (const [name, value] of Object.entries(params.response.runtimeProviderHeaders ?? {})) {
+        const canonical = (
+          ["X-Aliyun-Captcha-Verify-Param", "X-Aliyun-Captcha-Verify-Region"] as const
+        ).find((candidate) => candidate.toLowerCase() === name.trim().toLowerCase());
+        const trimmed = value.trim();
+        if (canonical && trimmed) captchaHeaders[canonical] = trimmed;
+      }
+      const captchaApiKey = material?.apiKey;
+      const requestAuth =
+        !captchaApiKey && Object.keys(captchaHeaders).length === 0
+          ? undefined
+          : {
+              ...(captchaApiKey ? { apiKey: captchaApiKey } : {}),
+              ...(Object.keys(captchaHeaders).length > 0 ? { headers: captchaHeaders } : {}),
+            };
+      await pending.client.respond(
+        pending.protocolRequestId,
+        requestAuth
+          ? { headersApplied: true, requestAuth }
+          : { headersApplied: false, errorMessage: "Provider request auth is missing" },
+      );
+      const applied = {
+        modelId: pending.request.modelSelection.modelId,
+        providerId: pending.request.providerId,
+        requestId: pending.request.requestId,
+        sessionId: pending.request.sessionId,
+        ...(params.response.errorMessage ? { error: params.response.errorMessage } : {}),
+        workspaceKey: resolveWorkspaceKey(pending.request.workspace),
+      };
+      if (requestAuth) {
+        logger.info(undefined, "ZCode provider runtime headers 已应用", applied);
+      } else {
+        logger.warn(undefined, "ZCode provider runtime headers 应用失败", applied);
+      }
+    },
+
+    onDynamicProviderRuntimeHeadersRequest(params: ZCodeAgentSessionTarget) {
+      const emitter = getSessionEmitter(params);
+      const prefix = `${sessionEventKey(params)}\u0000`;
+      return (listener: (request: ZCodeProviderRuntimeHeadersRequestParams) => void) => {
+        const disposable = emitter.event((event) => {
+          if (event.type === "providerRuntimeHeaders.request") listener(event.request);
+        });
+        for (const [pendingKey, pending] of pendingProviderRuntimeHeaders) {
+          if (pendingKey.startsWith(prefix)) listener(pending.request);
+        }
+        return disposable;
+      };
+    },
+
+    onDynamicWorkspaceProviderRuntimeHeadersRequest(params: ZCodeAgentWorkspaceTarget) {
+      const emitter = getProviderRuntimeHeadersWorkspaceEmitter(params);
+      const prefix = `${resolveWorkspaceKey(params)}\u0000`;
+      return (listener: (request: ZCodeProviderRuntimeHeadersRequestParams) => void) => {
+        const disposable = emitter.event(listener);
+        for (const [pendingKey, pending] of pendingProviderRuntimeHeaders) {
+          if (pendingKey.startsWith(prefix)) listener(pending.request);
+        }
+        return disposable;
+      };
+    },
+
+    onDynamicWorkspaceProviderRuntimeHeadersCancelled(params: ZCodeAgentWorkspaceTarget) {
+      // 发布包没有 getProviderRuntimeHeadersCancelledEmitter 这个 keepName。
+      const key = resolveWorkspaceKey(params);
+      const existing = providerRuntimeHeadersCancelledEmitters.get(key);
+      if (existing) return existing.event;
+      const created = new Emitter<ZCodeProviderRuntimeHeadersCancelled>();
+      providerRuntimeHeadersCancelledEmitters.set(key, created);
+      return created.event;
     },
 
     onDynamicSessionEvent(params: ZCodeAgentSessionSubscribeParams) {

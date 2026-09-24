@@ -38,6 +38,11 @@ export { usePlugins } from "./usePlugins.js";
 // Onboarding 完成记录服务（本地持久化，后续上传服务器）
 export { useOnboardingRecordService } from "./useOnboardingRecordService.js";
 
+export { useBotsService } from "./useBotsService.js";
+export { useOutputStyleService } from "./useOutputStyleService.js";
+export { useMarketingTouchService } from "./useMarketingTouchService.js";
+export { useCloudContentService } from "./useCloudContentService.js";
+
 // 通用确认弹窗
 export { useConfirmDialog } from "./useConfirmDialog.js";
 export { useAlertDialog } from "./useAlertDialog.js";

@@ -1,6 +1,11 @@
 /* eslint-disable max-lines -- 远程连接向导的状态编排暂集中在同一组件，后续有独立拆分计划。 */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { createUuid, type RemoteTarget, type RemoteWorkspaceSessionEntry } from "@zcode/shared";
+import {
+  createUuid,
+  type RemoteConnectionWizardKind,
+  type RemoteTarget,
+  type RemoteWorkspaceSessionEntry,
+} from "@zcode/shared";
 import {
   TID_SSH_CONNECT_TRIGGER,
   TID_SSH_DIALOG,
@@ -60,7 +65,7 @@ interface RemoteConnectionDialogProps {
   remoteWorkspaceSessions?: RemoteWorkspaceSessionEntry[];
   onFlowActiveChange?: (active: boolean) => void;
   onFlowRequestIdChange?: (requestId: string | null) => void;
-  preferredKind?: RemoteTarget["kind"];
+  preferredKind?: RemoteConnectionWizardKind;
   preferredWslDistro?: string;
 }
 
@@ -112,6 +117,10 @@ export function RemoteConnectionDialog({
     wslUser,
     dockerContainer,
     manualDockerContainer,
+    serverUrl,
+    serverName,
+    serverToken,
+    serverWorkspacePath,
     sshConfigAliases,
     sshConfigAliasesLoading,
     sshConfigAliasesError,
@@ -133,6 +142,10 @@ export function RemoteConnectionDialog({
     setWslUser,
     setDockerContainer,
     setManualDockerContainer,
+    setServerUrl,
+    setServerName,
+    setServerToken,
+    setServerWorkspacePath,
     refreshDockerContainers,
     applySshConfigAlias,
     clearSelectedSshConfigAlias,
@@ -328,6 +341,10 @@ export function RemoteConnectionDialog({
       wslUser,
       dockerContainer,
       manualDockerContainer,
+      serverUrl,
+      serverName,
+      serverToken,
+      serverWorkspacePath,
     });
     if (!nextTarget) {
       // 必填项缺失属于表单校验，不应该和真实连接失败共用 destructive 错误样式。
@@ -526,6 +543,10 @@ export function RemoteConnectionDialog({
                     wslDistros={wslDistros}
                     dockerContainer={dockerContainer}
                     manualDockerContainer={manualDockerContainer}
+                    serverUrl={serverUrl}
+                    serverName={serverName}
+                    serverToken={serverToken}
+                    serverWorkspacePath={serverWorkspacePath}
                     dockerContainers={dockerContainers}
                     dockerAvailable={dockerAvailable}
                     sshConfigAliases={sshConfigAliases}
@@ -553,6 +574,10 @@ export function RemoteConnectionDialog({
                     onWslUserChange={setWslUser}
                     onDockerContainerChange={setDockerContainer}
                     onManualDockerContainerChange={setManualDockerContainer}
+                    onServerUrlChange={setServerUrl}
+                    onServerNameChange={setServerName}
+                    onServerTokenChange={setServerToken}
+                    onServerWorkspacePathChange={setServerWorkspacePath}
                     onDockerContainersRefresh={refreshDockerContainers}
                     onApplySshConfigAlias={applySshConfigAlias}
                     onClearSelectedSshConfigAlias={clearSelectedSshConfigAlias}

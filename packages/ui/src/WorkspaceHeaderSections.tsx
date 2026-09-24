@@ -93,6 +93,10 @@ export function WorkspaceHeaderTitleSection({
   nativeSessionLogPath: _nativeSessionLogPath,
   nativeSessionLogExists: _nativeSessionLogExists,
   nativeSessionLogLoading: _nativeSessionLogLoading,
+  // 发布包标题区签名接收壳层快照，菜单仍走 useTaskListItemContextActions 自己的查询。
+  providerWorkspaceConfigPath: _providerWorkspaceConfigPath,
+  providerWorkspaceConfigExists: _providerWorkspaceConfigExists,
+  providerWorkspaceConfigLoading: _providerWorkspaceConfigLoading,
   reloadSessionPending,
   workspaceHeaderState,
   onRefreshGit: _onRefreshGit,
@@ -168,9 +172,11 @@ export function WorkspaceHeaderTitleSection({
   const {
     taskSessionFile,
     taskNativeSessionLogFile,
+    providerConfigFile,
     fileManagerLabel,
     handleCopyText,
     handleOpenTaskPathInFileManager,
+    handleOpenProviderConfig,
   } = useTaskListItemContextActions({
     workspacePath: workspaceAbsPath,
     remoteSessionId,
@@ -525,6 +531,7 @@ export function WorkspaceHeaderTitleSection({
                 taskSessionFile={taskSessionFile}
                 activeSessionId={activeSessionId}
                 taskNativeSessionLogFile={taskNativeSessionLogFile}
+                providerConfigFile={providerConfigFile}
                 disableTaskTargetActions={disableTaskTargetActions || taskMenuMembershipLoading}
                 disableTaskActions={Boolean(readOnlyReason)}
                 disabledReason={readOnlyReason}
@@ -674,6 +681,9 @@ export function WorkspaceHeaderTitleSection({
                 }}
                 onOpenTaskPathInFileManager={() => {
                   void handleOpenTaskPathInFileManager();
+                }}
+                onOpenProviderConfig={() => {
+                  void handleOpenProviderConfig();
                 }}
                 onCopyWorkspacePath={() => {
                   void handleCopyText(

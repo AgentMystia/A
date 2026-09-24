@@ -1,3 +1,4 @@
+import "./cloudDialogPayload.js";
 import type { RemoteTargetSnapshot } from "./protocol.js";
 import type { SSHConnectOptions } from "./remoteTarget.js";
 

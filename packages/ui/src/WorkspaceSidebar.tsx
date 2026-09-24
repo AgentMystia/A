@@ -84,6 +84,7 @@ import {
   type SidebarTaskOrganizeBy,
   type SidebarTaskSortBy,
 } from "@/lib/sidebarTaskPreferences.js";
+import { resolveWebRemoteNavigationScrollChrome } from "@/lib/webRemoteNavigationScroll.js";
 import {
   persistSidebarPurposeSectionPreferences,
   readSidebarPurposeSectionPreferences,
@@ -113,7 +114,22 @@ import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.j
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { WorkspaceFileTree } from "@/WorkspaceFileTree.js";
 import { WorkspaceArchivedTasksFlatSection } from "@/WorkspaceArchivedTasksFlatSection.js";
+import { MarketingCampaignBanner } from "@/marketing/MarketingCampaignBanner.js";
 import { WorkspaceSidebarFooter } from "@/WorkspaceSidebarFooter.js";
+import { getWorkspaceKey } from "@/lib/workspaceKey.js";
+import type { WebRemoteControlMobileSwitcher } from "@/web-remote/mobile/webRemoteControlMobileTypes.js";
+import { WebRemoteControlTaskIndex } from "@/web-remote/task-index/WebRemoteControlTaskIndex.js";
+import {
+  resolveMobileActiveTaskKey,
+  resolveMobileActiveTaskListRefresh,
+} from "@/web-remote/mobileActiveTaskKey.js";
+import { useWebRemoteControlStatus } from "@/web-remote/useWebRemoteControlStatus.js";
+import { useWebRemoteControlFeatureEnabled } from "@/web-remote/webRemoteControlFeature.js";
+import {
+  pruneCollapsedWorkspaceKeys,
+  toggleCollapsedWorkspaceKey,
+} from "@/web-remote/task-index/webRemoteControlTaskIndexModel.js";
+import type { WebRemoteNavigationTaskOpen } from "@/web-remote/navigation/webRemoteControlNavigation.js";
 import { WorkspacePinnedTasksSection } from "@/WorkspacePinnedTasksSection.js";
 import { WorkspaceTimelineTasksSection } from "@/WorkspaceTimelineTasksSection.js";
 import { WorkspaceGroupedTasksSection } from "@/WorkspaceGroupedTasksSection.js";
@@ -233,6 +249,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onCreateConversationTask,
   onOpenFolderFromWorkspaceMenu,
   onOpenRemoteWorkspace,
+  webRemoteControlWorkspaceSwitcher,
   theme,
   onConnectRemote: _onConnectRemote,
   onSelectRemoteProject: _onSelectRemoteProject,
@@ -245,6 +262,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   remoteWorkspaceErrorByWorkspaceKey,
   reconnectingRemoteWorkspaceLogsByWorkspaceKey = EMPTY_RECONNECTING_REMOTE_WORKSPACE_LOGS_BY_WORKSPACE_KEY,
   isDesktop = false,
+  isWebRemoteControl = false,
   isMacDesktop: _isMacDesktop = false,
   isWindowsDesktop = false,
   isSidebarVisible: _isSidebarVisible = true,
@@ -262,6 +280,8 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   automationsActive = false,
   pluginStoreActive = false,
   onFileTreeOpenChange,
+  onWebRemoteTaskOpen,
+  onWebRemoteTaskSwitchingChange,
 }: {
   workspacePath: string;
   workspaceRemoteSessionId?: string;
@@ -281,6 +301,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onCreateConversationTask: () => void;
   onOpenFolderFromWorkspaceMenu: () => void;
   onOpenRemoteWorkspace?: () => void;
+  webRemoteControlWorkspaceSwitcher?: WebRemoteControlMobileSwitcher;
   theme: Theme;
   onConnectRemote: (options: RemoteTarget, requestId?: string) => Promise<string>;
   onSelectRemoteProject: (
@@ -297,6 +318,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   remoteWorkspaceErrorByWorkspaceKey: Record<string, string>;
   reconnectingRemoteWorkspaceLogsByWorkspaceKey?: Record<string, RemoteConnectionLogEntry[]>;
   isDesktop?: boolean;
+  isWebRemoteControl?: boolean;
   isMacDesktop?: boolean;
   isWindowsDesktop?: boolean;
   isSidebarVisible?: boolean;
@@ -314,27 +336,10 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   automationsActive?: boolean;
   pluginStoreActive?: boolean;
   onFileTreeOpenChange?: (open: boolean) => void;
+  onWebRemoteTaskOpen?: (event: WebRemoteNavigationTaskOpen) => void;
+  onWebRemoteTaskSwitchingChange?: (switching: boolean) => void;
 }) {
   const { intl, localePreference, setLocalePreference } = useZCodeIntl();
-  const handleTaskRowSelect = useCallback(
-    (
-      targetWorkspacePath: string,
-      taskId: string,
-      targetWorkspaceIdentity?: string,
-      expectedUnreadAt?: number,
-    ) => {
-      // Shell 第四个参数是远程 session 路由，任务行的 unreadAt 不能复用该位置。
-      // Sidebar 行选择显式留空 remoteSessionId，再把用户看到的未读版本传给已读事务。
-      onSelectTask(
-        targetWorkspacePath,
-        taskId,
-        targetWorkspaceIdentity,
-        undefined,
-        expectedUnreadAt,
-      );
-    },
-    [onSelectTask],
-  );
   const { openCodingPlanUpgrade } = useCodingPlanUpgradeDialog();
   const bumpTaskListVersion = useZCodeSessionStore((state) => state.bumpTaskListVersion);
   const workspaceIdentity = useTabStore((state) => {
@@ -349,6 +354,31 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
 
     return activeTab.workspaceIdentity;
   });
+  const handleTaskRowSelect = useCallback(
+    (
+      targetWorkspacePath: string,
+      taskId: string,
+      targetWorkspaceIdentity?: string,
+      expectedUnreadAt?: number,
+    ) => {
+      // Shell 第四个参数是远程 session 路由，任务行的 unreadAt 不能复用该位置。
+      // Sidebar 行选择显式留空 remoteSessionId，再把用户看到的未读版本传给已读事务。
+      // 远控壳用这次选择决定是否收起导航；侧栏不保存收起状态。
+      onWebRemoteTaskOpen?.({
+        crossWorkspace:
+          getWorkspaceKey(targetWorkspacePath, targetWorkspaceIdentity) !==
+          getWorkspaceKey(workspacePath, workspaceIdentity),
+      });
+      onSelectTask(
+        targetWorkspacePath,
+        taskId,
+        targetWorkspaceIdentity,
+        undefined,
+        expectedUnreadAt,
+      );
+    },
+    [onSelectTask, onWebRemoteTaskOpen, workspaceIdentity, workspacePath],
+  );
   const workspaceReadOnly = useTabStore((state) =>
     isWorkspaceReadOnly(state, workspacePath, workspaceIdentity),
   );
@@ -384,6 +414,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     [expandedWorkspacePaths, workspacePaths],
   );
   const [showArchivedTasks, setShowArchivedTasks] = useState(false);
+  const [collapsedRemoteWorkspaceKeys, setCollapsedRemoteWorkspaceKeys] = useState(
+    () => new Set<string>(),
+  );
   const [archivedActionsContainer, setArchivedActionsContainer] = useState<HTMLDivElement | null>(
     null,
   );
@@ -566,6 +599,15 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     showArchivedTasks,
     taskOrganizeBy,
   });
+  const isWebRemoteTaskIndex = Boolean(webRemoteControlWorkspaceSwitcher) || isWebRemoteControl;
+  const webRemoteNavigationScroll = resolveWebRemoteNavigationScrollChrome(isWebRemoteTaskIndex);
+  const remoteTaskViewMode: SidebarTaskViewMode =
+    isWebRemoteTaskIndex && taskViewMode === "grouped" ? "workspace" : taskViewMode;
+  const showWebRemoteTaskIndex =
+    webRemoteControlWorkspaceSwitcher != null &&
+    (remoteTaskViewMode === "workspace" ||
+      remoteTaskViewMode === "timeline" ||
+      remoteTaskViewMode === "archived");
   const effectiveTaskViewMode = taskViewMode;
   const visibleWorkspaceTaskKeys = useMemo(
     () =>
@@ -608,12 +650,14 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     setCreateGroupedTaskDraftAction(() => action);
   }, []);
   const shouldShowPinnedTasks =
+    // 远控索引自带 switcher 快照里的置顶区，本地 pinned 不能再画一份。
+    !isWebRemoteTaskIndex &&
     // grouped 主体会主动过滤 pinned task；如果同页不渲染全局置顶区，
     // 从 Header 置顶当前任务后整条 row 会无处展示，看起来像 session 被删除。
-    taskViewMode === "workspace" ||
-    taskViewMode === "timeline" ||
-    taskViewMode === "archived" ||
-    taskViewMode === "grouped";
+    (taskViewMode === "workspace" ||
+      taskViewMode === "timeline" ||
+      taskViewMode === "archived" ||
+      taskViewMode === "grouped");
   const workspaceScrollRef = useRef<HTMLDivElement | null>(null);
   const [showWorkspaceTopMask, setShowWorkspaceTopMask] = useState(false);
   const [showWorkspaceBottomMask, setShowWorkspaceBottomMask] = useState(false);
@@ -645,6 +689,43 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       ),
     [workspaceTaskLists.groups],
   );
+  const webRemoteControlFeatureEnabled = useWebRemoteControlFeatureEnabled();
+  const webRemoteControlStatus = useWebRemoteControlStatus({
+    enabled: isDesktop && webRemoteControlFeatureEnabled,
+  });
+  const mobileActiveTaskKey = useMemo(
+    () => resolveMobileActiveTaskKey(webRemoteControlStatus),
+    [webRemoteControlStatus.mobileConnected, webRemoteControlStatus.mobileViewState],
+  );
+  const mobileActiveTaskRefreshKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const view = webRemoteControlStatus.mobileViewState;
+    const visibleWorkspaceKey = view?.activeWorkspaceKey?.trim() ?? "";
+    const visibleTaskId = view?.activeTaskId?.trim() ?? "";
+    const decision = resolveMobileActiveTaskListRefresh({
+      mobileConnected: webRemoteControlStatus.mobileConnected,
+      activeWorkspaceKey: view?.activeWorkspaceKey,
+      activeTaskId: view?.activeTaskId,
+      taskIsVisible:
+        workspaceTaskGroupByKey
+          .get(visibleWorkspaceKey)
+          ?.items.some((item) => item.taskId === visibleTaskId) ?? false,
+      lastRefreshKey: mobileActiveTaskRefreshKeyRef.current,
+    });
+    mobileActiveTaskRefreshKeyRef.current = decision.nextRefreshKey;
+    if (!decision.refresh) {
+      return;
+    }
+    // 手机正在看的任务不在当前分页时，发布包用侧栏当前 workspace 把任务列表版本加一。
+    bumpTaskListVersion(workspacePath, workspaceIdentity);
+  }, [
+    bumpTaskListVersion,
+    webRemoteControlStatus.mobileConnected,
+    webRemoteControlStatus.mobileViewState,
+    workspaceIdentity,
+    workspacePath,
+    workspaceTaskGroupByKey,
+  ]);
   const handleShowMoreWorkspaceTasks = useCallback((workspaceKey: string) => {
     setWorkspaceTaskVisibleLimitByKey((current) =>
       increaseWorkspaceTaskVisibleLimit(current, workspaceKey),
@@ -774,6 +855,21 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       // 当前任务高亮会丢失，也会把后续选择误判成未激活。
       selectWorkspaceZCodeState(state, workspacePath, workspaceIdentity).activeTaskId,
   );
+
+  useEffect(() => {
+    if (!webRemoteControlWorkspaceSwitcher?.updateMobileViewState || !activeTaskId) return;
+    const workspaceKey = getWorkspaceKey(workspacePath, workspaceIdentity);
+    void webRemoteControlWorkspaceSwitcher
+      .updateMobileViewState(workspaceKey, activeTaskId)
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn("[WorkspaceSidebar] 同步远控 mobileViewState 失败", {
+          error: message,
+          workspaceKey,
+          taskId: activeTaskId,
+        });
+      });
+  }, [activeTaskId, webRemoteControlWorkspaceSwitcher, workspaceIdentity, workspacePath]);
 
   useEffect(() => {
     const scrollNode = workspaceScrollRef.current;
@@ -1006,7 +1102,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       resizeObserver?.disconnect();
       window.removeEventListener("resize", scheduleUpdate);
     };
-  }, [activePrimaryTaskMode]);
+  }, [activePrimaryTaskMode, isWebRemoteTaskIndex]);
 
   const archivedTasksActionLabel = intl.formatMessage({
     // 归档视图打开后按钮图标会切换为 X，之前 tooltip 仍固定显示“归档”，
@@ -1015,59 +1111,68 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   });
   // 性能修复：workspaceTaskToolbar 会随 chat streaming 被重复创建并传给远控任务索引。
   // 这里把 render prop 稳定在真正影响工具栏展示的状态上，避免消息流更新污染侧栏任务区。
+  // 发布包在远控任务索引里把负边距写在工具栏根上，并用静态项目标签替换分组页签。
   const workspaceTaskToolbar = useCallback(
     () => (
-      <div className="pl-2.5 pr-3">
+      <div className={cn("pl-2.5 pr-3", isWebRemoteTaskIndex && "-mx-4")}>
         <div className="flex min-w-0 items-center justify-between gap-2">
           <div className="flex min-w-0 shrink-0 items-center gap-1">
-            <Tabs
-              value={activePrimaryTaskMode}
-              onValueChange={handlePrimaryTaskModeChange}
-              className="w-fit shrink-0"
-              aria-label={intl.formatMessage({
-                id: "workspaceSidebar.organize",
-              })}
-            >
-              {/* TabsList 默认横向态是 h-8；这里同步覆盖 variant，避免实际 Radix 横向态把外壳撑高。 */}
-              <TabsList
-                ref={primaryTaskTabsListRef}
-                className="relative h-7 w-fit overflow-hidden rounded-full bg-surface p-0.5 group-data-horizontal/tabs:h-7"
+            {isWebRemoteTaskIndex ? (
+              <div className="inline-flex h-7 min-w-0 items-center rounded-full border border-border bg-surface px-2 text-ui-xs font-medium text-foreground">
+                {intl.formatMessage({
+                  id: "workspaceSidebar.organizeByProject",
+                })}
+              </div>
+            ) : (
+              <Tabs
+                value={activePrimaryTaskMode}
+                onValueChange={handlePrimaryTaskModeChange}
+                className="w-fit shrink-0"
+                aria-label={intl.formatMessage({
+                  id: "workspaceSidebar.organize",
+                })}
               >
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0.5 left-0 rounded-full bg-background transition-[opacity,transform,width] duration-200 ease-out"
-                  style={primaryTaskIndicatorStyle}
-                />
-                <TabsTrigger
-                  ref={(node) => {
-                    primaryTaskTabTriggerRefs.current.grouped = node;
-                  }}
-                  value="grouped"
-                  className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+                {/* TabsList 默认横向态是 h-8；这里同步覆盖 variant，避免实际 Radix 横向态把外壳撑高。 */}
+                <TabsList
+                  ref={primaryTaskTabsListRef}
+                  className="relative h-7 w-fit overflow-hidden rounded-full bg-surface p-0.5 group-data-horizontal/tabs:h-7"
                 >
-                  <Hash aria-hidden="true" className="size-3 shrink-0" />
-                  <span>
-                    {intl.formatMessage({
-                      id: "workspaceSidebar.organizeGrouped",
-                    })}
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger
-                  ref={(node) => {
-                    primaryTaskTabTriggerRefs.current.workspace = node;
-                  }}
-                  value="workspace"
-                  className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
-                >
-                  <Folder aria-hidden="true" className="size-3 shrink-0" />
-                  <span>
-                    {intl.formatMessage({
-                      id: "workspaceSidebar.organizeByProject",
-                    })}
-                  </span>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-0.5 left-0 rounded-full bg-background transition-[opacity,transform,width] duration-200 ease-out"
+                    style={primaryTaskIndicatorStyle}
+                  />
+                  <TabsTrigger
+                    ref={(node) => {
+                      primaryTaskTabTriggerRefs.current.grouped = node;
+                    }}
+                    value="grouped"
+                    className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+                  >
+                    <Hash aria-hidden="true" className="size-3 shrink-0" />
+                    <span>
+                      {intl.formatMessage({
+                        id: "workspaceSidebar.organizeGrouped",
+                      })}
+                    </span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    ref={(node) => {
+                      primaryTaskTabTriggerRefs.current.workspace = node;
+                    }}
+                    value="workspace"
+                    className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+                  >
+                    <Folder aria-hidden="true" className="size-3 shrink-0" />
+                    <span>
+                      {intl.formatMessage({
+                        id: "workspaceSidebar.organizeByProject",
+                      })}
+                    </span>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
             {toggleAllTaskGroupsPresentation ? (
               <ControlHintTooltip
                 title={intl.formatMessage({
@@ -1231,6 +1336,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     [
       activePrimaryTaskMode,
       archivedTasksActionLabel,
+      isWebRemoteTaskIndex,
       createGroupedTaskGroupAction,
       handlePrimaryTaskModeChange,
       handleToggleAllTaskGroups,
@@ -1254,16 +1360,26 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       // 这里用设计系统的结构面 token 固定侧栏层级，避免不同合成器把左侧容器混成异常灰块。
       className="flex h-full flex-col overflow-hidden"
     >
-      <div className="h-12 [app-region:drag]"></div>
+      <div
+        className={cn("h-12 [app-region:drag]", webRemoteNavigationScroll.dragSpacerClassName)}
+      />
       <div className="relative flex-1 min-h-0 overflow-hidden">
         <div
+          data-web-remote-navigation-scroll={webRemoteNavigationScroll.scrollDataAttribute}
           className={cn(
             "absolute inset-0 flex min-h-0 flex-col transition-transform duration-200 ease-out",
             isFileTreeOpen && "-translate-x-full pointer-events-none",
+            webRemoteNavigationScroll.scrollClassName,
           )}
           aria-hidden={isFileTreeOpen}
         >
-          <div className={cn("flex flex-col gap-1 px-2", isWindowsDesktop ? "py-2" : "py-3")}>
+          <div
+            className={cn(
+              "flex flex-col gap-1 px-2",
+              isWindowsDesktop ? "py-2" : "py-3",
+              webRemoteNavigationScroll.contentClassName,
+            )}
+          >
             <WorkspaceNewTaskTooltip disabledReason={workspaceReadOnlyReason}>
               <NewTaskButtonGroup
                 disabled={workspaceReadOnly}
@@ -1352,13 +1468,14 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
             <StickyGroupHeaderSlot header={groupedStickyHeader} />
             <div
               ref={workspaceScrollRef}
-              className={
+              className={cn(
                 // grouped task 拖拽预览会改变列表高度，禁用 scroll anchoring 避免浏览器自动锚定把 dnd-kit 测量放大成抖动。
-                "flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto"
-              }
+                "flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto",
+                isWebRemoteTaskIndex && "max-md:flex-none max-md:overflow-visible",
+              )}
               style={workspaceScrollMaskStyle}
             >
-              {workspaceTaskToolbar()}
+              {isWebRemoteTaskIndex ? null : workspaceTaskToolbar()}
               {shouldShowPinnedTasks ? (
                 // 归档切换主任务区时不应隐藏 pinned。
                 // pinned 是全局置顶区，归档态保持置顶区可见。
@@ -1367,6 +1484,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                   activeWorkspacePath={workspacePath}
                   activeWorkspaceIdentity={workspaceIdentity}
                   activeTaskId={activeTaskId}
+                  mobileActiveTaskKey={mobileActiveTaskKey}
                   taskSortBy={taskSortBy}
                   onSelectTask={handleTaskRowSelect}
                   onOpenFileTree={(target) => {
@@ -1376,13 +1494,39 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                 />
               ) : null}
               <div className="flex min-h-0 flex-col gap-3 px-2">
-                {taskViewMode === "archived" ? (
+                {showWebRemoteTaskIndex && webRemoteControlWorkspaceSwitcher ? (
+                  <WebRemoteControlTaskIndex
+                    switcher={webRemoteControlWorkspaceSwitcher}
+                    activeWorkspacePath={workspacePath}
+                    activeWorkspaceIdentity={workspaceIdentity}
+                    activeTaskId={activeTaskId}
+                    taskSortBy={taskSortBy}
+                    taskViewMode={remoteTaskViewMode}
+                    collapsedWorkspaceKeys={collapsedRemoteWorkspaceKeys}
+                    renderBeforePinnedTasks={workspaceTaskToolbar}
+                    archivedActionsContainer={archivedActionsContainer}
+                    onToggleWorkspaceCollapsed={(workspaceKey) => {
+                      setCollapsedRemoteWorkspaceKeys((current) =>
+                        toggleCollapsedWorkspaceKey(current, workspaceKey),
+                      );
+                    }}
+                    onWorkspaceGroupKeysChange={(workspaceKeys) => {
+                      setCollapsedRemoteWorkspaceKeys((current) =>
+                        pruneCollapsedWorkspaceKeys(current, workspaceKeys),
+                      );
+                    }}
+                    onSelectTask={onSelectTask}
+                    onTaskOpen={onWebRemoteTaskOpen}
+                    onCrossWorkspaceSwitchingChange={onWebRemoteTaskSwitchingChange}
+                  />
+                ) : taskViewMode === "archived" ? (
                   <WorkspaceArchivedTasksFlatSection
                     actionsContainer={archivedActionsContainer}
                     workspaceTabs={workspaceTabs}
                     activeWorkspacePath={workspacePath}
                     activeWorkspaceIdentity={workspaceIdentity}
                     activeTaskId={activeTaskId}
+                    mobileActiveTaskKey={mobileActiveTaskKey}
                     sortBy={taskSortBy}
                     onSelectTask={onSelectTask}
                   />
@@ -1392,6 +1536,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                     activeWorkspacePath={workspacePath}
                     activeWorkspaceIdentity={workspaceIdentity}
                     activeTaskId={activeTaskId}
+                    mobileActiveTaskKey={mobileActiveTaskKey}
                     onSelectTask={onSelectTask}
                     onCreateTask={onCreateTask}
                     onOpenFileTree={(target) => {
@@ -1412,6 +1557,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                     activeWorkspacePath={workspacePath}
                     activeWorkspaceIdentity={workspaceIdentity}
                     activeTaskId={activeTaskId}
+                    mobileActiveTaskKey={mobileActiveTaskKey}
                     taskSortBy={taskSortBy}
                     onSelectTask={handleTaskRowSelect}
                   />
@@ -1543,6 +1689,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                                             taskListLiveWorkflowCount={
                                               taskGroup?.liveWorkflowCount ?? 0
                                             }
+                                            mobileActiveTaskKey={mobileActiveTaskKey}
                                             workspaceKey={workspaceKey}
                                             onShowMoreWorkspaceTasks={handleShowMoreWorkspaceTasks}
                                             reconnectingRemoteWorkspaceKeys={
@@ -1629,6 +1776,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                                 emptyMessage={intl.formatMessage({
                                   id: "workspaceSidebar.noConversations",
                                 })}
+                                mobileActiveTaskKey={mobileActiveTaskKey}
                                 onSelectTask={handleTaskRowSelect}
                               />
                             </WorkspacePurposeSection>
@@ -1643,6 +1791,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
           </div>
 
           <WorkspaceSidebarFooter
+            banner={<MarketingCampaignBanner />}
             className="pr-3"
             theme={theme}
             localeMenuValue={localeMenuValue}

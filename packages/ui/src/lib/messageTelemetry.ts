@@ -174,6 +174,17 @@ const queuedPromptTelemetryByTask = new Map<string, PromptTelemetryState[]>();
 const activePromptTelemetryByTask = new Map<string, PromptTelemetryState>();
 const agentStepTelemetryByTask = new Map<string, AgentStepTelemetryState>();
 
+/**
+ * 发布包每个 parity 用例开始时清空这四张进程内表。
+ * 它们按 workspace/task 记住输入计时和未落定 prompt；不清的话上一个用例的焦点时间会串到下一个用例。
+ */
+export function resetMessageTelemetryStateForParity(): void {
+  composerInputTimingByWorkspace.clear();
+  queuedPromptTelemetryByTask.clear();
+  activePromptTelemetryByTask.clear();
+  agentStepTelemetryByTask.clear();
+}
+
 function resolvePromptTelemetryModelProvider(params: {
   modelName?: string | null;
   provider?: ZCodeProvider;

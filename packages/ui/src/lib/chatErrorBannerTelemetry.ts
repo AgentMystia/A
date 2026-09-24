@@ -8,6 +8,7 @@ import { logger } from "@/logger.js";
 import {
   getProviderBusinessErrorUiAction,
   isProviderBusinessErrorCode,
+  resolveCaptchaVerifyFailedBusinessCode,
   type ProviderBusinessErrorUiAction,
 } from "@/lib/providerBusinessError.js";
 import { resolveTelemetryAttribution } from "@/lib/chatErrorAttribution.js";
@@ -46,7 +47,11 @@ export function resolveVisibleChatErrorTelemetryRecoveryAction(
 ): ChatProviderBusinessRecoveryAction | null {
   // 修复原因：旧 UI 会把普通 provider 业务错误的可见恢复动作作为聚合维度上报；
   // 无可见动作的业务码（如 3007/3001）在这里自然返回 null，不再上报动作维度。
-  if (!isProviderBusinessErrorCode(error.code)) {
+  // 验证码短语可能包在仍带登录/升级动作的外层码上，命中后同样不报恢复动作。
+  if (
+    resolveCaptchaVerifyFailedBusinessCode(error.code, error.message) ||
+    !isProviderBusinessErrorCode(error.code)
+  ) {
     return null;
   }
   const kind = getProviderBusinessErrorUiAction(error.code);

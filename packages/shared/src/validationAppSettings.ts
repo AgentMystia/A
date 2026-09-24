@@ -1,6 +1,8 @@
 /* oxlint-disable eslint(max-lines) -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
 import type { AppSettings } from "./protocol.js";
+import { ZCODE_BUILTIN_AGENT_CLI_PROVIDERS } from "./bots.js";
+import { zcodeProviderSchema } from "./providers.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
@@ -99,6 +101,14 @@ const remoteWorkspaceTargetSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("docker"),
     container: nonEmptyStringSchema,
+  }),
+  z.object({
+    kind: z.literal("server"),
+    url: z.string().url(),
+    name: nonEmptyStringSchema.optional(),
+    workspacePath: z.string().optional(),
+    serverId: nonEmptyStringSchema.optional(),
+    tokenCredentialKey: nonEmptyStringSchema.optional(),
   }),
 ]);
 
@@ -244,6 +254,21 @@ function migrateLegacyLocalePreference(value: unknown): unknown {
     // 旧 setting.json 只有 locale，无法区分“用户显式选择 zh-CN”和“默认值 zh-CN”。
     // 对已经落盘的旧配置保留原 locale 作为显式偏好，避免升级后误切到 system。
     localePreference: parsedLocale.data,
+  };
+}
+
+const enabledBuiltinAgentCliProvidersSchema = z
+  .array(zcodeProviderSchema)
+  .transform(() => [...ZCODE_BUILTIN_AGENT_CLI_PROVIDERS]);
+
+function migrateLegacyBuiltinAgentCliProviders(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  // 发布包读 setting.json 时无条件覆盖这个字段。历史 claude/opencode 选择不决定运行时 Agent。
+  return {
+    ...(value as Record<string, unknown>),
+    enabledBuiltinAgentCliProviders: [...ZCODE_BUILTIN_AGENT_CLI_PROVIDERS],
   };
 }
 
@@ -453,6 +478,9 @@ const appSettingsObjectSchema = z.object({
   zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.default("queue"),
   askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
   modelIoFullRetentionEnabled: z.boolean().default(false),
+  enabledBuiltinAgentCliProviders: enabledBuiltinAgentCliProvidersSchema.default([
+    ...ZCODE_BUILTIN_AGENT_CLI_PROVIDERS,
+  ]),
   startPlanRecommendationDismissed: z.boolean().default(false),
   providerFamilyConnectionSelections: providerFamilyConnectionSelectionSettingsSchema.default({}),
   providerFamilyDomain: providerFamilyDomainSchema.optional(),
@@ -472,6 +500,14 @@ const appSettingsObjectSchema = z.object({
   skippedElectronUpdateVersions: skippedElectronUpdateVersionsSchema,
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
   zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
+  webRemoteControlExternalRelayDevice: z.object({ deviceSid: nonEmptyStringSchema }).optional(),
+  webRemoteControlLastEnabledContext: z
+    .object({
+      workspacePath: nonEmptyStringSchema,
+      workspaceIdentity: z.string().optional(),
+      initialTaskId: z.string().optional(),
+    })
+    .optional(),
 });
 
 export const appSettingsSchema = z.preprocess(
@@ -481,7 +517,9 @@ export const appSettingsSchema = z.preprocess(
         migrateMessageStreamShowReasoningDefault(
           migrateCloseToTrayOnWindowsDefault(
             migrateLegacyLocalePreference(
-              sanitizeZCodeEndpointOrigin(migrateLegacyWorkspaceSession(value)),
+              sanitizeZCodeEndpointOrigin(
+                migrateLegacyWorkspaceSession(migrateLegacyBuiltinAgentCliProviders(value)),
+              ),
             ),
           ),
         ),
@@ -521,6 +559,7 @@ export const appSettingsPatchSchema = z.object({
   zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.optional(),
   askUserQuestionAutoResolutionEnabled: z.boolean().optional(),
   modelIoFullRetentionEnabled: z.boolean().optional(),
+  enabledBuiltinAgentCliProviders: enabledBuiltinAgentCliProvidersSchema.optional(),
   startPlanRecommendationDismissed: z.boolean().optional(),
   providerFamilyConnectionSelections: providerFamilyConnectionSelectionSettingsSchema.optional(),
   providerFamilyDomain: z.union([providerFamilyDomainSchema, z.literal("")]).optional(),
@@ -559,4 +598,12 @@ export const appSettingsPatchSchema = z.object({
     .optional(),
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
   zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
+  webRemoteControlExternalRelayDevice: z.object({ deviceSid: nonEmptyStringSchema }).optional(),
+  webRemoteControlLastEnabledContext: z
+    .object({
+      workspacePath: nonEmptyStringSchema,
+      workspaceIdentity: z.string().optional(),
+      initialTaskId: z.string().optional(),
+    })
+    .optional(),
 });

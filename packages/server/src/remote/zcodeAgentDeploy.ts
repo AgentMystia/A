@@ -2,6 +2,7 @@ import {
   ZCODE_AGENT_RUNTIME,
   ZCODE_AGENT_PROVIDER,
   type RemoteResourcePackageId,
+  type ZCodeProvider,
 } from "@zcode/shared";
 import type { IRemoteBackend, RemoteEnvironment } from "@zcode/server/remote/backend.js";
 import {
@@ -155,7 +156,8 @@ export async function deployZCodeAgentRuntime(
   options: DeployZCodeAgentRuntimeOptions,
   loggers: DeployLoggers,
 ): Promise<void> {
-  const provider = ZCODE_AGENT_PROVIDER;
+  // 发布包把局部 provider 留成 let n="glm"，后面再赋给 componentId。const 会被压成一个绑定。
+  let provider = "glm" satisfies ZCodeProvider;
   const runtime = ZCODE_AGENT_RUNTIME;
   const componentId = provider;
   if (!isSelectedZCodeAgentComponent(componentId, options.selectedResourcePackageIds)) {

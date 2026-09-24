@@ -43,6 +43,12 @@ import type {
 } from "@/store/zcodeSessionStoreTypes.js";
 import type { TaskFindDialogProps } from "@/quickpick/TaskFindDialog.js";
 import type { AutomationsNavigationTab, OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
+import type {
+  WebRemoteControlMobileNavigationIntent,
+  WebRemoteControlMobileSwitcher,
+  WebRemoteControlMobileWorkspaceList,
+  WebRemoteControlTerminalTransportState,
+} from "@/web-remote/mobile/webRemoteControlMobileTypes.js";
 
 export interface WorkspaceShellZCodeState {
   activeTaskId: WorkspaceZCodeUIState["activeTaskId"];
@@ -100,6 +106,11 @@ export interface AppProps {
   remoteConnectionInProgress?: boolean;
   onReturnToWorkspace?: () => void;
   allowOpenWorkspace?: boolean;
+  /** 手机远控任务首页的唯一列表/切换入口。缺省时保持桌面壳。 */
+  webRemoteControlWorkspaceSwitcher?: WebRemoteControlMobileSwitcher;
+  initialWebRemoteControlMobileNavigationIntent?: WebRemoteControlMobileNavigationIntent;
+  initialWebRemoteControlWorkspaceList?: WebRemoteControlMobileWorkspaceList;
+  webRemoteControlTerminalTransportState?: WebRemoteControlTerminalTransportState;
   allowRemoteWorkspace?: boolean;
   remoteWorkspaceSessions?: RemoteWorkspaceSessionEntry[];
   workspaceAbsPath: string;
@@ -187,6 +198,9 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   gitState: ReturnType<typeof import("@/hooks/useGitRepository.js").useGitRepository>;
   browserNavigationRequest: BrowserNavigationRequest | null;
   browserRestoreUrls: Record<string, string>;
+  providerConfigFile: ReturnType<
+    typeof import("@/hooks/useWorkspaceProviderConfigFile.js").useWorkspaceProviderConfigFile
+  >;
   taskNativeSessionLogFile: ReturnType<
     typeof import("@/hooks/useTaskNativeSessionLogFile.js").useTaskNativeSessionLogFile
   >;

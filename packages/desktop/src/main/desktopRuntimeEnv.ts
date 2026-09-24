@@ -15,8 +15,6 @@ import {
   ZCODE_VERSION,
   buildZCodeToolEnvPassthroughEnv,
   resolveRuntimeZCodeEndpointOrigin,
-  readProductEndpointEnv,
-  pickProductEndpointEnv,
   resolveZaiBusinessBaseUrl,
   resolveZaiOAuthClientId,
   resolveZaiOAuthOrigin,
@@ -91,18 +89,20 @@ export type RemoteAssetDirs = Pick<
 >;
 type LocalRuntimeEnv = Record<string, string | undefined>;
 
+// 发布包的 docker 动态 chunk 与 acknowledged relay 共用入口集合。
+// 直接动态 import("@zcode/server/remote") 会把 RemoteServiceAccess 留在 docker chunk，relay 留在 index。
 export async function isDockerDaemonAvailable(): Promise<boolean> {
-  const { isDockerAvailable } = await import("@zcode/server/remote");
+  const { isDockerAvailable } = await import("./remoteRuntimeDynamicEntry.js");
   return isDockerAvailable();
 }
 
 export async function listAvailableWSLDistros() {
-  const { listWSLDistros } = await import("@zcode/server/remote");
+  const { listWSLDistros } = await import("./remoteRuntimeDynamicEntry.js");
   return listWSLDistros();
 }
 
 export async function listAvailableDockerContainers() {
-  const { listDockerContainers } = await import("@zcode/server/remote");
+  const { listDockerContainers } = await import("./remoteRuntimeDynamicEntry.js");
   return listDockerContainers();
 }
 
@@ -245,15 +245,17 @@ function resolveEnvValue(envName: string, localEnv: LocalRuntimeEnv = {}): strin
 export function resolveZCodeEndpointEnvBaseOrigin(
   localEnv: LocalRuntimeEnv = {},
 ): string | undefined {
-  const buildEnv = readProductEndpointEnv();
-  // main 进程临时验证更新服务时不会重新写 .env，命令行传入的 endpoint 必须优先于本地文件。
+  // 发布包直接读进程环境和本地 env 的通道键，不经过端点白名单。
+  // 白名单会把同一批键再打进 main 和 renderer。命令行优先于本地文件。
+  const channelKey =
+    ZCODE_ENV === "production" ? "ZCODE_PRODUCTION_BASE_URL" : "ZCODE_TEST_BASE_URL";
   return (
-    process.env["ZCODE_BASE_URL"]?.trim() ||
-    process.env["ZCODE_ENDPOINT_ORIGIN"]?.trim() ||
+    process.env.ZCODE_BASE_URL?.trim() ||
+    process.env.ZCODE_ENDPOINT_ORIGIN?.trim() ||
+    process.env[channelKey]?.trim() ||
     localEnv.ZCODE_BASE_URL?.trim() ||
     localEnv.ZCODE_ENDPOINT_ORIGIN?.trim() ||
-    buildEnv.ZCODE_BASE_URL?.trim() ||
-    buildEnv.ZCODE_ENDPOINT_ORIGIN?.trim() ||
+    localEnv[channelKey]?.trim() ||
     undefined
   );
 }
@@ -269,14 +271,13 @@ function readDefinedProcessEnv(): Record<string, string> {
 }
 
 function applySelectedZCodeEnvLinks(env: Record<string, string>): Record<string, string> {
+  // 发布包只补四个链接。解析时带上编译期通道，不合并端点白名单。
   const endpointEnv = {
-    ...readProductEndpointEnv(),
     ...env,
     ZCODE_ENV,
   };
 
   return {
-    ...pickProductEndpointEnv(endpointEnv),
     ...env,
     ZCODE_BASE_URL: env.ZCODE_BASE_URL ?? resolveRuntimeZCodeEndpointOrigin(endpointEnv),
     ZAI_OAUTH_ORIGIN: env.ZAI_OAUTH_ORIGIN ?? resolveZaiOAuthOrigin(endpointEnv),

@@ -12,7 +12,7 @@ import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { PROCESS_RESOURCE_CLI_LANES } from "./processResourceTelemetry.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { zcodeProviderSchema } from "./providers.js";
-import { zcodeAgentProviderSchema } from "./zcode-agent-policy.js";
+import type { ZCodeProvider } from "./zcode-task-types-core.js";
 import { modelSelectionSchema } from "./model-selection.js";
 import { providerProvisioningTriggerSchema } from "./provider-provisioning.js";
 import {
@@ -37,6 +37,7 @@ import {
   taskRunLeaseTargetSchema,
   taskStreamMirrorPublishOpSchema,
   taskStreamMirrorTargetSchema,
+  zcodeTaskRealtimeProviderSchema,
 } from "./task-realtime-core.js";
 
 export { WSL_USER_MAX_LENGTH, isValidWslUser, wslUserSchema } from "./wslUserValidation.js";
@@ -93,10 +94,20 @@ export const dockerConnectOptionsSchema = z.object({
   container: nonEmptyStringSchema,
 });
 
+export const serverConnectOptionsSchema = z.object({
+  kind: z.literal("server"),
+  url: z.string().url(),
+  name: nonEmptyStringSchema.optional(),
+  token: z.string().optional(),
+  workspacePath: z.string().optional(),
+  serverId: nonEmptyStringSchema.optional(),
+});
+
 export const remoteTargetSchema = z.discriminatedUnion("kind", [
   sshConnectOptionsSchema,
   wslConnectOptionsSchema,
   dockerConnectOptionsSchema,
+  serverConnectOptionsSchema,
 ]);
 
 export const helloMessageSchema = z.object({
@@ -444,6 +455,37 @@ export type HostResourceUsageSnapshotRequestMessage = z.infer<
   typeof hostResourceUsageSnapshotRequestMessageSchema
 >;
 
+// 发布包 host 与 main 用这三条结果回写 Bot 远端 workspace。
+// runtime MessagePort 在 postMessage 的 transfer list 里，不进入 JSON。
+export const hostBotRemoteWorkspaceReconnectResultMessageSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-reconnect-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    sessionId: z.string().optional(),
+    error: z.string().optional(),
+  })
+  .strict();
+
+export const hostBotRemoteWorkspaceConnectionStatusResultMessageSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-connection-status-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    connected: z.boolean().optional(),
+    error: z.string().optional(),
+  })
+  .strict();
+
+export const hostBotRemoteWorkspaceRuntimePortMessageSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-runtime-port"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    error: z.string().optional(),
+  })
+  .strict();
+
 export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("database-startup-control"), control: databaseStartupControlSchema })
@@ -466,6 +508,9 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostTaskRunLeaseResultMessageSchema,
   hostTaskOwnerCommandDeliverMessageSchema,
   hostTaskOwnerCommandResultMessageSchema,
+  hostBotRemoteWorkspaceReconnectResultMessageSchema,
+  hostBotRemoteWorkspaceConnectionStatusResultMessageSchema,
+  hostBotRemoteWorkspaceRuntimePortMessageSchema,
   hostSessionMessageDeliverMessageSchema,
   hostSessionMessageDeliveryResultMessageSchema,
   hostFeedbackLogArchiveResultMessageSchema,
@@ -932,6 +977,35 @@ export type HostResourceUsageSnapshotResultResponse = z.infer<
   typeof hostResourceUsageSnapshotResultResponseSchema
 >;
 
+// workspaceIdentity 允许空串：发布包在 trim 为空时回退到 workspacePath。
+const botRemoteWorkspaceRequestFields = {
+  requestId: nonEmptyStringSchema,
+  workspacePath: nonEmptyStringSchema,
+  workspaceIdentity: z.string(),
+  target: remoteTargetSchema,
+};
+
+export const hostBotRemoteWorkspaceReconnectRequestResponseSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-reconnect-request"),
+    ...botRemoteWorkspaceRequestFields,
+  })
+  .strict();
+
+export const hostBotRemoteWorkspaceConnectionStatusRequestResponseSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-connection-status-request"),
+    ...botRemoteWorkspaceRequestFields,
+  })
+  .strict();
+
+export const hostBotRemoteWorkspaceRuntimePortRequestResponseSchema = z
+  .object({
+    type: z.literal("bot-remote-workspace-runtime-port-request"),
+    ...botRemoteWorkspaceRequestFields,
+  })
+  .strict();
+
 export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("database-startup-state"), state: databaseStartupStateSchema })
@@ -966,6 +1040,9 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostTaskRunLeaseReleaseResponseSchema,
   hostTaskOwnerCommandRequestResponseSchema,
   hostTaskOwnerCommandResultResponseSchema,
+  hostBotRemoteWorkspaceReconnectRequestResponseSchema,
+  hostBotRemoteWorkspaceConnectionStatusRequestResponseSchema,
+  hostBotRemoteWorkspaceRuntimePortRequestResponseSchema,
   hostSessionMessageSendRequestedResponseSchema,
   hostSessionRouteAnnounceResponseSchema,
   hostSessionMessageDeliverResultResponseSchema,
@@ -1163,7 +1240,8 @@ export const zcodeTaskMetaSchema = z.object({
   model: z.string().optional(),
   thoughtLevel: nonEmptyStringSchema.optional(),
   runtimeEpoch: z.number().int().nonnegative().optional(),
-  provider: zcodeAgentProviderSchema.optional(),
+  // 运行时校验仍是五值枚举。输出类型保持可选 glm，避免历史名字进入 ZCodeTaskMeta。
+  provider: zcodeProviderSchema.optional() as z.ZodOptional<z.ZodType<ZCodeProvider>>,
   migrationSource: zcodeTaskMigrationSourceSchema.optional(),
   forkedFromTaskId: nonEmptyStringSchema.optional(),
   // cron automation 身份：随 meta_json 一起持久化（单一来源），同时在写入时投影到 tasks 表
@@ -1185,6 +1263,12 @@ export const zcodeTaskMetaSchema = z.object({
       attribution: errorAttributionSchema.optional(),
     })
     .optional(),
+  repairState: z
+    .object({
+      claudeNativeSnapshotAssistantContentVersion: z.number().int().nonnegative().optional(),
+      codexNativeSnapshotSubagentToolsVersion: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
   changeSummary: z
     .object({
       fileCount: z.number().int().nonnegative(),
@@ -1202,6 +1286,16 @@ export const zcodeTaskMetaSchema = z.object({
     })
     .optional(),
   target: zcodeTaskGoalSchema.nullable().optional(),
+});
+
+// 发布包在 task meta 与 pinned index 之间保留同步游标 schema。
+// 没有其它读取点，但共享 chunk 会留下这次 zod 构造。
+const zcodeTaskSyncStateSchema = z.enum(["idle", "syncing", "ready", "stale", "failed"]);
+export const zcodeTaskSyncCursorSchema = z.object({
+  provider: zcodeTaskRealtimeProviderSchema,
+  sessionId: nonEmptyStringSchema,
+  lastSyncedTurnIndex: z.number().int(),
+  state: zcodeTaskSyncStateSchema,
 });
 
 export const zcodeTaskIndexEntrySchema = z.object({

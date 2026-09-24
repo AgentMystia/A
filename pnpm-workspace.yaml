@@ -3,6 +3,17 @@ packages:
   - apps/zcode-cli
   - apps/zcode-cli/packages/*
   - apps/zcode-cli/tools/*
+  # 仍是文档/脚本快照、没有可 typecheck 的 src 工程，先不进入安装图。
+  - "!apps/zcode-cli/packages/documents-plugin"
+  - "!apps/zcode-cli/packages/image-search-plugin"
+  - "!apps/zcode-cli/packages/pdf-plugin"
+  - "!apps/zcode-cli/packages/plugin-creator-plugin"
+  - "!apps/zcode-cli/packages/presentations-plugin"
+  - "!apps/zcode-cli/packages/restore-legacy-sessions-plugin"
+  - "!apps/zcode-cli/packages/skill-creator-plugin"
+  - "!apps/zcode-cli/packages/spreadsheets-plugin"
+  - "!apps/zcode-cli/packages/zcode-cua-plugin"
+  - "!apps/zcode-cli/packages/zcode-guide-plugin"
 supportedArchitectures:
   os:
     - current

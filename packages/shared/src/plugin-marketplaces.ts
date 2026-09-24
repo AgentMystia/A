@@ -9,6 +9,13 @@ export interface DefaultPluginMarketplace {
 
 export const ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "zcode-plugins-official";
 
+/**
+ * 发布包个人市场默认 id。精选 pluginNames 策展名单已下线，
+ * 这里只给商店分组标题覆盖，不加入官方市场或默认市场列表。
+ * 必须是纯字符串：带 `$comment` 的副作用对象会被打进每一份 preload，发布包没有这段说明。
+ */
+export const CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID = "claude-plugins-official";
+
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([
   "browser-use@zcode-plugins-official",

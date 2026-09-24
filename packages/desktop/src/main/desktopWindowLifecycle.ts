@@ -1,7 +1,7 @@
 import { getDatabaseStartupPortPayload } from "./databaseStartupRelay.js";
 import { randomUUID } from "node:crypto";
 import { app, BrowserWindow, Menu, MessageChannelMain } from "electron";
-import type { UtilityProcess as ElectronUtilityProcess } from "electron";
+import type { NativeImage, UtilityProcess as ElectronUtilityProcess } from "electron";
 import { HostMessageTypes, InternalChannels, PlatformChannels, type Locale } from "@zcode/shared";
 import { scheduleArmsBrowserPerfLoadNudge } from "./armsBrowserPerfLoadNudge.js";
 import { createBrowserWindow } from "./desktopWindowChrome.js";
@@ -22,7 +22,7 @@ import {
 const DEFAULT_RUNTIME_PROCESS_ENV_WAIT_TIMEOUT_MS = 4_500;
 
 export function createWindow(options: {
-  iconPath: string;
+  iconPath: string | NativeImage;
   preloadPath: string;
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
   forceQuitRef: { current: boolean };
@@ -67,6 +67,8 @@ export function createWindow(options: {
   awaitFirstHostSpawnDecision?: () => Promise<void>;
   /** Local Host map insertion completed; presentation facts can now be replayed safely. */
   onHostProcessReady?: (windowKey: number) => void;
+  /** BrowserWindow.id。Host map 仍按 webContents.id 索引。 */
+  onWindowClosed?: (browserWindowId: number) => void;
   resolveBrowserViewOwner?: Parameters<typeof createBrowserWindow>[0]["resolveBrowserViewOwner"];
 }) {
   const win = createBrowserWindow({
@@ -116,7 +118,6 @@ export function createWindow(options: {
   }
 
   const wcId = win.webContents.id;
-  const browserWindowId = win.id;
   // 资源遥测据此把主窗口 renderer 归 renderer_main；辅助窗口与 DevTools 归 chromium_other。
   registerMainApplicationWindow(wcId);
   let domReadyGeneration = 0;
@@ -269,6 +270,7 @@ export function createWindow(options: {
       options.disposeHostProcess(child, `${label}:window-closed`);
       options.windowHostProcessMap.delete(wcId);
     }
+    options.onWindowClosed?.(win.id);
     options.disposeRemoteWorkspaceSessionsForWindow(wcId, `${label}:window-closed`);
   });
 

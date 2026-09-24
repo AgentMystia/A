@@ -14,6 +14,7 @@ import {
 import { areConfigOptionsEquivalent } from "@/lib/configOptionsEquality.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
 import { pushNavEntry } from "@/lib/taskNavigationHistory.js";
+import { persistLastAgentProvider } from "@/lib/lastAgentProviderPreference.js";
 import { resolveTaskRestorePreloadConfigOptions } from "@/lib/taskModelRecovery.js";
 import type {
   ZCodeSessionStoreState,
@@ -519,6 +520,10 @@ export function createWorkspaceSlice(set: SetFn) {
       const normalizedProvider = provider
         ? normalizeAgentProviderToZCodeAgent(provider)
         : undefined;
+      // 发布包在进入草稿前把归一后的 provider 记到 localStorage。
+      if (normalizedProvider) {
+        persistLastAgentProvider(normalizedProvider);
+      }
 
       set((state) =>
         updateWorkspaceState(

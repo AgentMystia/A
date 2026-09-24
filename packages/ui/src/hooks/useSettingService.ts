@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL, type AppSettings } from "@zcode/shared";
 import type { ISettingService } from "@zcode/services";
+import { deliverAcceptedAppRuntimePreferences } from "./deliverAcceptedAppRuntimePreferences.js";
 import { useServices } from "./useServices.js";
 import { usePlatform } from "./usePlatform.js";
 
@@ -106,7 +107,7 @@ async function refreshSettingsStore(settingService: ISettingService | undefined)
 
 /** 获取和更新应用设置 */
 export function useSettings() {
-  const { broadcastService, settingService, zcodeAgentService } = useServices();
+  const { botsService, broadcastService, settingService, zcodeAgentService } = useServices();
   const platform = usePlatform();
   const settingsStore = getSettingsStore(settingService);
   const [snapshot, setSnapshot] = useState<SettingsSnapshot>(settingsStore.snapshot);
@@ -154,22 +155,27 @@ export function useSettings() {
             patch.modelIoFullRetentionEnabled ??
             settingsStore.snapshot.settings?.modelIoFullRetentionEnabled === true,
         };
-        const syncResults = await Promise.allSettled([
-          zcodeAgentService.syncAppRuntimePreferences(preferences),
-        ]);
-        const syncError = syncResults.find(
-          (result): result is PromiseRejectedResult => result.status === "rejected",
-        )?.reason;
-        await broadcastService.send({
-          channel: APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
-          payload: preferences,
+        await deliverAcceptedAppRuntimePreferences({
+          zcodeAgentService,
+          botsService,
+          preferences,
+          broadcast: (payload) =>
+            broadcastService.send({
+              channel: APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
+              payload,
+            }),
         });
-        if (syncError) {
-          throw syncError;
-        }
       }
     },
-    [broadcastService, settingService, settingsStore, zcodeAgentService, platform, refresh],
+    [
+      botsService,
+      broadcastService,
+      settingService,
+      settingsStore,
+      zcodeAgentService,
+      platform,
+      refresh,
+    ],
   );
 
   return {

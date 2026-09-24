@@ -1,6 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- 迁移期需要在一个门面里集中维护旧 task projection 到 ZCode session 的协议适配。 */
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -50,6 +50,7 @@ import {
   type ZCodeBackgroundTaskNotificationInfo,
   type ZCodeBackgroundTaskControlItem,
   type ZCodeBackgroundTurnAttribution,
+  type ZCodeBotDeliveryTarget,
   type ZCodeCancelTaskCommandResult,
   type ZCodeConfigOption,
   type ZCodeEnqueueTaskCommandResult,
@@ -128,6 +129,11 @@ import type {
   SessionMessageDeliveryResult,
   SessionMessageSendRequested,
 } from "#src/session/sessionMailbox.js";
+import {
+  getLegacyDeletedTaskSessionSnapshotPath,
+  getLegacyTaskSessionSnapshotPath,
+} from "#src/paths.js";
+import { safeParseLegacyTaskSessionFile } from "#src/session/legacyTaskSessionFile.js";
 import { TaskIndexRepo } from "#src/session/taskIndexRepo.js";
 import type {
   IZCodeAgentService,
@@ -140,6 +146,7 @@ import type {
   ZCodeTaskIndexTerminalEvent,
 } from "./zcodeTaskIndexSyncer.js";
 import { readModelTrajectory } from "./modelTrajectory.js";
+import { parentToolUseIdFromToolPayload } from "./claudeParentToolUseId.js";
 import { errorAttributionSchema, type CommandPayloadMap } from "@zcode/shared/zcode-protocol-v4";
 import {
   assertV4CommandAckOk,
@@ -149,10 +156,7 @@ import {
 import { claudeNativeSessionImportRepo } from "#src/session/claude-native/claudeNativeSessionImportRepo.js";
 import { importClaudeNativeSessions } from "#src/session/claude-native/claudeNativeSessionImportService.js";
 import { buildImportedClaudeTaskId } from "#src/session/claude-native/buildImportedClaudeTaskFile.js";
-import {
-  readLegacyImportedClaudeHistory,
-  repairImportedClaudeSessionSnapshot,
-} from "#src/session/claude-native/importedClaudeHistoryRepair.js";
+import { repairImportedClaudeSessionSnapshot } from "#src/session/claude-native/importedClaudeHistoryRepair.js";
 import {
   MODEL_CONFIG_ID,
   MODE_CONFIG_ID,
@@ -260,6 +264,9 @@ export function createZCodeTaskServiceAdapter(
   const apiRetryByTaskKey = new Map<string, ZCodeApiRetryStatus | null>();
   const backgroundTaskControlsByTaskKey = new Map<string, ZCodeBackgroundTaskControlItem[]>();
   const streamedTurnKeys = new Set<string>();
+  // 发布包 host `readLegacyTaskSnapshot` 写入、`onDynamicTaskEvent` 读取。
+  // 即使随后 Claude 升级成功也不删除，避免再订一份 agent session。
+  const legacySnapshotTaskKeys = new Set<string>();
   const activePromptInputIds = new Map<string, InputId>();
   const toolProjectionMemoryByTaskKey = new Map<string, ZCodeToolProjectionMemory>();
   const liveToolProjectionsByTaskKey = new Map<string, Map<string, LiveToolProjection>>();
@@ -386,6 +393,7 @@ export function createZCodeTaskServiceAdapter(
       logReason?: string;
       modelSelection?: CommandPayloadMap["sendText"]["modelSelection"];
       modelExecution?: CommandPayloadMap["sendText"]["modelExecution"];
+      botDeliveryTarget?: ZCodeBotDeliveryTarget;
     } & ZCodeBackgroundTurnAttribution,
   ): Promise<void> {
     const startedAt = Date.now();
@@ -431,6 +439,7 @@ export function createZCodeTaskServiceAdapter(
           modelExecution: params.modelExecution,
           ...turnAttributionOf(params),
           toolDenylist: promptToolDenylist,
+          botDeliveryTarget: params.botDeliveryTarget,
           ...(params.clientMode ? { clientMode: params.clientMode } : {}),
         });
       } else {
@@ -452,6 +461,7 @@ export function createZCodeTaskServiceAdapter(
               ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),
               ...(params.modelExecution ? { modelExecution: params.modelExecution } : {}),
               ...turnAttributionOf(params),
+              ...(params.botDeliveryTarget ? { botDeliveryTarget: params.botDeliveryTarget } : {}),
               ...(promptToolDenylist ? { toolDisallowlist: promptToolDenylist } : {}),
             },
             sessionId: target.taskId,
@@ -1237,41 +1247,130 @@ export function createZCodeTaskServiceAdapter(
     return /\bSession (not found|is not active):/i.test(message);
   }
 
-  async function resumeTaskSnapshot(
-    params: TaskTargetWithMcpServers,
-  ): Promise<ZCodeSessionStateSnapshot> {
-    let snapshot: ZCodeSessionStateSnapshot;
+  async function readLegacyTaskSnapshot(params: TaskTarget): Promise<ZCodeTaskSnapshot | null> {
+    // 发布包只取第一份已存在的 snapshot。后面的 deleted 文件不能在解析失败时补上。
+    const filePath = [
+      getLegacyTaskSessionSnapshotPath(
+        params.workspacePath,
+        params.taskId,
+        params.workspaceIdentity,
+      ),
+      getLegacyDeletedTaskSessionSnapshotPath(
+        params.workspacePath,
+        params.taskId,
+        params.workspaceIdentity,
+      ),
+    ].find((candidate) => existsSync(candidate));
+    if (!filePath) return null;
     try {
-      snapshot = await resumeSnapshot(params);
+      // 发布包用 readFileSync 读第一份已存在的 snapshot，不用 fs/promises 的 readFile。
+      const raw = JSON.parse(readFileSync(filePath, "utf-8"));
+      const parsed = safeParseLegacyTaskSessionFile(raw);
+      if (!parsed.success) {
+        logger.warn(
+          undefined,
+          `读取 legacy task snapshot 非法 taskId=${params.taskId}`,
+          parsed.error.flatten(),
+        );
+        return null;
+      }
+      const file = parsed.data;
+      const indexed = await taskIndexRepo.getTaskMeta(params).catch(() => null);
+      const meta = applyOverlayToMeta(
+        {
+          ...file.meta,
+          taskId: params.taskId,
+          workspacePath: params.workspacePath,
+          workspaceIdentity: params.workspaceIdentity ?? file.meta.workspaceIdentity,
+          title: indexed?.title ?? file.meta.title,
+          updatedAt: indexed?.updatedAt ?? file.meta.updatedAt,
+          // 发布包在两边都没有 mode 时写入 "default"。当前枚举不含该值，按原文保留。
+          mode: file.meta.mode ?? indexed?.mode ?? ("default" as ZCodeTaskMode),
+          provider: file.meta.provider ?? indexed?.provider ?? GLM_PROVIDER,
+          status: file.meta.status ?? indexed?.status ?? "completed",
+          lastError: file.meta.lastError ?? indexed?.lastError,
+        },
+        getOverlay(params),
+      );
+      const snapshot: ZCodeTaskSnapshot = {
+        ...file,
+        meta,
+        runtime: {
+          apiRetry: apiRetryByTaskKey.get(taskKey(params)) ?? null,
+          pendingCommands: runtimeCommands.get(taskKey(params)) ?? [],
+        },
+      };
+      legacySnapshotTaskKeys.add(taskKey(params));
+      rememberIndexedTaskMeta(snapshot.meta);
+      return snapshot;
+    } catch (error) {
+      logger.warn(undefined, `读取 legacy task snapshot 失败 taskId=${params.taskId}`, error);
+      return null;
+    }
+  }
+
+  async function resumeSnapshotOrLegacy(
+    params: TaskTargetWithMcpServers,
+  ): Promise<
+    | { kind: "session"; snapshot: ZCodeSessionStateSnapshot }
+    | { kind: "legacy"; snapshot: ZCodeTaskSnapshot }
+  > {
+    try {
+      const snapshot = await resumeSnapshot(params);
+      return {
+        kind: "session",
+        snapshot: await repairEmptyImportedClaudeSnapshot(params, snapshot),
+      };
     } catch (error) {
       if (!isSessionMissingError(error)) throw error;
-      // 早期原生历史导入只保存了带 migrationSource 的快照，仍需升级成真实 ZCode session。
-      // 复用导入模块的严格来源校验，避免清理 ACP 时误删这条独立的数据迁移路径。
-      const history = await readLegacyImportedClaudeHistory(params);
-      if (!history) throw error;
-      const mcpServers = await resolveProductMcpServers(params.mcpServers);
-      const restored = await options.zcodeAgentService.createSession({
-        workspacePath: params.workspacePath,
-        workspaceIdentity: params.workspaceIdentity,
-        sessionId: params.taskId,
-        sessionTraceId: history.traceId ?? createSessionTraceId(),
-        persistence: "immediate",
-        model: params.model ? parseModelPickerValue(params.model) : undefined,
-        ...(mcpServers ? { mcpServers } : {}),
-        ...(params.toolDenylist ? { toolDenylist: params.toolDenylist } : {}),
-        importedHistory: {
-          source: "claudeCode",
-          title: history.title,
-          createdAt: history.createdAt,
-          updatedAt: history.updatedAt,
-          messages: history.messages,
-        },
-      });
-      const meta = await syncTaskIndexSnapshot(restored);
-      await syncTaskIndexMeta({ ...meta, migrationSource: "claudeCode" });
-      return restored;
+      const legacy = await readLegacyTaskSnapshot(params);
+      if (!legacy) throw error;
+      if (legacy.meta.migrationSource === "claudeCode") {
+        try {
+          const mcpServers = await resolveProductMcpServers(params.mcpServers);
+          const restored = await options.zcodeAgentService.createSession({
+            workspacePath: params.workspacePath,
+            workspaceIdentity: params.workspaceIdentity,
+            sessionId: params.taskId,
+            sessionTraceId: legacy.meta.traceId ?? createSessionTraceId(),
+            persistence: "immediate",
+            model: params.model ? parseModelPickerValue(params.model) : undefined,
+            ...(mcpServers ? { mcpServers } : {}),
+            ...(params.toolDenylist ? { toolDenylist: params.toolDenylist } : {}),
+            importedHistory: {
+              source: "claudeCode",
+              title: legacy.meta.title,
+              createdAt: legacy.meta.createdAt,
+              updatedAt: legacy.meta.updatedAt,
+              messages: legacy.messages.map((message) => ({
+                role: message.role,
+                content: message.content,
+                timestamp: message.timestamp,
+              })),
+            },
+          });
+          const meta = await syncTaskIndexSnapshot(restored);
+          await syncTaskIndexMeta({ ...meta, migrationSource: "claudeCode" });
+          logger.info(
+            undefined,
+            `legacy Claude 导入 task 已升级为 ZCode session taskId=${params.taskId}`,
+          );
+          return { kind: "session", snapshot: restored };
+        } catch (upgradeError) {
+          logger.warn(
+            undefined,
+            `legacy Claude 导入 task 升级为 ZCode session 失败，继续只读恢复 taskId=${params.taskId}`,
+            upgradeError,
+          );
+        }
+      }
+      logger.warn(
+        undefined,
+        `ZCode Protocol session 缺失，已按 legacy task snapshot 恢复 taskId=${params.taskId}`,
+        error,
+      );
+      return { kind: "legacy", snapshot: legacy };
     }
-    return repairEmptyImportedClaudeSnapshot(params, snapshot);
   }
 
   function snapshotToMeta(snapshot: ZCodeSessionStateSnapshot): ZCodeTaskMeta {
@@ -1632,6 +1731,9 @@ export function createZCodeTaskServiceAdapter(
       return;
     }
 
+    // Start Plan 验证码由 Renderer 订阅 agent service。发布包不把它投影成 task 流。
+    if (event.type === "providerRuntimeHeaders.request") return;
+
     if (event.type === "session.event") {
       recordAgentModelNetworkTelemetry(event.event);
       if (event.event.type === "turn.started") {
@@ -1894,6 +1996,7 @@ export function createZCodeTaskServiceAdapter(
         attachments: params.attachments,
         ...turnAttributionOf(params),
         toolDenylist: params.toolDenylist,
+        botDeliveryTarget: params.botDeliveryTarget,
         clientId: params.clientId,
         clientMode: params.clientMode,
         modelSelection: params.modelSelection,
@@ -2265,7 +2368,7 @@ export function createZCodeTaskServiceAdapter(
           : await resolveTaskIndexResumeHints(params, "resume_task");
       const model = explicitModel || indexHints.model;
       const thoughtLevel = explicitThoughtLevel || indexHints.thoughtLevel;
-      const snapshot = await resumeTaskSnapshot({
+      const resumed = await resumeSnapshotOrLegacy({
         taskId: params.taskId,
         workspacePath: params.workspacePath,
         workspaceIdentity: params.workspaceIdentity,
@@ -2273,6 +2376,16 @@ export function createZCodeTaskServiceAdapter(
         thoughtLevel,
         mcpServers: params.mcpServers,
       });
+      if (resumed.kind === "legacy") {
+        const meta = await syncTaskIndexMeta({
+          ...resumed.snapshot.meta,
+          ...(params.automationId ? { cronAutomationId: params.automationId } : {}),
+          ...(params.offPeakTaskId ? { offPeakTaskId: params.offPeakTaskId } : {}),
+        });
+        emitWorkspaceTaskListChanged(params, meta, "task_status_changed");
+        return meta;
+      }
+      const snapshot = resumed.snapshot;
       emitWorkspaceConfig(params, snapshot.settings);
       const snapshotMeta = await syncTaskIndexSnapshot(snapshot);
       const meta =
@@ -2470,7 +2583,7 @@ export function createZCodeTaskServiceAdapter(
         : {};
       const model = explicitModel || indexHints.model;
       const thoughtLevel = explicitThoughtLevel || indexHints.thoughtLevel;
-      const snapshot = await resumeTaskSnapshot({
+      const resumed = await resumeSnapshotOrLegacy({
         taskId: params.taskId,
         workspacePath: params.workspacePath,
         workspaceIdentity: params.workspaceIdentity,
@@ -2481,6 +2594,30 @@ export function createZCodeTaskServiceAdapter(
         thoughtLevel,
       });
       const resumeDurationMs = Date.now() - resumeStartedAt;
+      if (resumed.kind === "legacy") {
+        const limitStartedAt = Date.now();
+        const limited = limitTaskSnapshotMessages(resumed.snapshot, params.messageLimit);
+        const limitDurationMs = Date.now() - limitStartedAt;
+        const indexStartedAt = Date.now();
+        const indexedMeta =
+          (await taskIndexRepo.getTaskMeta(params)) ?? (await syncTaskIndexMeta(limited.meta));
+        const indexDurationMs = Date.now() - indexStartedAt;
+        logger.info(undefined, "[zcode-task-service] 历史快照读取完成", {
+          clientMode: params.clientMode ?? "unknown",
+          durationMs: Date.now() - startedAt,
+          indexDurationMs,
+          limitDurationMs,
+          messageLimit: params.messageLimit ?? null,
+          resumeDurationMs,
+          snapshotKind: "legacy",
+          stats: getTaskSnapshotMessageDiagnostics(limited),
+          taskId: params.taskId,
+          workspaceIdentity: params.workspaceIdentity ?? null,
+          workspacePath: params.workspacePath,
+        });
+        return { ...limited, meta: indexedMeta };
+      }
+      const snapshot = resumed.snapshot;
       const projectionStartedAt = Date.now();
       const zcodeSnapshot = limitTaskSnapshotMessages(
         snapshotToZCode(snapshot, {
@@ -2777,6 +2914,11 @@ export function createZCodeTaskServiceAdapter(
       return settingsToConfigOptions(snapshot.settings);
     },
 
+    async getWorkspaceProviderConfigFile(params) {
+      // 发布包 host 把对象写在方法里。单独的 readWorkspaceProviderConfigFile 会多一个 keepName。
+      return { provider: GLM_PROVIDER, path: params.workspacePath, exists: false as const };
+    },
+
     async getTaskNativeSessionLogFile() {
       const path = resolveZCodeAgentCurrentLogFilePath();
       // 返回 ZCode Agent 的结构化日志 JSONL；日志行中的 sessionId 用于按当前任务排查。
@@ -3051,6 +3193,10 @@ export function createZCodeTaskServiceAdapter(
       rememberTaskTarget(target);
       return (listener) => {
         const localDisposable = getTaskEmitter(target).event(listener);
+        if (legacySnapshotTaskKeys.has(taskKey(target))) {
+          // 发布包已按 legacy snapshot 只读恢复时，不再订阅 agent session。
+          return localDisposable;
+        }
         // 这里仍是 services/ 内旧 session/subscribe 词表的
         // 最后消费点（replayable 的 stream 投影源）。写路径（send/stop/交互回执）
         // 已收敛 v4 命令；读路径消费方是
@@ -4776,12 +4922,6 @@ function isCurrentBackgroundAgentLaunchAcknowledgement(content: string): boolean
 
 function isSubagentDispatchToolName(toolName: string | undefined): boolean {
   return toolName === "Agent" || toolName === "Task";
-}
-
-function parentToolUseIdFromToolPayload(payload: Record<string, unknown>): string | null {
-  // ZCode Protocol 发送的父级字段叫 parentToolCallId；
-  // UI stream 模型统一消费 parentToolUseId，必须在服务投影层完成一次性归一。
-  return stringValue(payload.parentToolUseId) ?? stringValue(payload.parentToolCallId) ?? null;
 }
 
 function normalizeToolResultContent(

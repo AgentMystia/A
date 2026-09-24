@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, normalize, resolve, sep } from "node:path";
 import type { ZCodeImportableSessionCandidate } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
-import { getAppConfigDir, getDataBaseDir, getWorkspaceHash } from "#src/paths.js";
+import { getDataBaseDir, getProviderWorkspaceConfigDir } from "#src/paths.js";
 import {
   extractClaudeNativeSessionHeadInfo,
   hasClaudeNativeSidechainMarker,
@@ -267,14 +267,11 @@ class ClaudeNativeSessionImportRepo {
     workspaceIdentity?: string;
     sourcePath: string;
   }): Promise<{ outputPath: string; createdOutputPaths: string[] }> {
-    // 导入副本沿用历史目录布局 ~/.zcode/v2/agent-config/claude/{workspaceHash}/projects；
-    // 这是 Claude 历史导入的存储位置，与 agent runtime provider（glm）无关。
+    // 导入副本沿用历史目录布局 ~/.zcode/v2/agent-config/claude/{workspaceHash}/projects。
+    // 路径只走 getProviderWorkspaceConfigDir，和发布包同一条计算。
     const relativeProjectsPath = this.getRelativeProjectsPath(params.sourcePath);
     const outputPath = join(
-      getAppConfigDir(),
-      "agent-config",
-      "claude",
-      getWorkspaceHash(params.workspacePath, params.workspaceIdentity),
+      getProviderWorkspaceConfigDir("claude", params.workspacePath, params.workspaceIdentity),
       "projects",
       relativeProjectsPath,
     );

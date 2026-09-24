@@ -30,8 +30,15 @@ import type {
   OAuthStateRegistration,
   PostUpdateReleaseNotesPayload,
   RemoteConnectionRuntimeLog,
+  BotRemoteWorkspaceReconnectedEvent,
   RemoteSessionClosedEvent,
   RemoteTarget,
+  WebRemoteControlReconnectWorkspaceRequest,
+  WebRemoteControlReconnectWorkspaceResult,
+  WebRemoteControlStartRequest,
+  WebRemoteControlStatus,
+  WebRemoteControlTaskSnapshot,
+  WebRemoteControlWorkspaceSnapshot,
   SSHConfigAliasOption,
   RendererTelemetryEventPayload,
   RendererActionTraceBatchV1,
@@ -72,6 +79,17 @@ declare global {
         workspacePath: string;
         workspaceIdentity?: string;
       }): Promise<BrowserGuestAttachResult>;
+      startWebRemoteControl?(
+        request: WebRemoteControlStartRequest,
+      ): Promise<WebRemoteControlStatus>;
+      refreshWebRemoteControlPairing?(
+        request: WebRemoteControlStartRequest,
+      ): Promise<WebRemoteControlStatus>;
+      stopWebRemoteControl?(): Promise<void>;
+      getWebRemoteControlStatus?(): Promise<WebRemoteControlStatus>;
+      onWebRemoteControlStatusChanged?(
+        handler: (status: WebRemoteControlStatus) => void,
+      ): () => void;
       /** 释放当前窗口里的远程 session */
       disposeRemoteSession(sessionId: string): Promise<void>;
       /** 检查本机 Docker daemon 是否可用 */
@@ -102,10 +120,24 @@ declare global {
       onRemoteConnectionLog(handler: (entry: RemoteConnectionRuntimeLog) => void): () => void;
       /** 订阅远程 workspace session 关闭事件，返回 disposer */
       onRemoteSessionClosed(handler: (event: RemoteSessionClosedEvent) => void): () => void;
+      /** 订阅 Bot 远端 workspace 重连成功事件，返回 disposer */
+      onBotRemoteWorkspaceReconnected(
+        handler: (event: BotRemoteWorkspaceReconnectedEvent) => void,
+      ): () => void;
       /** 检查目录是否已在其他窗口打开 */
       activateOrSetWorkspace?(path: string): Promise<{ activated: boolean }>;
       /** 同步当前窗口所有 tab 的 workspace 路径到 main 进程 */
       syncWindowTabs(paths: string[]): void;
+      /** 同步当前窗口里 Web 远程控制允许切换的 workspace */
+      syncWebRemoteControlWorkspaces?(workspaces: WebRemoteControlWorkspaceSnapshot[]): void;
+      /** 同步当前窗口里 Web 远程控制可展示的 task 快照 */
+      syncWebRemoteControlTasks?(tasks: WebRemoteControlTaskSnapshot[]): void;
+      /** Main 请求重连远控 workspace，结果经同一通道送回 */
+      onWebRemoteControlReconnectWorkspace?(
+        callback: (
+          request: WebRemoteControlReconnectWorkspaceRequest,
+        ) => Promise<WebRemoteControlReconnectWorkspaceResult>,
+      ): () => void;
       /** 同步当前窗口的未读 task 数到 main 进程 */
       syncWindowUnreadCount(count: number): void;
       syncActiveTaskSession(sessionId: string | null): void;

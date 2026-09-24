@@ -31,5 +31,10 @@ export async function createRemoteBackend(target: RemoteTarget): Promise<IRemote
       const { DockerBackend } = await import("./docker-backend.js");
       return new DockerBackend(target);
     }
+    case "server":
+      // server remote 连接已有服务，不部署、也不创建 SSH/WSL/Docker 进程后端。
+      throw new Error(
+        "server remote target connects to an existing server and has no deploy backend",
+      );
   }
 }

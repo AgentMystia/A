@@ -78,6 +78,10 @@ export function registerPlatformIpcHandlers(options: {
   acknowledgePostUpdateReleaseNotes: (version: string) => Promise<void>;
   syncActiveTaskSession: (windowId: number, sessionId: string | null) => void;
   syncTaskRealtimeWorkspaceKeys: (windowId: number, workspaceKeys: Iterable<string>) => void;
+  restorePreviouslyEnabledWebRemoteControl?: (
+    windowId: number,
+    workspaces: { workspacePath: string }[],
+  ) => void;
   getUpdateState: () => UpdateStatePayload;
   openUpdateStatusWindow: () => void;
   getDesktopSessionActivity: () => {
@@ -249,6 +253,10 @@ export function registerPlatformIpcHandlers(options: {
     if (win) {
       options.windowWorkspaceMap.set(win.id, new Set(result.data));
       options.syncTaskRealtimeWorkspaceKeys(win.id, result.data);
+      options.restorePreviouslyEnabledWebRemoteControl?.(
+        win.id,
+        result.data.map((workspacePath) => ({ workspacePath })),
+      );
     }
   });
 

@@ -43,13 +43,28 @@ export function resolveOpenTabLauncherItemIds({
 
 export function shouldOfferSelectionSideConversation({
   activeTaskId,
+  isMobileTextInputViewport = false,
+  mobileOverlay = false,
 }: {
   activeTaskId: string | null;
+  isMobileTextInputViewport?: boolean;
+  mobileOverlay?: boolean;
 }): boolean {
-  return Boolean(activeTaskId);
+  // 发布包在手机 overlay 和粗指针窄屏上不提供辅助对话，避免软键盘盖住入口。
+  return Boolean(activeTaskId) && !mobileOverlay && !isMobileTextInputViewport;
 }
 
-export function resolveAnimatedSidePanePanelLayout() {
+export function resolveAnimatedSidePanePanelLayout(options?: { mobileOverlay?: boolean }) {
+  // overlay 铺满手机壳，不再套桌面可调整分栏。
+  if (options?.mobileOverlay) {
+    return {
+      collapsedSize: "0px",
+      defaultSize: "100%",
+      maxSize: "100%",
+      minSize: "0px",
+      useResizablePanel: false,
+    };
+  }
   return {
     collapsedSize: "0px",
     defaultSize: "0px",
@@ -62,6 +77,7 @@ export function resolveAnimatedSidePanePanelLayout() {
 export function shouldRenderPreviewPaneHeavyContent({
   isActiveTab,
   isMediaPreview = false,
+  isMobileOverlay = false,
   isResizeSettling = false,
   isSidePaneVisible,
   minVisibleInlineSizePx = MIN_PREVIEW_PANE_HEAVY_CONTENT_VISIBLE_INLINE_SIZE_PX,
@@ -69,6 +85,7 @@ export function shouldRenderPreviewPaneHeavyContent({
 }: {
   isActiveTab: boolean;
   isMediaPreview?: boolean;
+  isMobileOverlay?: boolean;
   isResizeSettling?: boolean;
   isSidePaneVisible: boolean;
   minVisibleInlineSizePx?: number;
@@ -76,6 +93,11 @@ export function shouldRenderPreviewPaneHeavyContent({
 }) {
   if (!isSidePaneVisible || !isActiveTab) {
     return false;
+  }
+
+  // overlay 没有可调整宽度，按桌面最小宽度卸载会把预览直接拆掉。
+  if (isMobileOverlay) {
+    return true;
   }
 
   if (isResizeSettling) {

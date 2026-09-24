@@ -10,10 +10,9 @@ import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { logger } from "@/logger.js";
+import { GREETING_MAX_FONT_SIZE_PX, resolveGreetingFontSizePx } from "@/v4/greetingFontSize.js";
 
 const GREETING_BOUNDARY_HOURS = [5, 9, 12, 14, 18, 23] as const;
-const GREETING_MIN_FONT_SIZE_PX = 20;
-const GREETING_MAX_FONT_SIZE_PX = 30;
 
 type ChatEmptyGreetingMessageId =
   | "chat.empty.greeting.morningEarly"
@@ -51,33 +50,13 @@ function getNextChatEmptyGreetingDelayMs(date: Date = new Date()) {
   return Math.max(1, nextBoundary.getTime() - date.getTime());
 }
 
-function resolveGreetingFontSizePx({
-  availableWidthPx,
-  naturalTextWidthPx,
+export function ConversationDraftEmptyState({
+  className,
+  compactForRemoteControl = false,
 }: {
-  availableWidthPx: number;
-  naturalTextWidthPx: number;
+  className?: string;
+  compactForRemoteControl?: boolean;
 }) {
-  if (
-    !Number.isFinite(availableWidthPx) ||
-    !Number.isFinite(naturalTextWidthPx) ||
-    availableWidthPx <= 0 ||
-    naturalTextWidthPx <= 0 ||
-    availableWidthPx >= naturalTextWidthPx
-  ) {
-    return GREETING_MAX_FONT_SIZE_PX;
-  }
-
-  return Math.max(
-    GREETING_MIN_FONT_SIZE_PX,
-    Math.min(
-      GREETING_MAX_FONT_SIZE_PX,
-      Math.floor(GREETING_MAX_FONT_SIZE_PX * (availableWidthPx / naturalTextWidthPx)),
-    ),
-  );
-}
-
-export function ConversationDraftEmptyState({ className }: { className?: string }) {
   const { intl } = useZCodeIntl();
   const isOfficeMode = useIsOfficeMode();
   const [greetingDate, setGreetingDate] = useState(() => new Date());
@@ -120,6 +99,7 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
       const nextFontSizePx = resolveGreetingFontSizePx({
         availableWidthPx,
         naturalTextWidthPx,
+        compactForRemoteControl,
       });
 
       setGreetingFontSizePx((currentFontSizePx) => {
@@ -165,7 +145,7 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
       }
       observer.disconnect();
     };
-  }, [greeting]);
+  }, [compactForRemoteControl, greeting]);
 
   return (
     <div

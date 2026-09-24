@@ -22,6 +22,12 @@ import type {
 } from "./desktopRemoteUsageArmsTelemetry.js";
 import type { RemoteAssetDirs } from "./desktopRuntimeEnv.js";
 import { ProviderProvisioningEnvironmentCoordinator } from "./providerProvisioningEnvironmentCoordinator.js";
+import { normalizeServerRemoteUrlForComparison } from "./remoteTargetEquality.js";
+import {
+  admitBotRemoteWorkspaceReconnect,
+  hasRemoteWorkspaceSessionForTarget as hasAttachableRemoteWorkspaceSessionForTarget,
+  requireBotRemoteWorkspaceSessionId,
+} from "./botRemoteWorkspaceSessionLookup.js";
 
 interface RemoteWorkspaceSessionContext {
   workspacePath: string;
@@ -63,23 +69,6 @@ interface PendingProviderProvisioningExecution {
   readonly startedAtMonotonicMs: number;
   readonly resolve: () => void;
   readonly reject: (error: Error) => void;
-}
-
-function normalizeServerRemoteUrlForComparison(url: string): string {
-  try {
-    const parsed = new URL(url.trim());
-    if (parsed.protocol === "ws:") parsed.protocol = "http:";
-    if (parsed.protocol === "wss:") parsed.protocol = "https:";
-    parsed.hash = "";
-    parsed.search = "";
-    const normalizedPath = parsed.pathname.replace(/\/+$/g, "");
-    parsed.pathname = normalizedPath.endsWith("/ws")
-      ? normalizedPath.slice(0, -"/ws".length) || "/"
-      : normalizedPath || "/";
-    return parsed.toString().replace(/\/$/g, "");
-  } catch {
-    return url.trim().replace(/\/+$/g, "");
-  }
 }
 
 function buildRemoteTargetTelemetryKey(target: RemoteTarget): string {
@@ -128,11 +117,15 @@ export function createRemoteWorkspaceSessionManager(options: {
     disconnectReason: RemoteDisconnectReason;
     durationMs: number;
   }) => void;
+  onRemoteSessionConnectionClosed?: (remoteSessionId: string) => void;
   monotonicNowMs?: () => number;
   providerProvisioningCoordinator?: ProviderProvisioningEnvironmentCoordinator;
 }) {
   const pendingByRequestKey = new Map<string, PendingConnect>();
   const routesBySessionId = new Map<string, RemoteAttachmentRoute>();
+  // 发布包 Bot 重连的 in-flight 键是 webContentsId + workspaceIdentity，
+  // 与 pendingByRequestKey（webContentsId + requestId）不是同一张表。
+  const botRemoteReconnectInFlight = new Map<string, Promise<string>>();
   const listenedHosts = new WeakSet<ElectronUtilityProcess>();
   const pendingProviderProvisioningExecutions = new Map<
     string,
@@ -525,6 +518,7 @@ export function createRemoteWorkspaceSessionManager(options: {
       "session-connection-closed",
       new Error(`远程 workspace 已关闭，sessionId=${event.remoteSessionId}`),
     );
+    options.onRemoteSessionConnectionClosed?.(event.remoteSessionId);
     const win = BrowserWindow.getAllWindows().find(
       (candidate) => candidate.webContents.id === webContentsId,
     );
@@ -891,9 +885,70 @@ export function createRemoteWorkspaceSessionManager(options: {
     return { process, port: port1, remoteKind: descriptor.target.kind };
   }
 
+  function reconnectBotRemoteWorkspaceSession(
+    win: BrowserWindow,
+    request: {
+      requestId: string;
+      workspacePath: string;
+      workspaceIdentity: string;
+      target: RemoteTarget;
+    },
+  ): Promise<string> {
+    return admitBotRemoteWorkspaceReconnect({
+      routes: routesBySessionId,
+      inFlight: botRemoteReconnectInFlight,
+      webContentsId: win.webContents.id,
+      request,
+      createSession: () =>
+        createRemoteWorkspaceSession(win, request.target, request.requestId, {
+          workspacePath: request.workspacePath,
+          workspaceIdentity: request.workspaceIdentity,
+        }),
+    });
+  }
+
+  function hasRemoteWorkspaceSessionForTarget(
+    win: BrowserWindow,
+    target: RemoteTarget,
+    workspace?: { workspacePath: string; workspaceIdentity?: string },
+  ): boolean {
+    return hasAttachableRemoteWorkspaceSessionForTarget(
+      routesBySessionId,
+      win.webContents.id,
+      target,
+      workspace,
+    );
+  }
+
+  function createBotRemoteWorkspaceRuntimePort(
+    win: BrowserWindow,
+    request: {
+      workspacePath: string;
+      workspaceIdentity: string;
+      target: RemoteTarget;
+    },
+  ): MessagePortMain {
+    const remoteSessionId = requireBotRemoteWorkspaceSessionId(
+      routesBySessionId,
+      win.webContents.id,
+      request,
+    );
+    return attachRemoteWorkspaceSessionHost({
+      windowId: win.id,
+      remoteSessionId,
+      workspacePath: request.workspacePath,
+      workspaceIdentity: request.workspaceIdentity,
+      workspaceKey: request.workspaceIdentity,
+      clientMode: "web-remote-replayable",
+    }).port;
+  }
+
   return {
     createRemoteWorkspaceSession,
     attachRemoteWorkspaceSessionHost,
+    reconnectBotRemoteWorkspaceSession,
+    hasRemoteWorkspaceSessionForTarget,
+    createBotRemoteWorkspaceRuntimePort,
     bindRemoteWorkspaceSessionContext,
     confirmRendererAttachmentReady,
     reattachRemoteWorkspaceSessionsForWindow,

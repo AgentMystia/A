@@ -46,16 +46,12 @@ export const RUNTIME_ZCODE_DEBUG =
   typeof process !== "undefined" ? process.env.ZCODE_DEBUG : undefined;
 
 // 恢复原因：写死 false 会让运行时已配置的数仓/ARMS 永远空转。
-// 功能保持可用；实际出网由各出口的运行时端点检查决定，未配置不上报。
 export const ZCODE_TELEMETRY_ENABLED: boolean = true;
 
-/** 数仓事件上报端点：由运行时环境变量提供，未配置即停用，构建产物不内嵌。 */
-export const ZCODE_TELEMETRY_REPORT_ENDPOINT =
-  typeof process !== "undefined" ? (process.env.ZCODE_TELEMETRY_REPORT_ENDPOINT ?? "") : "";
-
-/** ARMS RUM 接入端点：由运行时环境变量提供，未配置即停用，构建产物不内嵌。 */
+// 发布包在 mapZCodeEnvToArmsRumEnv 前写死 RUM 地址，不读同名环境变量。
+// 读 process.env 会把键名留在每个 bundle 里。
 export const ZCODE_ARMS_RUM_ENDPOINT =
-  typeof process !== "undefined" ? (process.env.ZCODE_ARMS_RUM_ENDPOINT ?? "") : "";
+  "https://proj-xtrace-7e235817c9b9381c22d8b743908d469f-cn-beijing.cn-beijing.log.aliyuncs.com/rum/web/v2?workspace=default-cms-1936221977589032-cn-beijing&service_id=j2c03hoppk@7023210754a92ac5d1971";
 
 /** 将本地运行态与编译期 ZCODE_ENV 映射为 ARMS 控制台识别的上报环境标签 */
 export function mapZCodeEnvToArmsRumEnv(runtimeEnv: ZCodeRuntimeEnv): ArmsRumEnv {

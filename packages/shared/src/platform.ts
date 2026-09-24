@@ -2,6 +2,7 @@
 import type {
   DockerConnectOptions,
   RemoteTarget,
+  ServerConnectOptions,
   SSHConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
@@ -31,6 +32,13 @@ import type {
   UpdateCheckResultPayload,
   UpdateStatePayload,
 } from "./update.js";
+import type {
+  BotRemoteWorkspaceReconnectedEvent,
+  WebRemoteControlReconnectWorkspaceRequest,
+  WebRemoteControlReconnectWorkspaceResult,
+  WebRemoteControlTaskSnapshot,
+  WebRemoteControlWorkspaceSnapshot,
+} from "./webRemoteControl.js";
 export type {
   PostUpdateReleaseNotesPayload,
   UpdateCheckResultPayload,
@@ -228,7 +236,8 @@ export interface ApplicationIconRequest {
 export type OpenInEditorRemoteTarget =
   | Pick<SSHConnectOptions, "kind" | "host" | "port" | "username" | "sshConfigAlias">
   | Pick<WSLConnectOptions, "kind" | "distro" | "user">
-  | Pick<DockerConnectOptions, "kind" | "container">;
+  | Pick<DockerConnectOptions, "kind" | "container">
+  | Pick<ServerConnectOptions, "kind" | "url" | "name" | "serverId" | "workspacePath">;
 
 export interface OpenInEditorOptions {
   remoteTarget?: OpenInEditorRemoteTarget;
@@ -300,6 +309,18 @@ export function createOpenInEditorRemoteTarget(target: RemoteTarget): OpenInEdit
         kind: "docker",
         container: target.container,
       };
+    case "server": {
+      const name = target.name?.trim();
+      const serverId = target.serverId?.trim();
+      const workspacePath = target.workspacePath?.trim();
+      return {
+        kind: "server",
+        url: target.url,
+        ...(name ? { name } : {}),
+        ...(serverId ? { serverId } : {}),
+        ...(workspacePath ? { workspacePath } : {}),
+      };
+    }
   }
 }
 
@@ -564,6 +585,11 @@ export interface IPlatformService {
   /** 订阅远程 workspace session 关闭事件，返回 disposer */
   onRemoteSessionClosed(handler: (event: RemoteSessionClosedEvent) => void): () => void;
 
+  /** 订阅 Bot 远端 workspace 重连成功事件，返回 disposer */
+  onBotRemoteWorkspaceReconnected(
+    handler: (event: BotRemoteWorkspaceReconnectedEvent) => void,
+  ): () => void;
+
   /** 检查目录是否已在其他窗口打开；如果是则激活该窗口并切到对应 tab */
   activateOrSetWorkspace(path: string): Promise<{ activated: boolean }>;
 
@@ -585,6 +611,24 @@ export interface IPlatformService {
   bindRemoteWorkspaceSessionContext?(
     context: BindRemoteWorkspaceSessionContextRequest,
   ): Promise<void>;
+
+  /** 开启当前窗口的手机远控。会话状态仍只由 main manager 持有。 */
+  startWebRemoteControl?(
+    request: import("./webRemoteControl.js").WebRemoteControlStartRequest,
+  ): Promise<import("./webRemoteControl.js").WebRemoteControlStatus>;
+
+  /** 作废当前配对并重新开启。调用前 UI 必须先确认。 */
+  refreshWebRemoteControlPairing?(
+    request: import("./webRemoteControl.js").WebRemoteControlStartRequest,
+  ): Promise<import("./webRemoteControl.js").WebRemoteControlStatus>;
+
+  stopWebRemoteControl?(): Promise<void>;
+
+  getWebRemoteControlStatus?(): Promise<import("./webRemoteControl.js").WebRemoteControlStatus>;
+
+  onWebRemoteControlStatusChanged?(
+    handler: (status: import("./webRemoteControl.js").WebRemoteControlStatus) => void,
+  ): () => void;
 
   /** 释放当前窗口里已创建的远程 session */
   disposeRemoteSession(sessionId: string): Promise<void>;
@@ -708,6 +752,22 @@ export interface IPlatformService {
 
   /** 同步当前窗口所有 tab 的 workspace 路径到 main 进程（用于跨窗口去重） */
   syncWindowTabs(paths: string[]): void;
+
+  /** 同步当前窗口里 Web 远程控制允许切换的 workspace。Main manager 保存已接受列表。 */
+  syncWebRemoteControlWorkspaces?(workspaces: WebRemoteControlWorkspaceSnapshot[]): void;
+
+  /** 同步当前窗口里 Web 远程控制可展示的 task 快照。Main manager 保存已接受列表。 */
+  syncWebRemoteControlTasks?(tasks: WebRemoteControlTaskSnapshot[]): void;
+
+  /**
+   * Main 请求重连一个远控 workspace。回调结果由 preload 送回同一通道。
+   * Web 端没有这条桥。
+   */
+  onWebRemoteControlReconnectWorkspace?(
+    callback: (
+      request: WebRemoteControlReconnectWorkspaceRequest,
+    ) => Promise<WebRemoteControlReconnectWorkspaceResult>,
+  ): () => void;
 
   /** 同步当前窗口的未读 task 数给宿主环境，用于 Dock / 任务栏徽标聚合 */
   syncWindowUnreadCount(count: number): void;

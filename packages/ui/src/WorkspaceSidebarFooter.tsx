@@ -1,6 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- footer 聚合账户、主题、模式和快捷键菜单。 */
 import type { Locale, UserInfo } from "@zcode/shared";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   DesktopCommandIds,
   TID_LOGIN_MENU_ITEM,
@@ -11,6 +11,7 @@ import {
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.js";
 import { cn } from "@/components/lib/utils.js";
+import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
 import {
   DropdownMenu,
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import {
   PencilRuler,
+  Gift,
   Globe,
   Loader2,
   LogInIcon,
@@ -39,6 +41,8 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { WorkspaceWebRemoteControlTrigger } from "@/web-remote/WorkspaceWebRemoteControlTrigger.js";
+import { useRewardsOpen } from "@/rewards/RewardsProvider.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
@@ -101,6 +105,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   activeTaskId,
   isDesktop = false,
   className,
+  banner,
 }: {
   theme: Theme;
   localeMenuValue: Locale | "system";
@@ -121,9 +126,11 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   activeTaskId?: string | null;
   isDesktop?: boolean;
   className?: string;
+  banner?: ReactNode;
 }) {
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
+  const openRewards = useRewardsOpen();
   const interfaceMode = useZCodeStore((state) => state.interfaceMode);
   const setInterfaceMode = useZCodeStore((state) => state.setInterfaceMode);
   const zoomInShortcutLabel = useShortcutCommandLabel("zoomIn");
@@ -215,6 +222,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   return (
     // footer 被 Settings 复用，页面专属边距由调用方传入，避免修改共享默认样式。
     <footer className={cn("flex shrink-0 flex-col gap-2.5 px-4 pt-2 pb-4", className)}>
+      {banner}
       <div className="flex min-w-0 gap-2">
         <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
           <DropdownMenuTrigger asChild>
@@ -348,7 +356,19 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               onUsageClick={usageButtonClick}
               onUpgradeClick={onUpgradeClick}
             />
-            {onLogin && !user ? (
+            {openRewards ? (
+              <DropdownMenuItem onSelect={() => openRewards()} data-testid="rewards-menu-item">
+                <Gift className="size-4" />
+                {intl.formatMessage({ id: "rewards.menuTitle" })}
+                <Badge
+                  data-testid="rewards-reward-badge"
+                  className="-ml-0.5 h-auto border-0 px-1.5 py-0.5 text-ui-sm leading-none bg-[var(--color-plugin-paid-plan-badge)] text-[var(--color-plugin-paid-plan-badge-foreground)]"
+                >
+                  {intl.formatMessage({ id: "rewards.menuBadge" })}
+                </Badge>
+              </DropdownMenuItem>
+            ) : null}
+            {onLogin && !user && !openRewards ? (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={onLogin} data-testid={TID_LOGIN_MENU_ITEM}>
@@ -369,6 +389,15 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="flex shrink-0 items-center gap-1.5">
+          {isDesktop && workspacePath ? (
+            <WorkspaceWebRemoteControlTrigger
+              compact
+              workspacePath={workspacePath}
+              workspaceIdentity={workspaceIdentity}
+              remoteSessionId={workspaceRemoteSessionId}
+              initialTaskId={activeTaskId ?? undefined}
+            />
+          ) : null}
           <ControlHintTooltip title={settingsButtonLabel}>
             <Button
               type="button"

@@ -22,6 +22,7 @@ import {
 } from "@/lib/taskListItemPresentation.js";
 import { getTaskChangeSummary } from "@/lib/taskChangeSummary.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
+import { isMobileActiveTask } from "@/web-remote/mobileActiveTaskKey.js";
 import { buildTaskFeedbackDescription } from "@/lib/taskFeedbackDraft.js";
 import { useTaskListItemContextActions } from "@/useTaskListItemContextActions.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
@@ -49,6 +50,7 @@ function GroupedTaskRowComponent({
   activeWorkspacePath,
   activeWorkspaceIdentity,
   activeTaskId,
+  mobileActiveTaskKey,
   workspaceLabel,
   onSelectTask,
   onCloseTask,
@@ -70,6 +72,7 @@ function GroupedTaskRowComponent({
   activeWorkspacePath: string;
   activeWorkspaceIdentity?: string;
   activeTaskId: string | null;
+  mobileActiveTaskKey: string | null;
   workspaceLabel: string;
   onSelectTask: (workspacePath: string, taskId: string, workspaceIdentity?: string) => void;
   onCloseTask: (task: ZCodeTaskMeta) => void;
@@ -134,7 +137,7 @@ function GroupedTaskRowComponent({
   const isActive =
     buildTaskWorkspaceKey(activeWorkspacePath, activeWorkspaceIdentity) === workspaceKey &&
     activeTaskId === task.taskId;
-  const isMobileActive = false;
+  const isMobileActive = isMobileActiveTask(mobileActiveTaskKey, workspaceKey, task.taskId);
   const statusDotClassName =
     leadingIndicator === "error"
       ? "bg-destructive"
@@ -250,9 +253,11 @@ function GroupedTaskRowComponent({
   const {
     taskSessionFile,
     taskNativeSessionLogFile,
+    providerConfigFile,
     fileManagerLabel,
     handleCopyText,
     handleOpenTaskPathInFileManager,
+    handleOpenProviderConfig,
   } = useTaskListItemContextActions({
     workspacePath: task.workspacePath,
     remoteSessionId,
@@ -261,6 +266,7 @@ function GroupedTaskRowComponent({
     provider: task.provider,
     intl,
     loadTaskPaths: contextMenuOpen,
+    loadProviderConfig: contextMenuOpen,
   });
   const handleSelect = () => {
     onSelectTask(task.workspacePath, task.taskId, task.workspaceIdentity);
@@ -509,6 +515,7 @@ function GroupedTaskRowComponent({
           fileManagerLabel={fileManagerLabel}
           taskSessionFile={taskSessionFile}
           taskNativeSessionLogFile={taskNativeSessionLogFile}
+          providerConfigFile={providerConfigFile}
           onMoveTaskToGroup={onMoveTaskToGroup}
           onMoveTaskToTop={onMoveTaskToTop}
           onStartRenameTask={onStartRenameTask}
@@ -516,6 +523,7 @@ function GroupedTaskRowComponent({
           onMarkTaskAsUnread={onMarkTaskAsUnread}
           onOpenTaskPathInFileManager={() => void handleOpenTaskPathInFileManager()}
           onCopyText={(label, text) => void handleCopyText(label, text)}
+          onOpenProviderConfig={() => void handleOpenProviderConfig()}
           onOpenTaskFeedback={() => void handleOpenTaskFeedback()}
           disabledReason={workspaceActionsDisabledReason}
         />

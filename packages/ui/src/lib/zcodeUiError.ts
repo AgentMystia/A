@@ -1,5 +1,6 @@
 import type { ZCodeError, TraceId } from "@zcode/shared";
 import { errorAttributionSchema, type ErrorAttribution } from "@zcode/shared/zcode-protocol-v4";
+import { resolveCaptchaVerifyFailedBusinessCode } from "./providerBusinessError.js";
 
 export interface ZCodeUiError extends ZCodeError {
   attribution?: ErrorAttribution;
@@ -250,8 +251,17 @@ export function normalizeZCodeUiError(
   return {
     // 部分上游错误外层 code 只是 PROVIDER_BUSINESS_ERROR，
     // 真实 GLM / zcode-plan 业务码只保存在 detail 的 provider_code=xxxx。
-    // 业务码需要进入统一错误分类层，否则 ChatView quota 横幅无法命中。
-    code: providerCodeFromDetail ?? codeFromError ?? options.fallbackCode ?? "UNKNOWN",
+    // 验证码拒绝还会把 CAPTCHA_VERIFY_FAILED 或短语留在外层；先收成 3007，
+    // 再退回 detail 里的数字业务码，避免 ChatView 横幅看不到分类。
+    code:
+      resolveCaptchaVerifyFailedBusinessCode(
+        codeFromError ?? providerCodeFromDetail,
+        primaryMessage,
+      ) ??
+      providerCodeFromDetail ??
+      codeFromError ??
+      options.fallbackCode ??
+      "UNKNOWN",
     message: primaryMessage,
     detail: detailMessage,
     ...(underlyingErrorMessage ? { underlyingErrorMessage } : {}),

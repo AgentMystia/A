@@ -1,4 +1,7 @@
-import type { ZCodePluginMarketplaceSummary } from "@zcode/shared";
+import {
+  CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,
+  type ZCodePluginMarketplaceSummary,
+} from "@zcode/shared";
 
 /**
  * 把 marketplace id 解析为对用户友好的展示名：
@@ -8,7 +11,14 @@ import type { ZCodePluginMarketplaceSummary } from "@zcode/shared";
 export function resolveMarketplaceDisplayName(
   marketplaceId: string,
   marketplaces: readonly ZCodePluginMarketplaceSummary[],
+  claudeCodePluginsTitle?: string,
 ): string {
+  if (
+    marketplaceId === CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID &&
+    claudeCodePluginsTitle !== undefined
+  ) {
+    return claudeCodePluginsTitle;
+  }
   const matched = marketplaces.find((marketplace) => marketplace.id === marketplaceId);
   return matched?.name ?? marketplaceId;
 }

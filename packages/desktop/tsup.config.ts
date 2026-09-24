@@ -1,4 +1,6 @@
-import { pickProductEndpointEnv } from "@zcode/shared/zcodeEndpoint";
+// bundle-require 会把裸包名外置，Node 再加载 zcodeEndpoint.ts 时无法把
+// `./webRemoteControlEndpoint.js` 解析到同名 `.ts`。相对路径留在配置包内，由 esbuild 改写。
+import { pickProductEndpointEnv } from "../shared/src/zcodeEndpoint.js";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -103,13 +105,26 @@ function createSharedDefines() {
     __ZCODE_ENDPOINT_ENV__: JSON.stringify(pickProductEndpointEnv(env)),
     __ZCODE_PRODUCT_FLAVOR__: JSON.stringify(zcodeProductFlavor),
     // Computer Use Helper build identity — helperInstaller 读它决定下载哪个 Helper bundle。
-    // 缺失时 installer 抛 "Packaged ZCode is missing its embedded Computer Use Helper build identity"。
-    // CI 构建时通过 ZCODE_CUA_HELPER_BUILD_ID env 注入；dev 为空串走兜底（dev helper 不走下载）。
+    // 发布包 host 折叠的是 pipeline-291748-cead36fd。这是 Helper 构件身份，不是应用提交号。
+    // 显式 ZCODE_CUA_HELPER_BUILD_ID 仍覆盖该默认值。
     __ZCODE_CUA_HELPER_BUILD_ID__: JSON.stringify(
-      process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? "",
+      process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() || "pipeline-291748-cead36fd",
     ),
-    // 客户端只有一个 CDN 配置，与发布端 OSS 目标列表分离。
+    // 字符串 define 会在用到的位置直接折叠。数组 define 会被 esbuild 收成共享初始化模块。
     __ZCODE_CDN_BASE_URL__: JSON.stringify(env.ZCODE_CDN_BASE_URL?.trim() || ""),
+  };
+}
+
+function createMainDefines() {
+  // 发布包 main 的 runtime chunk 持有这一条 CDN 列表。host/preload/scheduler 不读它；
+  // 若同样 define 这个数组，esbuild 会在那些产物里再留一个空的 __esm，每个模块多一次初始化。
+  return {
+    ...createSharedDefines(),
+    __ZCODE_REMOTE_CDN_BASE_URLS__: JSON.stringify(
+      env.ZCODE_CDN_BASE_URL?.trim()
+        ? [env.ZCODE_CDN_BASE_URL.trim()]
+        : ["https://cdn-zcode.z.ai/zcode/electron/releases"],
+    ),
   };
 }
 
@@ -124,6 +139,10 @@ const desktopNodeRuntimeExternals = [
   "node-forge",
   // ZIP 解包器内部依赖 CommonJS require("fs")，不能内联到 ESM main/host 产物。
   "yauzl",
+  // 发布包保留运行时动态 import。这两个包不在当前工作区里；
+  // 不标成 external 时 esbuild 会在打包期因为解析失败而中断。
+  "sharp",
+  "@larksuiteoapi/node-sdk",
 ];
 
 function createDevReadyMarkerHook(target: "main" | "host" | "preload"): string {
@@ -167,7 +186,7 @@ export default defineConfig([
       "@zcode/zcode-cua",
     ],
     // OTLP 端点与鉴权只在运行时读取；构建环境中的凭据不能写进公开安装包。
-    define: createSharedDefines(),
+    define: createMainDefines(),
     // main/host 同时 watch 且共享 out 根目录时，默认 chunk 命名会互相覆盖，
     // 可能让 main 的 import 指向被 host 刚重写的 chunk，触发“缺少命名导出”的偶发启动报错。
     // 这里按目标分目录输出 chunk，确保并发构建下产物隔离。
@@ -183,6 +202,7 @@ export default defineConfig([
     entry: {
       "preload/embeddedBrowserJavaScriptDialog": "src/preload/embeddedBrowserJavaScriptDialog.ts",
       "preload/codingPlanWebview": "src/preload/codingPlanWebview.ts",
+      "preload/rewardsWebview": "src/preload/rewardsWebview.ts",
       "preload/browserVideoRecorder": "src/preload/browserVideoRecorder.ts",
       "preload/index": "src/preload/index.ts",
       "preload/resourceManager": "src/preload/resourceManager.ts",

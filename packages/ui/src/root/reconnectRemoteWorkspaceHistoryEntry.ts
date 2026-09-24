@@ -67,6 +67,7 @@ type ManualReconnectRemoteWorkspaceParams = {
 export interface SshReconnectCredentials {
   password: string | null;
   privateKeyPassphrase: string | null;
+  token?: string | null;
 }
 
 export interface ReconnectRemoteWorkspaceOptions {
@@ -114,6 +115,7 @@ export async function reconnectRemoteWorkspaceHistoryEntry({
   let reconnectTarget = createRemoteTargetFromSnapshot(sessionEntry.target, {
     password: null,
     privateKeyPassphrase: null,
+    token: null,
   });
   let resolvedWorkspacePath = sessionEntry.workspacePath;
   let resolvedWorkspaceIdentity = fallbackWorkspaceIdentity;
@@ -126,6 +128,10 @@ export async function reconnectRemoteWorkspaceHistoryEntry({
       privateKeyPassphrase:
         sessionEntry.target.kind === "ssh" && sessionEntry.target.privateKeyPassphraseCredentialKey
           ? await loadCredential(sessionEntry.target.privateKeyPassphraseCredentialKey)
+          : null,
+      token:
+        sessionEntry.target.kind === "server" && sessionEntry.target.tokenCredentialKey
+          ? await loadCredential(sessionEntry.target.tokenCredentialKey)
           : null,
     };
     reconnectTarget = createRemoteTargetFromSnapshot(sessionEntry.target, sshCredentials);

@@ -33,6 +33,7 @@ import type {
   ZCodePermissionResponse,
   ModelSelection,
   ZCodeBackgroundTurnAttribution,
+  ZCodeBotDeliveryTarget,
 } from "@zcode/shared";
 import type {
   SessionMessageDeliveryResult,
@@ -255,6 +256,7 @@ export interface IZCodeTaskService {
       modelSelection?: CommandPayloadMap["sendText"]["modelSelection"];
       /** 单次执行约束与动态鉴权；仅 idle start-now 接受，不进入普通队列。 */
       modelExecution?: CommandPayloadMap["sendText"]["modelExecution"];
+      botDeliveryTarget?: ZCodeBotDeliveryTarget;
     } & ZCodeBackgroundTurnAttribution,
   ): Promise<void>;
 
@@ -576,6 +578,20 @@ export interface IZCodeTaskService {
     thoughtLevel?: string;
     mode?: ZCodeTaskMode;
   }): Promise<ZCodeConfigOption[]>;
+
+  /**
+   * 发布包任务菜单「前往配置」使用的路径。
+   * 实现固定返回 workspacePath 且 exists 为 false，不探测 CLI 配置文件。
+   */
+  getWorkspaceProviderConfigFile(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    provider: ZCodeProvider;
+  }): Promise<{
+    provider: ZCodeProvider;
+    path: string;
+    exists: boolean;
+  }>;
 
   /** 获取 ZCode Agent 当前结构化日志文件路径。 */
   getTaskNativeSessionLogFile(params: {

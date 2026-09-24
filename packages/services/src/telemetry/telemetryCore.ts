@@ -4,7 +4,6 @@ import {
   ZCODE_VERSION,
   ZCODE_ENV,
   ZCODE_TELEMETRY_ENABLED,
-  ZCODE_TELEMETRY_REPORT_ENDPOINT,
   buildZCodeSourceHeadersFromContext,
   rewriteZCodeEndpointUrl,
   sanitizeTelemetryEventDetail,
@@ -12,17 +11,16 @@ import {
   type TelemetryRendererContext,
   type OAuthLoginAttribution,
 } from "@zcode/shared";
-import {
-  ensureDeviceMid,
-  ensureDeviceMidInLockedState,
-  type EnsureDeviceMidOptions,
-} from "../device/deviceMid.js";
 import { mkdir, open, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { version } from "node:os";
 import { dirname, join } from "node:path";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { getAppConfigDir } from "../paths.js";
+
+// 发布包把数仓地址写成常量，并放在 session id 函数前面。
+// 不读 process.env，避免键名进入每个 bundle；也不放进 env.ts，避免和 ARMS 常量打进同一个 chunk。
+const ZCODE_TELEMETRY_REPORT_ENDPOINT = "https://zcode.z.ai/api/v1/event/report";
 
 function sessionCreateEventId(userId: string, sessionId: string): string {
   const bytes = createHash("sha256")
@@ -274,12 +272,54 @@ async function withTelemetryStateLock<T>(
   throw new Error("Telemetry state lock timeout");
 }
 
-// 设备身份的持久化唯一所有者是 device/deviceMid 模块：同一 telemetry-state 文件、同一把锁。
-// 这里保留旧导出名作为上报入口的稳定别名，内部直接委托，避免出现第二条写入路径。
-export type { EnsureDeviceMidOptions as EnsureTelemetryDeviceMidOptions } from "../device/deviceMid.js";
+export interface EnsureDeviceMidOptions {
+  homeDir?: string;
+  randomUUID?: () => string;
+}
+
+export type EnsureTelemetryDeviceMidOptions = EnsureDeviceMidOptions;
+
+// 发布包把 deviceMid 写进数仓模块，复用上面的锁和 writeTelemetryState。
+// 单独的 deviceMid 文件会在 main paths 再留一整份锁，并多出 resolveDeviceStateFile。
+const deviceMidCacheByStateFile = new Map<string, Promise<string>>();
+
+function rememberDeviceMid(deviceStateFile: string, deviceMid: string): string {
+  deviceMidCacheByStateFile.set(deviceStateFile, Promise.resolve(deviceMid));
+  return deviceMid;
+}
+
+export async function ensureDeviceMidInLockedState(
+  state: TelemetryState,
+  options: EnsureDeviceMidOptions,
+): Promise<string> {
+  const deviceStateFile = resolveTelemetryStateFile(options.homeDir);
+  if (state.deviceMid) {
+    return rememberDeviceMid(deviceStateFile, state.deviceMid);
+  }
+
+  const deviceMid = (options.randomUUID ?? createUuid)();
+  state.deviceMid = deviceMid;
+  await writeTelemetryState(state, options.homeDir);
+  return rememberDeviceMid(deviceStateFile, deviceMid);
+}
 
 export function ensureTelemetryDeviceMid(options: EnsureDeviceMidOptions = {}): Promise<string> {
-  return ensureDeviceMid(options);
+  const deviceStateFile = resolveTelemetryStateFile(options.homeDir);
+  const cached = deviceMidCacheByStateFile.get(deviceStateFile);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = withTelemetryStateLock(options.homeDir, async (state) =>
+    ensureDeviceMidInLockedState(state, options),
+  ).catch((error: unknown) => {
+    if (deviceMidCacheByStateFile.get(deviceStateFile) === pending) {
+      deviceMidCacheByStateFile.delete(deviceStateFile);
+    }
+    throw error;
+  });
+  deviceMidCacheByStateFile.set(deviceStateFile, pending);
+  return pending;
 }
 
 export function createTelemetryCore(dependencies: TelemetryCoreDependencies = {}) {

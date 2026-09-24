@@ -109,3 +109,39 @@ export const logger = {
   /** renderer 日志通过 IPC 传入后调用此方法写入同一文件 */
   fromRenderer: (level: LogLevel, args: unknown[]) => write(level, "renderer", ...args),
 };
+
+// 发布包 keepName 是 writeDedicated(fileStem, level, source, ...args)。
+// relay 日志的文件名前缀和行内 source 都是 web-remote-control-relay。
+function writeDedicated(
+  fileStem: string,
+  level: Exclude<LogLevel, "debug">,
+  source: string,
+  ...args: unknown[]
+): void {
+  const now = new Date();
+  const message = args
+    .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
+    .join(" ");
+  const line = `[${formatTimestamp(now)}] [${level}] [pid:${process.pid}] [${source}] ${message}\n`;
+  const logDir = getLogDir();
+  mkdirSync(logDir, { recursive: true });
+  const directory = join(logDir, "web-remote-control");
+  mkdirSync(directory, { recursive: true });
+  const filePath = join(directory, `${fileStem}-${formatDate(now)}.log`);
+  try {
+    maybeThrowInjectedFsFault({ operation: "appendFile", path: filePath });
+    appendFileSync(filePath, line);
+  } catch {
+    // 专用 relay 日志失败不能反向影响配对。
+  }
+}
+
+/** 发布包把 relay 报文写到 logs/web-remote-control/，不进主日志。 */
+export const webRemoteControlRelayLogger = {
+  info: (...args: unknown[]) =>
+    writeDedicated("web-remote-control-relay", "info", "web-remote-control-relay", ...args),
+  warn: (...args: unknown[]) =>
+    writeDedicated("web-remote-control-relay", "warn", "web-remote-control-relay", ...args),
+  error: (...args: unknown[]) =>
+    writeDedicated("web-remote-control-relay", "error", "web-remote-control-relay", ...args),
+};

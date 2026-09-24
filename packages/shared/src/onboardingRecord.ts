@@ -25,13 +25,35 @@ export const onboardingRecordEntrySchema = z.object({
   uploadState: z.literal("pending"),
 });
 
-export const onboardingRecordFileSchema = z.object({
+export const onboardingRecordDecisionSchema = z.object({
+  userId: z.string().min(1).nullable(),
+  status: z.enum(["dismissed", "existing_local_user"]),
+  reason: z.enum(["user_closed", "existing_local_task"]),
+  decidedAt: z.string().min(1),
+});
+
+const onboardingRecordFileV1Schema = z.object({
   version: z.literal(1),
   deviceMid: z.string().min(1),
   entries: z.array(onboardingRecordEntrySchema),
 });
 
+const onboardingRecordFileV2Schema = z.object({
+  version: z.literal(2),
+  deviceMid: z.string().min(1),
+  entries: z.array(onboardingRecordEntrySchema),
+  decisions: z.array(onboardingRecordDecisionSchema),
+});
+
+/** 读路径接受版本 1。版本 1 没有 decisions，读入后补空数组，写出时只写版本 2。 */
+export const onboardingRecordFileSchema = z
+  .union([onboardingRecordFileV1Schema, onboardingRecordFileV2Schema])
+  .transform((file) =>
+    file.version === 1 ? { ...file, version: 2 as const, decisions: [] } : file,
+  );
+
 export type OnboardingRecordEntry = z.infer<typeof onboardingRecordEntrySchema>;
+export type OnboardingRecordDecision = z.infer<typeof onboardingRecordDecisionSchema>;
 
 /** appendRecord 的入参：userId 由服务端（host）补全，调用方不传。 */
 export type OnboardingRecordEntryInput = Omit<OnboardingRecordEntry, "userId" | "uploadState">;

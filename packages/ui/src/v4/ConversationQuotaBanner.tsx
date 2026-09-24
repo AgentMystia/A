@@ -1,7 +1,12 @@
 import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
+import {
+  CodingPlanBillingDiscountBadge,
+  CodingPlanBillingDiscountInfo,
+} from "@/settings/model-provider-section/CodingPlanBillingDiscount.js";
 import { useEffect, useRef } from "react";
 import { InfoIcon, RocketIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   SessionQuotaBannerKind,
@@ -46,12 +51,16 @@ function formatPercent(value: number | null): string {
 
 export function ConversationQuotaBanner({
   state,
+  billingDiscountActive,
+  billingDiscountConfig,
   upgradeActionLabelId = "chat.quota.action.upgrade",
   onUpgrade,
   onDismiss,
   onShown,
 }: {
   state: SessionQuotaBannerState;
+  billingDiscountActive?: boolean;
+  billingDiscountConfig?: unknown;
   upgradeActionLabelId?: string;
   onUpgrade?: () => void;
   onDismiss: () => void;
@@ -99,6 +108,8 @@ export function ConversationQuotaBanner({
           },
         );
 
+  const showDiscount = Boolean(onUpgrade) && billingDiscountActive === true;
+
   return (
     <div
       ref={bannerRef}
@@ -111,15 +122,29 @@ export function ConversationQuotaBanner({
           <div className="min-w-0 break-words">{message}</div>
         </div>
         {onUpgrade ? (
-          <CodingPlanEntryButton
-            type="button"
-            size="sm"
-            className="h-auto shrink-0 gap-1.5 rounded-full"
-            onClick={onUpgrade}
-          >
-            <RocketIcon className="size-3.5" />
-            {intl.formatMessage({ id: upgradeActionLabelId })}
-          </CodingPlanEntryButton>
+          <div className="inline-flex shrink-0 items-center gap-1">
+            <CodingPlanEntryButton
+              type="button"
+              size="sm"
+              className={cn(
+                "h-auto gap-1.5 rounded-full",
+                showDiscount &&
+                  "button-gradient pr-px text-white hover:bg-transparent hover:opacity-90 dark:bg-[#484A58] dark:hover:bg-[#484A58]",
+              )}
+              onClick={onUpgrade}
+            >
+              <RocketIcon className="size-3.5" />
+              {intl.formatMessage({ id: upgradeActionLabelId })}
+              {showDiscount ? (
+                <CodingPlanBillingDiscountBadge
+                  config={billingDiscountConfig}
+                  iconVisible={false}
+                  variant="surface"
+                />
+              ) : null}
+            </CodingPlanEntryButton>
+            {showDiscount ? <CodingPlanBillingDiscountInfo config={billingDiscountConfig} /> : null}
+          </div>
         ) : null}
         {state.dismissible ? (
           <Button

@@ -109,6 +109,15 @@ export function isTodoPlanToolName(value: string | null | undefined): boolean {
   return typeof value === "string" && TODO_TOOL_NAME_PATTERN.test(value.trim());
 }
 
+/** 发布包 host big chunk：Claude 导入把父工具 id 放在 `_meta.claudeCode.parentToolUseId`。 */
+export function readClaudeParentToolUseId(payload: object): string | undefined {
+  const meta = (payload as { _meta?: unknown })._meta;
+  if (!isRecord(meta)) return;
+  const claudeCode = meta.claudeCode;
+  if (!isRecord(claudeCode)) return;
+  return readString(claudeCode.parentToolUseId);
+}
+
 export function isMainAgentToolProjectionSource(...candidates: unknown[]): boolean {
   for (const candidate of candidates) {
     if (!isRecord(candidate)) {
@@ -116,10 +125,13 @@ export function isMainAgentToolProjectionSource(...candidates: unknown[]): boole
     }
     // subagent / workflow 会把子工具镜像进父 session；这些 TodoWrite
     // 只属于对应父工具树，不能覆盖主任务顶部 todo 摘要。
-    if (readString(candidate.source) === "subagent") {
-      return false;
-    }
-    if (readString(candidate.parentToolCallId) || readString(candidate.parentToolUseId)) {
+    // 发布包把 Claude metadata 父 id 和显式 parent 字段放在同一次判断里。
+    if (
+      readString(candidate.source) === "subagent" ||
+      readString(candidate.parentToolCallId) ||
+      readString(candidate.parentToolUseId) ||
+      readClaudeParentToolUseId(candidate)
+    ) {
       return false;
     }
   }

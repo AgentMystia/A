@@ -127,6 +127,7 @@ import { ConversationHeader, type PaneWorkspaceBadge } from "@/v4/ConversationHe
 import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
 import { projectPendingGuideQueue } from "@/v4/pendingGuideProjection.js";
 import { ConversationQuotaBanner } from "@/v4/ConversationQuotaBanner.js";
+import { useCodingPlanBillingDiscount } from "@/settings/model-provider-section/CodingPlanBillingDiscount.js";
 import { PendingCommandRecoveryBanner } from "@/v4/PendingCommandRecoveryBanner.js";
 import { WorkspaceHookPendingBanner } from "@/v4/WorkspaceHookPendingBanner.js";
 import { ConversationStatusPanel } from "@/v4/ConversationStatusPanel.js";
@@ -212,6 +213,7 @@ import type {
 } from "@/v4/legacyChatViewTypes.js";
 import type { SessionLease } from "@/v4/sessionDataLayer.js";
 import { V4InteractionDialogs } from "@/v4/V4InteractionDialogs.js";
+import { scheduleMobilePlanAckReconcile } from "@/v4/mobilePlanAckReconcile.js";
 import {
   useScopedConversationTelemetryForegroundEnabled,
   useScopedConversationTelemetrySupervisor,
@@ -301,6 +303,8 @@ export interface SessionPaneProps {
   remoteSessionId?: string | null;
   /** Prompt 模板埋点当前仅覆盖 Desktop；Web / 手机远控保留 UI 行为但不触发该事件。 */
   isDesktop?: boolean;
+  /** 壳上的远控紧凑标志。行上下文、空态问候和操作栏只读它。 */
+  compactForRemoteControl?: boolean;
   provider?: ZCodeProvider;
   onSessionCreated?: (sessionId: string) => void;
   /** deleteSession：删除当前会话后回到 draft（shell 起新草稿）。 */
@@ -498,6 +502,7 @@ export function SessionPane({
   workspaceIdentity,
   remoteSessionId,
   isDesktop = false,
+  compactForRemoteControl = false,
   provider,
   onSessionCreated,
   onSelectionSideChatUnavailable,
@@ -1004,6 +1009,20 @@ export function SessionPane({
       timers.clear();
     };
   }, [lease, sessionId]);
+  const handlePlanInteractionAccepted = useCallback(
+    (interactionId: string) => {
+      scheduleMobilePlanAckReconcile({
+        interactionId,
+        timers: mobilePlanInteractionReconcileTimersRef.current,
+        compactForRemoteControl,
+        lease,
+        sessionId,
+        workspaceIdentity,
+        workspacePath,
+      });
+    },
+    [compactForRemoteControl, lease, sessionId, workspaceIdentity, workspacePath],
+  );
   const pluginReferenceIconsEnabled =
     isSessionPluginCatalogReady(state.status, sessionId, snapshot?.sessionId) &&
     hasPluginReferenceUserRows(snapshot?.rows.window ?? []);
@@ -2171,6 +2190,7 @@ export function SessionPane({
       codePreviewSettings,
       sessionId,
       rootSessionId: rootSessionId ?? sessionId,
+      compactForRemoteControl,
       chatLoadingBlockedByActiveWork,
       chatLoadingBlockedByInteraction,
       messageStreamShowReasoning,
@@ -2229,6 +2249,7 @@ export function SessionPane({
       codePreviewSettings,
       sessionId,
       rootSessionId,
+      compactForRemoteControl,
       chatLoadingBlockedByActiveWork,
       chatLoadingBlockedByInteraction,
       messageStreamShowReasoning,
@@ -3944,6 +3965,7 @@ export function SessionPane({
     () => resolveMcpUnavailableNotice(snapshot?.rows.window),
     [snapshot?.rows.window],
   );
+  const billingDiscount = useCodingPlanBillingDiscount();
   const quotaBanner = useV4SessionQuotaBanner({
     sessionId: snapshot?.sessionId ?? sessionId,
     error: controlLastError,
@@ -4498,6 +4520,8 @@ export function SessionPane({
         <ConversationQuotaBanner
           state={quotaBanner.state}
           onShown={quotaBanner.markShown}
+          billingDiscountActive={billingDiscount.active}
+          billingDiscountConfig={billingDiscount.config}
           upgradeActionLabelId={quotaBanner.upgradeActionLabelId}
           onUpgrade={
             quotaBanner.upgradeProviderId && codingPlanUpgradeDialog
@@ -4549,6 +4573,9 @@ export function SessionPane({
           remoteSessionId={remoteSessionId ?? undefined}
           provider={provider}
           snapshot={snapshot}
+          onPlanInteractionAccepted={
+            compactForRemoteControl ? handlePlanInteractionAccepted : undefined
+          }
         />
       ) : null}
       {composerNode}
@@ -4733,6 +4760,7 @@ export function SessionPane({
             workspacePath={workspacePath}
           >
             <ConversationTimeline
+              compactForRemoteControl={compactForRemoteControl}
               scrollToBottomActionRef={timelineScrollToBottomRef}
               scrollToQueryActionRef={timelineScrollToQueryRef}
               selectionPanelLayoutContainerRef={conversationLayoutContainerRef}
@@ -4786,11 +4814,14 @@ export function SessionPane({
               emptyState={
                 isDraft ? (
                   <div data-testid={TID_CHAT_EMPTY} className="w-full">
-                    <ConversationDraftEmptyState />
+                    <ConversationDraftEmptyState
+                      compactForRemoteControl={compactForRemoteControl}
+                    />
                   </div>
                 ) : null
               }
               centerEmptyStateWithDock={isDraft}
+              compactEmptyStateWithDock={compactForRemoteControl}
               summaryPanelLayout={statusPanelLayout}
               conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
               conversationFindActiveIndex={!isDraft && focused ? conversationFindActiveIndex : -1}

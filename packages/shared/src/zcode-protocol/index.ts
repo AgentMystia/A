@@ -1727,6 +1727,17 @@ export const zcodeBrowserAmbientContextSchema = z
   .strict();
 export type ZCodeBrowserAmbientContext = z.infer<typeof zcodeBrowserAmbientContextSchema>;
 
+/** 发布包 host/scheduler schema `ar` / `cf`：飞书、Lark、微信的机器人投递目标。 */
+export const zcodeBotDeliveryTargetSchema = z
+  .object({
+    provider: z.enum(["feishu", "lark", "weixin"]),
+    botId: z.string().trim().min(1),
+    providerUserId: z.string().trim().min(1),
+    chatType: z.enum(["private", "group"]),
+  })
+  .strict();
+export type ZCodeBotDeliveryTarget = z.infer<typeof zcodeBotDeliveryTargetSchema>;
+
 export const zcodeSessionSendParamsSchema = z
   .object({
     sessionId: nonEmptyString,
@@ -1742,6 +1753,7 @@ export const zcodeSessionSendParamsSchema = z
     automationId: nonEmptyString.optional(),
     offPeakTaskId: nonEmptyString.optional(),
     offPeakRunType: z.enum(["init", "resume"]).optional(),
+    botDeliveryTarget: zcodeBotDeliveryTargetSchema.optional(),
     toolDenylist: z.array(nonEmptyString).optional(),
   })
   .strict()
@@ -2376,7 +2388,11 @@ export const zcodeUserInputResponseSchema = z
   .strict();
 export type ZCodeUserInputResponse = z.infer<typeof zcodeUserInputResponseSchema>;
 
-export const zcodeProviderRuntimeHeadersRequestReasonSchema = z.enum(["model-request"]);
+// 发布包把验证码重试和普通模型请求分成两个 reason。Renderer 用 captcha-retry 选择 captcha_retry。
+export const zcodeProviderRuntimeHeadersRequestReasonSchema = z.enum([
+  "model-request",
+  "captcha-retry",
+]);
 export const zcodeProviderRuntimeHeadersRequestParamsSchema = z
   .object({
     requestId: nonEmptyString,
@@ -2433,7 +2449,8 @@ export type ZCodeProviderRuntimeHeadersResponse = z.infer<
 // ── 官方 Server MCP 鉴权──
 // Agent 进程不是用户身份权威：它把 (pluginId, mcpKey, targetOrigin) 报给 host，由 host
 // 解析当前 Coding Plan 凭证并回传本次请求的身份头。请求侧不含任何秘密。
-// 与 interaction/requestProviderRuntimeHeaders 同类：Agent 发起、host 自动响应、零 UI。
+// 官方 MCP 身份头仍由 host 自动响应、零 UI。
+// interaction/requestProviderRuntimeHeaders 只对非 Start Plan 自动应答；Start Plan 交给 Renderer。
 export const zcodeOfficialMcpAuthHeadersRequestParamsSchema = z
   .object({
     requestId: nonEmptyString,
@@ -3376,6 +3393,7 @@ export const zcodeAutomationCreateParamsSchema = z
     modelSelection: modelSelectionSchema.optional(),
     mode: zcodeTaskModeSchema.optional(),
     targetTaskId: nonEmptyString.optional(),
+    botDeliveryTarget: zcodeBotDeliveryTargetSchema.optional(),
     recurring: z.boolean().optional(),
     maxRuns: z.number().int().positive().optional(),
     // 会话侧自定义重复 carrier：每 N 分钟/小时/天/周/月/年均通过此字段归一化为权威 scheduleRule，

@@ -14,18 +14,6 @@ export declare function isCuaLocalDevelopmentRuntime(
   compiledLocalDevelopmentRuntime?: boolean,
 ): boolean;
 
-export interface HelperPermissionSubjectIdentity {
-  appPath: string;
-  executablePath: string;
-  displayName: string;
-  bundleId: string;
-  [key: string]: unknown;
-}
-
-export declare function resolveHelperPermissionSubjectIdentity(
-  appPath: string,
-): Promise<HelperPermissionSubjectIdentity>;
-
 export interface CuaHelperVerifierDependencies {
   readExecutableArchs: (executablePath: string) => Promise<string[]>;
   [key: string]: unknown;
@@ -50,9 +38,11 @@ export declare function createCuaHelperInstaller(
 
 export declare const defaultCuaHelperVerifierDependencies: CuaHelperVerifierDependencies;
 
-export declare function cuaBrokerRefreshMarkerPath(socketPath: string): string | undefined;
+export declare function cuaBrokerRefreshMarkerPath(socketPath: string): string;
 export interface CuaBrokerRefreshMarkerHandle {
   path: string;
+  deadlineEpochMs: number;
+  complete(): Promise<void>;
 }
 export declare function publishCuaBrokerRefreshMarker(
   socketPath: string,
@@ -196,6 +186,8 @@ export declare function createCuaProductMcpServerResolver(
 export interface IsOfficialCuaPluginEnabledForWorkspaceOptions {
   env?: NodeJS.ProcessEnv;
   workingDirectory?: string;
+  projectConfigPath?: string;
+  userConfigPath?: string;
   [key: string]: unknown;
 }
 
@@ -232,7 +224,7 @@ export declare function clearCuaProductHelperAgentEnvUnavailable(
 export declare function reapOrphanedHelpers(options: {
   logger?: unknown;
   env?: NodeJS.ProcessEnv;
-}): Promise<void>;
+}): { scanned: number; reaped: number[] };
 
 export interface HelperPermissionRequestResult {
   ok: boolean;

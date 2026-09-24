@@ -523,6 +523,7 @@ export function WorkspaceGroupedTasksSection({
   activeWorkspacePath,
   activeWorkspaceIdentity,
   activeTaskId,
+  mobileActiveTaskKey,
   onSelectTask,
   onCreateTask,
   onOpenFileTree,
@@ -538,6 +539,7 @@ export function WorkspaceGroupedTasksSection({
   activeWorkspacePath: string;
   activeWorkspaceIdentity?: string;
   activeTaskId: string | null;
+  mobileActiveTaskKey: string | null;
   onSelectTask: (workspacePath: string, taskId: string, workspaceIdentity?: string) => void;
   onCreateTask: (request?: CreateTaskRequest) => void;
   onOpenFileTree?: (target: {
@@ -1527,6 +1529,7 @@ export function WorkspaceGroupedTasksSection({
             activeWorkspacePath={activeWorkspacePath}
             activeWorkspaceIdentity={activeWorkspaceIdentity}
             activeTaskId={activeTaskId}
+            mobileActiveTaskKey={mobileActiveTaskKey}
             getTaskRemoteSessionId={getTaskRemoteSessionId}
             getTaskWorkspaceLabel={getTaskWorkspaceLabel}
             onSelectTask={onSelectTask}
@@ -1572,6 +1575,7 @@ export function WorkspaceGroupedTasksSection({
           activeWorkspacePath={activeWorkspacePath}
           activeWorkspaceIdentity={activeWorkspaceIdentity}
           activeTaskId={activeTaskId}
+          mobileActiveTaskKey={mobileActiveTaskKey}
           onSelectTask={onSelectTask}
           onCloseTask={handleCloseTask}
           onOpenFileTree={onOpenFileTree ? handleOpenTaskFileTree : undefined}
@@ -1589,6 +1593,7 @@ export function WorkspaceGroupedTasksSection({
       activeTaskId,
       activeWorkspaceIdentity,
       activeWorkspacePath,
+      mobileActiveTaskKey,
       activeDragTaskKey,
       activeDragGroupId,
       groupedTooltipsDisabled,
@@ -1659,6 +1664,7 @@ export function WorkspaceGroupedTasksSection({
             activeWorkspacePath={activeWorkspacePath}
             activeWorkspaceIdentity={activeWorkspaceIdentity}
             activeTaskId={activeTaskId}
+            mobileActiveTaskKey={mobileActiveTaskKey}
             onSelectTask={onSelectTask}
             onCloseTask={handleCloseTask}
             onOpenFileTree={onOpenFileTree ? handleOpenTaskFileTree : undefined}

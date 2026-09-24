@@ -146,7 +146,17 @@ export interface ZCodeTaskGoalChangedPatch {
 }
 // ---- ZCode task 模式 ----
 
-export type ZCodeTaskMode = "yolo" | "plan" | "edit" | "auto" | "autoEdit" | "build";
+export type ZCodeTaskMode =
+  | "default"
+  | "yolo"
+  | "plan"
+  | "edit"
+  | "acceptEdits"
+  | "auto"
+  | "dontAsk"
+  | "bypassPermissions"
+  | "autoEdit"
+  | "build";
 
 export type ZCodeOffPeakRunType = "init" | "resume";
 
@@ -338,10 +348,18 @@ export interface ZCodeTaskMeta {
    * 但拿不到错误正文，用户会以为发送没有触发。这里把失败原因随 task meta 一起持久化。
    */
   lastError?: ZCodeTaskLastError;
+  /**
+   * 原生快照修复版本。发布包把它留在 task meta 上，缺省表示这份历史还没修过。
+   */
+  repairState?: ZCodeTaskRepairState;
   /** 任务级文件改动摘要，仅用于列表/标题展示，真实回滚仍以 fileChanges 为准 */
   changeSummary?: ZCodeTaskChangeSummary;
   /** zcode-cli /goal 会话目标；null 表示已显式清空。 */
   target?: ZCodeTaskGoal | null;
+}
+export interface ZCodeTaskRepairState {
+  claudeNativeSnapshotAssistantContentVersion?: number;
+  codexNativeSnapshotSubagentToolsVersion?: number;
 }
 export interface ZCodeTaskChangeSummary {
   /** 整个任务里涉及过的唯一文件数 */

@@ -2,6 +2,13 @@
   "name": "@zcode/shared",
   "private": true,
   "type": "module",
+  "sideEffects": [
+    "./src/*.ts",
+    "./src/browser-use/**/*.ts",
+    "./src/node/**/*.ts",
+    "./src/zcode-protocol/**/*.ts",
+    "./src/zcode-protocol-v4/**/*.ts"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./runtime-env": "./src/runtimeEnv.ts",
@@ -15,13 +22,18 @@
     "./config-schema": "./src/config-schema.ts",
     "./node": "./src/node.ts",
     "./zcodeEndpoint": "./src/zcodeEndpoint.ts",
+    "./webRemoteControlRelayPayloadSerializer": "./src/webRemoteControlRelayPayloadSerializer.ts",
+    "./botsDefaults": "./src/botsDefaults.ts",
+    "./manualClaim": "./src/manualClaim.ts",
     "./workspaceFileSearch": "./src/workspaceFileSearch.ts",
     "./workspaceFileEntriesCodec": "./src/workspaceFileEntriesCodec.ts",
     "./zcode-protocol-v4": "./src/zcode-protocol-v4/index.ts",
     "./workspace-hook-discovery": "./src/workspace-hook-discovery.ts",
     "./workspace-hook-mutation": "./src/workspace-hook-mutation.ts",
     "./workspace-hook-review-monotonicity": "./src/workspace-hook-review-monotonicity.ts",
-    "./workspace-hook-trust-store-file": "./src/workspace-hook-trust-store-file.ts"
+    "./workspace-hook-trust-store-file": "./src/workspace-hook-trust-store-file.ts",
+    "./cloud-content": "./src/pure/cloudContent.ts",
+    "./output-style": "./src/pure/outputStyle.ts"
   },
   "scripts": {
     "lint": "oxlint",

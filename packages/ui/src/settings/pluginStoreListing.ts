@@ -14,6 +14,7 @@ import {
   isPublicStoreMarketplaceId,
   resolveLocalizedText,
   resolvePluginDisplayName,
+  CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,
   ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
 } from "@zcode/shared";
 import { pluginSearchMatches } from "@/settings/pluginSearch.js";
@@ -154,10 +155,14 @@ export interface PersonalMarketplaceGroup {
   items: StorePluginItem[];
 }
 
-const OFFICIAL_MARKETPLACE_ORDER: readonly string[] = [ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID];
+const OFFICIAL_MARKETPLACE_ORDER: readonly string[] = [
+  ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  // 发布包把 claude-plugins-official 排在官方市场之后，但它仍是个人来源。
+  CLAUDE_PLUGINS_OFFICIAL_MARKETPLACE_ID,
+];
 
 /**
- * 市场源管理排序：官方源固定置顶；自定义源按最近刷新时间倒序，未刷新过的沉底。
+ * 市场源管理排序：官方源固定置顶，其后是 claude-plugins-official；其余按最近刷新时间倒序。
  * 同一时间使用本地化名称稳定兜底，避免市场源顺序随持久化数组历史漂移。
  */
 export function sortMarketplaceSources(

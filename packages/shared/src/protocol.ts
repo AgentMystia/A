@@ -5,6 +5,10 @@ import type { ProviderFamilyConnectionSelectionSettings } from "./provider-famil
 import type { ZCodeProvider } from "./zcode-task-types-core.js";
 import type { WorkspacePurpose } from "./workspacePurpose.js";
 import type { EmbeddedBrowserViewportPreference } from "./browser-use/command-metadata.js";
+import type {
+  WebRemoteControlExternalRelayDevice,
+  WebRemoteControlLastEnabledContext,
+} from "./webRemoteControl.js";
 
 // ── Domain types ──
 
@@ -156,10 +160,24 @@ export interface DockerRemoteTargetSnapshot {
   container: string;
 }
 
+export interface ServerRemoteTargetSnapshot {
+  kind: "server";
+  url: string;
+  name?: string;
+  workspacePath?: string;
+  serverId?: string;
+  /**
+   * server token 不会写入 setting.json。
+   * 这里只保存 credentialService 的键名，恢复时再去安全存储读取。
+   */
+  tokenCredentialKey?: string;
+}
+
 export type RemoteTargetSnapshot =
   | SSHRemoteTargetSnapshot
   | WSLRemoteTargetSnapshot
-  | DockerRemoteTargetSnapshot;
+  | DockerRemoteTargetSnapshot
+  | ServerRemoteTargetSnapshot;
 
 export interface RemoteWorkspaceSessionSnapshot {
   /** 远程 workspace 的真实绝对路径 */
@@ -311,6 +329,8 @@ export interface AppSettings {
   askUserQuestionAutoResolutionEnabled?: boolean;
   /** 是否完整保留 Model I/O；开启后不轮转、不限额重置、不压缩或裁剪，鉴权信息仍会脱敏。 */
   modelIoFullRetentionEnabled?: boolean;
+  /** 历史内置 CLI provider 列表。读取时折叠成 ["glm"]，不扩大运行时 ZCodeProvider。 */
+  enabledBuiltinAgentCliProviders?: string[];
   /** 设置页中每个 Provider Family 当前唯一的结构化连接选择。 */
   providerFamilyConnectionSelections?: ProviderFamilyConnectionSelectionSettings;
   /** 用户通过 WelcomeScreen 成功连接后确认的 ZAI / BigModel provider family 运行域。 */
@@ -366,4 +386,11 @@ export interface AppSettings {
   settingsSyncFirstRunPromptHandled?: boolean;
   /** 设置页里的临时 endpoint override；正式/测试默认 base url 由 ZCODE_BASE_URL env 管理。 */
   zcodeEndpointOrigin?: string;
+  /**
+   * Web 远程控制外部 relay 的 deviceSid。
+   * passHash 在凭据服务，不进 setting.json。
+   */
+  webRemoteControlExternalRelayDevice?: WebRemoteControlExternalRelayDevice;
+  /** 上次成功开启的 workspace，供窗口标签同步后恢复。 */
+  webRemoteControlLastEnabledContext?: WebRemoteControlLastEnabledContext;
 }

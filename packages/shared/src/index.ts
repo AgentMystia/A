@@ -27,6 +27,8 @@ export type {
   PersistedWorkspaceSessionEntry,
 } from "./protocol.js";
 export type { WorkspacePurpose } from "./workspacePurpose.js";
+export { cloudDialogPayloadSchema } from "./cloudDialogPayload.js";
+export type { CloudDialogPayloadContract } from "./cloudDialogPayload.js";
 export { DEFAULT_LOCALE } from "./protocol.js";
 export { ZCODE_VERSION, ZCODE_COMMIT, ZCODE_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";
@@ -38,13 +40,15 @@ export type {
 } from "./remoteResourcePackages.js";
 export type {
   DockerConnectOptions,
+  RemoteConnectionWizardKind,
   RemoteTarget,
+  ServerConnectOptions,
   SSHConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
 export { stripRemoteTargetSecrets } from "./remoteTarget.js";
 export { buildSshRemoteHostKey } from "./remoteSshHostKey.js";
-export { buildRemoteEnvironmentKey } from "./remoteEnvironmentKey.js";
+export { buildRemoteEnvironmentKey, normalizeServerEndpoint } from "./remoteEnvironmentKey.js";
 export type {
   ShortcutChannel,
   ShortcutCommandEntry,
@@ -65,7 +69,6 @@ export {
   ZCODE_APP_VERSION_ENV,
   ZCODE_BUILD_COMMIT_ID_ENV,
   RUNTIME_ZCODE_DEBUG,
-  ZCODE_TELEMETRY_REPORT_ENDPOINT,
   ZCODE_ARMS_RUM_ENDPOINT,
   ZCODE_TELEMETRY_ENABLED,
   mapZCodeEnvToArmsRumEnv,
@@ -83,6 +86,7 @@ export * from "./account-provider-state.js";
 // re-home：旧协议承重面的幸存文件（消费者继续走 barrel，零感知）
 export * from "./zcode-protocol-legacy-types.js";
 export * from "./zcode-task-types-core.js";
+export * from "./publishedHourMark.js";
 export * from "./task-realtime-core.js";
 export * from "./remote-workspace-identity.js";
 export * from "./zcode-api-retry-status.js";
@@ -97,6 +101,7 @@ export * from "./zcode-session-task-status.js";
 export * from "./zcode-tool-projection-memory.js";
 export * from "./zcode-slash-command-help.js";
 export * from "./zcodeEndpoint.js";
+export * from "./rewardsWebview.js";
 export * from "./zcode-source-headers.js";
 export * from "./zcode-agent-policy.js";
 export * from "./zcode-media-policy.js";
@@ -117,6 +122,31 @@ export interface ICredentialStore {
 
 export * from "./test-ids.js";
 export * from "./test-ids-workflow.js";
+export * from "./webRemoteControl.js";
+export * from "./webRemoteControlEndpoint.js";
+export * from "./webRemoteControlTelemetry.js";
+export * from "./webRemoteControlRpcLimits.js";
+export * from "./webRemoteControlRpcSchema.js";
+export * from "./webRemoteControlRpcCodec.js";
+export * from "./webRemoteControlRpcAssembler.js";
+export * from "./webRemoteControlPayload.js";
+export * from "./marketingTouch.js";
+export type {
+  CloudContentBundle,
+  CloudContentPrepareResult,
+} from "./pure/cloudContent.js";
+export type { OutputStyleConfig, OutputStyleInfo } from "./pure/outputStyle.js";
+export * from "./bots.js";
+export { hash8, toAsciiSlug, toOpencodeModelId, toOpencodeProviderKey } from "./opencodeModelId.js";
+export type {
+  ManualClaimedEntitlement,
+  ManualClaimedPlan,
+  ManualClaimEntitlementPreview,
+  ManualClaimPlanPreview,
+  ManualClaimPlanPreviews,
+  ManualClaimRequest,
+  ManualClaimResult,
+} from "./manualClaim.js";
 export * from "./channels.js";
 export * from "./storage.js";
 export * from "./oauth.js";

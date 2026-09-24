@@ -206,6 +206,10 @@ export {
   PROJECT_MEMORY_PREVIEW_LIMIT_EXCEEDED_ERROR_CODE,
 } from "./memory/memory.js";
 export type { ProjectMemoryFileSummary, ProjectMemoryWorkspaceSummary } from "./memory/memory.js";
+export { IOutputStyleService } from "./output-style/outputStyle.js";
+export { IBotsService } from "./bots/bots.js";
+export { IMarketingTouchService } from "./marketing-touch/marketingTouch.js";
+export { ICloudContentService } from "./cloud-content/cloudContent.js";
 
 export type { SessionRealtimePort } from "./session/sessionRealtimePort.js";
 

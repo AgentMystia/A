@@ -11,6 +11,7 @@ import { useGitRepository } from "@/hooks/useGitRepository.js";
 import { useAppKeyboard } from "@/hooks/useAppKeyboard.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceActiveTaskState } from "@/hooks/useWorkspaceActiveTaskState.js";
+import { useWorkspaceProviderConfigFile } from "@/hooks/useWorkspaceProviderConfigFile.js";
 import { useEnsureWorkspaceMcpLoaded } from "@/hooks/useEnsureWorkspaceMcpLoaded.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly, isWorkspaceTab } from "@/store/tabStore.js";
@@ -52,6 +53,8 @@ import { resolveTheme } from "@/useTheme.js";
 import { WorkspaceShellLayout } from "@/app-shell/WorkspaceShellLayout.js";
 import { useAppChromeState } from "@/app-shell/useAppChromeState.js";
 import { useWorkspaceSessionReload } from "@/app-shell/useWorkspaceSessionReload.js";
+import { RewardsProvider } from "@/rewards/RewardsProvider.js";
+import { MarketingCampaignProvider } from "@/marketing/MarketingCampaignProvider.js";
 import { useWorkspaceShellLifecycle } from "@/app-shell/useWorkspaceShellLifecycle.js";
 import { useWorkspaceShellZCodeState } from "@/app-shell/useWorkspaceShellZCodeState.js";
 import { useWorkspaceMainViewSettingsExit } from "@/app-shell/useWorkspaceMainViewSettingsExit.js";
@@ -381,6 +384,7 @@ export function App({
     activeTaskProvider,
     activeTaskChangeSummary,
     activeTaskTitle,
+    workspaceHeaderProvider,
     taskNativeSessionLogFile,
     taskSessionFile,
   } = useWorkspaceActiveTaskState({
@@ -391,6 +395,13 @@ export function App({
     selectedProvider: workspaceShellZCodeState.selectedProvider,
     intl,
   });
+  // 壳层只投影 Header 签名需要的 path/exists/loading。菜单仍自己查询，不复用这份结果。
+  const providerConfigFile = useWorkspaceProviderConfigFile(
+    workspaceAbsPath,
+    workspaceHeaderProvider,
+    workspaceRemoteSessionId,
+    workspaceIdentity,
+  );
   const workspaceTabs = useMemo(
     () =>
       tabs.filter(isWorkspaceTab).map((tab) => ({
@@ -1105,7 +1116,14 @@ export function App({
   );
 
   return (
-    <>
+    <RewardsProvider desktop={Boolean(isDesktop)}>
+      <MarketingCampaignProvider
+        desktop={Boolean(isDesktop)}
+        workspacePath={workspaceAbsPath}
+        workspaceIdentity={workspaceIdentity}
+        endpointKey={workspaceRemoteSessionId}
+        rpcReady={workspaceRpcReady}
+      >
       <CommandCenterDialog
         open={isQuickPickOpen}
         commands={quickPickCommands}
@@ -1210,6 +1228,7 @@ export function App({
         gitState={gitState}
         browserNavigationRequest={browserNavigationRequest}
         browserRestoreUrls={browserRestoreUrls}
+        providerConfigFile={providerConfigFile}
         taskNativeSessionLogFile={taskNativeSessionLogFile}
         taskSessionFile={taskSessionFile}
         testMessages={testMessages}
@@ -1275,6 +1294,7 @@ export function App({
         // taskFindDialogProps 是对象 prop，内联创建会让 shell 在流式刷新中每轮都看到新引用。
         taskFindDialogProps={taskFindDialogProps}
       />
-    </>
+      </MarketingCampaignProvider>
+    </RewardsProvider>
   );
 }

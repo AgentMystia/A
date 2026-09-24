@@ -1,3 +1,4 @@
+import "./cloudDialogPayload.js";
 import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 
@@ -25,7 +26,24 @@ export interface DockerConnectOptions {
   container: string;
 }
 
-export type RemoteTarget = SSHConnectOptions | WSLConnectOptions | DockerConnectOptions;
+export interface ServerConnectOptions {
+  kind: "server";
+  url: string;
+  name?: string;
+  /** 只活在当前连接；持久化快照改存 tokenCredentialKey。 */
+  token?: string;
+  workspacePath?: string;
+  serverId?: string;
+}
+
+export type RemoteTarget =
+  | SSHConnectOptions
+  | WSLConnectOptions
+  | DockerConnectOptions
+  | ServerConnectOptions;
+
+/** 连接向导可构造 ssh、wsl、docker，以及本地开发运行形态下的 server。 */
+export type RemoteConnectionWizardKind = RemoteTarget["kind"];
 
 /** 删除只应存在于当前连接流程中的 secret，供长期内存状态和跨进程回包使用。 */
 export function stripRemoteTargetSecrets(target: RemoteTarget): RemoteTarget {
@@ -35,6 +53,11 @@ export function stripRemoteTargetSecrets(target: RemoteTarget): RemoteTarget {
       privateKeyPassphrase: _privateKeyPassphrase,
       ...sanitized
     } = target;
+    return sanitized;
+  }
+
+  if (target.kind === "server") {
+    const { token: _token, ...sanitized } = target;
     return sanitized;
   }
 

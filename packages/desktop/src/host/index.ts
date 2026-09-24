@@ -39,6 +39,7 @@ import {
   ISettingService,
   IWindowControllerService,
   IConversationShareService,
+  IBotsService,
   IZCodeAgentService,
   IZCodeTaskService,
   IZCodeSessionService,
@@ -53,6 +54,7 @@ import {
   disposeServiceResources,
   disposeServiceResourcesAndWait,
   AutomationRepo,
+  watchCronRunBotDelivery,
   OffPeakTaskRepo,
   OffPeakTaskService,
   createServiceLogger,
@@ -120,6 +122,12 @@ import {
 } from "./remoteMediaPreviewProxy.js";
 import { createHostRemoteWorkspaceProxyState } from "./hostRemoteWorkspaceProxyState.js";
 import { createRemoteWorkspaceServiceCollection } from "./remoteWorkspaceServiceCollection.js";
+import {
+  connectServerRemote,
+  disposeHostRemoteConnection,
+  type ServerRemoteConnection,
+} from "./serverRemoteConnection.js";
+import { createServerRemoteWorkspaceServiceCollection } from "./serverRemoteWorkspaceServiceCollection.js";
 import { getRemoteProviderProvisioningExecutor } from "./remoteProviderProvisioningService.js";
 import { createRemotePromptAttachmentTransferService } from "./promptAttachmentTransferService.js";
 import { shouldReportHostConsoleError, stringifyHostLogArg } from "./hostLog.js";
@@ -152,7 +160,7 @@ import { startHostSelfResourceTelemetry } from "./hostSelfResourceTelemetry.js";
 type RemoteBackendHostConnection = RemoteConnection & {
   backend: IRemoteBackend;
 };
-type HostRemoteConnection = RemoteBackendHostConnection;
+type HostRemoteConnection = RemoteBackendHostConnection | ServerRemoteConnection;
 interface HostRemoteConnectionCapabilities {
   browserRecordingUploader?: Pick<IRemoteBackend, "upload">;
   remoteMediaPreviewFactory?: (
@@ -916,6 +924,26 @@ async function dispatchCronRun(request: CronRunDispatchRequest): Promise<{
         mode: request.mode,
       });
     }
+    const botsService = targetServices.getOptional(IBotsService);
+    if (botsService) {
+      try {
+        await watchCronRunBotDelivery({
+          automationId: request.automationId,
+          workspaceKey,
+          workspacePath: request.workspacePath,
+          ...(request.workspaceIdentity ? { workspaceIdentity: request.workspaceIdentity } : {}),
+          taskId: task.taskId,
+          repo: cronAutomationRepo,
+          botsService,
+        });
+      } catch (error) {
+        // 订阅失败不取消已创建的 cron run；发布包只记录 provider=unknown。
+        logger.warn(
+          `automation Bot delivery subscription failed automation=${request.automationId} provider=unknown`,
+          error,
+        );
+      }
+    }
     trackedKey = cronRunSubscriptionKey(task.taskId, promptTraceId);
     trackCronRunOutcome({
       zcodeTaskService,
@@ -1534,6 +1562,8 @@ function formatRemoteTargetForLog(target: RemoteTarget): string {
     }
     case "docker":
       return `docker:${target.container}`;
+    case "server":
+      return `server:${target.name?.trim() || target.url}`;
   }
 }
 
@@ -1607,10 +1637,6 @@ async function resolveDesktopRemoteRuntimeNetwork(
   }
 }
 
-async function disposeHostRemoteConnection(connection: HostRemoteConnection): Promise<void> {
-  await connection.disposeAndWait({ timeoutMs: 5_000 });
-}
-
 async function createWindowRemoteConnectionHandle(params: {
   target: RemoteTarget;
   remoteAssets: RemoteAssetDirs;
@@ -1627,62 +1653,86 @@ async function createWindowRemoteConnectionHandle(params: {
       listener(event);
     }
   };
-  const connection = await setupRemoteConnection(
-    params.target,
-    params.remoteAssets,
-    { fetch: requireActiveHostApiNetworkTransport().fetch },
-    await resolveDesktopRemoteRuntimeNetwork(params.target),
-    (exitCode) => notifyClose({ exitCode, signal: null }),
-    params.target.kind === "ssh" ? "caller-serialized" : "remote",
-    params.target.kind === "ssh" ? params.signal : undefined,
-  );
+  // server 走 websocket host RPC，不进进程 backend。发布包在这里分支，避免 createRemoteBackend 抛错。
+  const connection: HostRemoteConnection =
+    params.target.kind === "server"
+      ? await connectServerRemote(params.target, {
+          onClose: ({ code, reason }) =>
+            notifyClose({
+              exitCode: code,
+              signal: null,
+              ...(reason ? { error: reason } : {}),
+            }),
+        })
+      : await setupRemoteConnection(
+          params.target,
+          params.remoteAssets,
+          { fetch: requireActiveHostApiNetworkTransport().fetch },
+          await resolveDesktopRemoteRuntimeNetwork(params.target),
+          (exitCode) => notifyClose({ exitCode, signal: null }),
+          params.target.kind === "ssh" ? "caller-serialized" : "remote",
+          params.target.kind === "ssh" ? params.signal : undefined,
+        );
 
   if (params.signal.aborted) {
     await disposeHostRemoteConnection(connection);
     throw new Error("远程连接已取消");
   }
 
-  const backendConnection = connection;
-  const materializePromptAttachments = async (request: {
-    taskId: string;
-    traceId: TraceId | string;
-    content: string;
-    attachments?: ZCodePromptAttachment[];
-  }) => {
-    const result = await materializeRemotePromptAttachments(request, {
-      backend: backendConnection.backend,
-    });
-    return { content: result.content, attachments: result.attachments };
-  };
-  const promptAttachmentTransferService = createRemotePromptAttachmentTransferService(
-    backendConnection.backend,
-    {
-      onJanitorError: (error: unknown) =>
-        logger.warn("remote prompt attachment janitor failed", error),
-    },
-  );
-  const services = createRemoteWorkspaceServiceCollection({
-    clientConfigService,
-    connectionServices: backendConnection.services,
-    sourceServices: activeServices ?? undefined,
-    parentPort,
-    createRemotePromptAttachmentSessionService: (service) =>
-      createRemotePromptAttachmentSessionService(service, {
-        materializePromptAttachments,
-      }),
-    createRemotePromptAttachmentTaskService: (service) =>
-      createRemotePromptAttachmentTaskService(service, {
-        materializePromptAttachments,
-      }),
-    createReportingRemoteZCodeTaskService: (service) =>
-      createReportingRemoteZCodeTaskService(service, {
-        taskRealtimePort: activeSessionRealtimePort ?? undefined,
-      }),
-    promptAttachmentTransferService,
-    runtimePreferencesBridge: {
-      onError: (error: unknown) => logger.warn("remote runtime preferences bridge failed", error),
-    },
-  });
+  const services =
+    params.target.kind === "server"
+      ? createServerRemoteWorkspaceServiceCollection({
+          clientConfigService,
+          connectionServices: connection.services,
+          sourceServices: activeServices ?? undefined,
+        })
+      : (() => {
+          if (!("backend" in connection)) {
+            throw new Error("server remote is not a process backend");
+          }
+          const backendConnection = connection;
+          const materializePromptAttachments = async (request: {
+            taskId: string;
+            traceId: TraceId | string;
+            content: string;
+            attachments?: ZCodePromptAttachment[];
+          }) => {
+            const result = await materializeRemotePromptAttachments(request, {
+              backend: backendConnection.backend,
+            });
+            return { content: result.content, attachments: result.attachments };
+          };
+          const promptAttachmentTransferService = createRemotePromptAttachmentTransferService(
+            backendConnection.backend,
+            {
+              onJanitorError: (error: unknown) =>
+                logger.warn("remote prompt attachment janitor failed", error),
+            },
+          );
+          return createRemoteWorkspaceServiceCollection({
+            clientConfigService,
+            connectionServices: backendConnection.services,
+            sourceServices: activeServices ?? undefined,
+            parentPort,
+            createRemotePromptAttachmentSessionService: (service) =>
+              createRemotePromptAttachmentSessionService(service, {
+                materializePromptAttachments,
+              }),
+            createRemotePromptAttachmentTaskService: (service) =>
+              createRemotePromptAttachmentTaskService(service, {
+                materializePromptAttachments,
+              }),
+            createReportingRemoteZCodeTaskService: (service) =>
+              createReportingRemoteZCodeTaskService(service, {
+                taskRealtimePort: activeSessionRealtimePort ?? undefined,
+              }),
+            promptAttachmentTransferService,
+            runtimePreferencesBridge: {
+              onError: (error: unknown) =>
+                logger.warn("remote runtime preferences bridge failed", error),
+            },
+          });
+        })();
 
   let disposed = false;
   // 远端 workspace 的 CLI 与 MCP 样本走与本地同一条路径：远端 zcode-server → 本地 Host → main。
@@ -1692,23 +1742,32 @@ async function createWindowRemoteConnectionHandle(params: {
     services,
     postMessage: (message) => parentPort?.postMessage(message),
     runtimeSurface: "remote",
-    environmentKey: resolveResourceTelemetryEnvironmentKey(params.target),
+    // 旧 server 未声明 processResourceTelemetry 时不能订阅，否则对端读循环会收到未知事件。
+    telemetrySupported:
+      params.target.kind !== "server" ||
+      ("serverInfo" in connection &&
+        connection.serverInfo.capabilities.processResourceTelemetry === true),
+    environmentKey: resolveResourceTelemetryEnvironmentKey(
+      params.target,
+      "serverInfo" in connection ? connection.serverInfo.serverId : undefined,
+    ),
     onError: (error) => logger.warn("remote resource telemetry subscription failed", error),
   });
-  const remoteMediaPreviewFactory = !remoteMediaRangePreviewEnabled
-    ? undefined
-    : (scope: Extract<WindowHostAttachmentScope, { kind: "remote" }>) =>
-        createRemoteMediaPreviewProxy({
-          fileService: services.get(IFileService),
-          logger: {
-            debug: (message, metadata) => {
-              if (process.env.NODE_ENV !== "production") logger.info(message, metadata);
+  const remoteMediaPreviewFactory =
+    params.target.kind === "server" || !remoteMediaRangePreviewEnabled
+      ? undefined
+      : (scope: Extract<WindowHostAttachmentScope, { kind: "remote" }>) =>
+          createRemoteMediaPreviewProxy({
+            fileService: services.get(IFileService),
+            logger: {
+              debug: (message, metadata) => {
+                if (process.env.NODE_ENV !== "production") logger.info(message, metadata);
+              },
+              warn: (message, metadata) => logger.warn(message, metadata),
             },
-            warn: (message, metadata) => logger.warn(message, metadata),
-          },
-          scope,
-          requestLimiter: hostRemoteMediaRequestLimiter,
-        });
+            scope,
+            requestLimiter: hostRemoteMediaRequestLimiter,
+          });
   return {
     services,
     capabilities:

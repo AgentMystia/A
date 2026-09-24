@@ -9,7 +9,6 @@ import { createRequire } from "node:module";
 import { dirname } from "node:path";
 import {
   isRemoteWorkspaceIdentity,
-  ZCODE_AGENT_PROVIDER,
   zcodeTaskMetaSchema,
   resolveWorkspaceKey,
   CRON_DEFAULT_GROUP_ID,
@@ -245,7 +244,8 @@ function rowToMeta(row: TaskIndexRow): ZCodeTaskMeta {
     updatedAt: row.updated_at,
     mode: row.mode as ZCodeTaskMeta["mode"],
     model: row.model ?? undefined,
-    provider: row.provider === ZCODE_AGENT_PROVIDER ? ZCODE_AGENT_PROVIDER : undefined,
+    // 发布包在 meta_json 解析失败时直接透传列值，不和 glm 常量比较。
+    provider: (row.provider ?? undefined) as ZCodeTaskMeta["provider"],
     migrationSource: (row.migration_source as ZCodeTaskMeta["migrationSource"]) ?? undefined,
     forkedFromTaskId: row.forked_from_task_id ?? undefined,
     cronAutomationId: row.cron_automation_id ?? undefined,
@@ -478,6 +478,99 @@ function compareGroupTasks(
   return taskNodeKey(left).localeCompare(taskNodeKey(right));
 }
 
+interface LegacyAcpTaskRow {
+  workspace_key: string;
+  workspace_path: string;
+  workspace_identity: string | null;
+  task_id: string;
+  title: string;
+  task_status: string | null;
+  provider: string | null;
+  acp_session_id?: string | null;
+  mode: string;
+  model: string | null;
+  forked_from_task_id: string | null;
+  created_at: number;
+  updated_at: number;
+  unread_at: number | null;
+  last_unread_at: number;
+  pinned: number;
+  archived: number;
+  deleted: number;
+  title_overridden: number;
+  searchable_text: string;
+  meta_json: string;
+}
+
+interface LegacyAcpMigratedTaskWrite {
+  workspace_key: string;
+  task_id: string;
+  title: string;
+  task_status: string | null;
+  provider: string | null;
+  mode: string;
+  model: string | null;
+  migration_source: null;
+  forked_from_task_id: string | null;
+  created_at: number;
+  updated_at: number;
+  unread_at: number | null;
+  last_unread_at: number;
+  pinned: number;
+  archived: number;
+  deleted: number;
+  title_overridden: number;
+  searchable_text: string;
+  meta_json: string;
+}
+
+function migrateLegacyTaskMetaJson(
+  metaJson: string,
+  fallback: {
+    taskId: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+    title: string;
+    createdAt: number;
+    updatedAt: number;
+    mode: string;
+    provider?: string;
+    model?: string;
+    status?: string;
+  },
+): ZCodeTaskMeta {
+  let stored: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(metaJson);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      stored = parsed as Record<string, unknown>;
+    }
+  } catch {
+    stored = {};
+  }
+  // 发布包先把对象放进局部绑定再 parse。写在参数位置会被压成一次调用，host paths 少 8 字节。
+  // 必须是 let：const 会留成 const，对不上发布包的 let。
+  let migrated = {
+    ...stored,
+    taskId: fallback.taskId,
+    traceId:
+      typeof stored.traceId === "string" && stored.traceId
+        ? stored.traceId
+        : `zcode-${fallback.taskId}`,
+    title: fallback.title,
+    workspacePath: fallback.workspacePath,
+    workspaceIdentity: fallback.workspaceIdentity,
+    createdAt: typeof stored.createdAt === "number" ? stored.createdAt : fallback.createdAt,
+    updatedAt: fallback.updatedAt,
+    mode: typeof stored.mode === "string" ? stored.mode : fallback.mode,
+    provider: typeof stored.provider === "string" ? stored.provider : fallback.provider,
+    model: typeof stored.model === "string" ? stored.model : fallback.model,
+    status: typeof stored.status === "string" ? stored.status : fallback.status,
+    migrationSource: undefined,
+  };
+  return zcodeTaskMetaSchema.parse(migrated);
+}
+
 export class TaskIndexRepo {
   constructor(
     private readonly startupDbPath?: string,
@@ -534,6 +627,9 @@ export class TaskIndexRepo {
     if (!isTasksStorageMigrated(path, this.db)) runTasksDatabaseMigrations(this.db);
     this.backfillOffPeakTaskMarkers();
     this.backfillOffPeakGroupMemberships();
+    // 旧 ACP 行把 session id 放在 acp_session_id，任务主键仍是另一套 id。
+    // 发布包在清已删除分组引用之前先把主键改成 session id，避免分组引用还指着旧 id。
+    this.migrateLegacyAcpTaskIds();
     this.cleanupDeletedTaskGroupingReferences();
   }
 
@@ -614,6 +710,308 @@ export class TaskIndexRepo {
         WHERE node_type = 'task' AND (node_key = ? OR node_key = ?)`,
       )
       .run(JSON.stringify([workspaceKeyValue, taskId]), workspaceKeyValue);
+  }
+
+  // 发布包 host paths 用表名参数探测列。固定字面量 PRAGMA table_info(tasks) 对不上。
+  private hasColumn(table: string, column: string): boolean {
+    return this.getDatabase()
+      .prepare(`PRAGMA table_info(${table})`)
+      .all()
+      .some((row) => (row as { name?: string }).name === column);
+  }
+
+  private migrateLegacyAcpTaskIds(): void {
+    if (!this.hasColumn("tasks", "acp_session_id")) return;
+    const database = this.getDatabase();
+    const legacyRows = database
+      .prepare(
+        `SELECT
+          workspace_key,
+          workspace_path,
+          workspace_identity,
+          task_id,
+          title,
+          task_status,
+          provider,
+          acp_session_id,
+          mode,
+          model,
+          migration_source,
+          forked_from_task_id,
+          cron_automation_id,
+          off_peak_task_id,
+          created_at,
+          updated_at,
+          unread_at,
+          last_unread_at,
+          pinned,
+          archived,
+          deleted,
+          title_overridden,
+          searchable_text,
+          meta_json
+        FROM tasks
+        WHERE acp_session_id IS NOT NULL
+          AND trim(acp_session_id) <> ''
+          AND trim(acp_session_id) <> task_id`,
+      )
+      .all() as unknown as LegacyAcpTaskRow[];
+    if (legacyRows.length === 0) return;
+    const selectExisting = database.prepare(
+      `SELECT
+        workspace_key,
+        workspace_path,
+        workspace_identity,
+        task_id,
+        title,
+        task_status,
+        provider,
+        mode,
+        model,
+        migration_source,
+        forked_from_task_id,
+        created_at,
+        updated_at,
+        unread_at,
+        last_unread_at,
+        pinned,
+        archived,
+        deleted,
+        title_overridden,
+        searchable_text,
+        meta_json
+      FROM tasks
+      WHERE workspace_key = ? AND task_id = ?`,
+    );
+    const renameLegacyRow = database.prepare(
+      `UPDATE tasks
+      SET task_id = @task_id,
+        title = @title,
+        task_status = @task_status,
+        provider = @provider,
+        mode = @mode,
+        model = @model,
+        migration_source = @migration_source,
+        forked_from_task_id = @forked_from_task_id,
+        created_at = @created_at,
+        updated_at = @updated_at,
+        unread_at = @unread_at,
+        last_unread_at = @last_unread_at,
+        pinned = @pinned,
+        archived = @archived,
+        deleted = @deleted,
+        title_overridden = @title_overridden,
+        searchable_text = @searchable_text,
+        meta_json = @meta_json,
+        acp_session_id = NULL
+      WHERE workspace_key = @workspace_key AND task_id = @old_task_id`,
+    );
+    const mergeIntoSessionRow = database.prepare(
+      `UPDATE tasks
+      SET title = @title,
+        task_status = @task_status,
+        provider = @provider,
+        mode = @mode,
+        model = @model,
+        migration_source = @migration_source,
+        forked_from_task_id = @forked_from_task_id,
+        created_at = @created_at,
+        updated_at = @updated_at,
+        unread_at = @unread_at,
+        last_unread_at = @last_unread_at,
+        pinned = @pinned,
+        archived = @archived,
+        deleted = @deleted,
+        title_overridden = @title_overridden,
+        searchable_text = @searchable_text,
+        meta_json = @meta_json
+      WHERE workspace_key = @workspace_key AND task_id = @task_id`,
+    );
+    const deleteLegacyRow = database.prepare(
+      "DELETE FROM tasks WHERE workspace_key = ? AND task_id = ?",
+    );
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      let migrated = 0;
+      for (const legacy of legacyRows) {
+        const sessionId = legacy.acp_session_id?.trim();
+        if (!sessionId) continue;
+        const existing =
+          (selectExisting.get(legacy.workspace_key, sessionId) as unknown as
+            | LegacyAcpTaskRow
+            | undefined) ?? null;
+        const migratedRow = this.buildLegacyAcpMigratedRow(legacy, existing, sessionId);
+        if (existing) {
+          mergeIntoSessionRow.run({ ...migratedRow });
+          deleteLegacyRow.run(legacy.workspace_key, legacy.task_id);
+        } else {
+          renameLegacyRow.run({ ...migratedRow, old_task_id: legacy.task_id });
+        }
+        this.migrateLegacyAcpTaskGroupingReferences(
+          legacy.workspace_key,
+          legacy.task_id,
+          sessionId,
+        );
+        migrated += 1;
+      }
+      database.exec("COMMIT");
+      if (migrated > 0) {
+        logger.info(undefined, `已迁移 legacy ACP task_id 到 ZCode session id 数量=${migrated}`);
+      }
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  private migrateLegacyAcpTaskGroupingReferences(
+    workspaceKeyValue: string,
+    previousTaskId: string,
+    nextTaskId: string,
+  ): void {
+    const database = this.getDatabase();
+    const now = Date.now();
+    const previousNodeKey = `${workspaceKeyValue}\0${previousTaskId}`;
+    const nextNodeKey = `${workspaceKeyValue}\0${nextTaskId}`;
+    const existingMember = database
+      .prepare(
+        `SELECT 1 AS found
+        FROM task_group_members
+        WHERE workspace_key = ? AND task_id = ?
+        LIMIT 1`,
+      )
+      .get(workspaceKeyValue, nextTaskId);
+    if (existingMember) {
+      database
+        .prepare(
+          `DELETE FROM task_group_members
+        WHERE workspace_key = ? AND task_id = ?`,
+        )
+        .run(workspaceKeyValue, previousTaskId);
+    } else {
+      database
+        .prepare(
+          `UPDATE task_group_members
+        SET task_id = ?, updated_at = ?
+        WHERE workspace_key = ? AND task_id = ?`,
+        )
+        .run(nextTaskId, now, workspaceKeyValue, previousTaskId);
+    }
+    const existingOrder = database
+      .prepare(
+        `SELECT 1 AS found
+        FROM task_group_view_node_orders
+        WHERE node_type = 'task' AND node_key = ?
+        LIMIT 1`,
+      )
+      .get(nextNodeKey);
+    if (existingOrder) {
+      database
+        .prepare(
+          `DELETE FROM task_group_view_node_orders
+        WHERE node_type = 'task' AND node_key = ?`,
+        )
+        .run(previousNodeKey);
+      return;
+    }
+    database
+      .prepare(
+        `UPDATE task_group_view_node_orders
+      SET node_key = ?, updated_at = ?
+      WHERE node_type = 'task' AND node_key = ?`,
+      )
+      .run(nextNodeKey, now, previousNodeKey);
+  }
+
+  private buildLegacyAcpMigratedRow(
+    legacy: LegacyAcpTaskRow,
+    existing: LegacyAcpTaskRow | null,
+    sessionId: string,
+  ): LegacyAcpMigratedTaskWrite {
+    const legacyMeta = migrateLegacyTaskMetaJson(legacy.meta_json, {
+      taskId: sessionId,
+      workspacePath: legacy.workspace_path,
+      workspaceIdentity: legacy.workspace_identity ?? undefined,
+      title: legacy.title,
+      createdAt: legacy.created_at,
+      updatedAt: legacy.updated_at,
+      mode: legacy.mode,
+      provider: legacy.provider ?? undefined,
+      model: legacy.model ?? undefined,
+      status: legacy.task_status ? legacy.task_status : undefined,
+    });
+    if (!existing) {
+      return {
+        workspace_key: legacy.workspace_key,
+        task_id: sessionId,
+        title: legacy.title,
+        task_status: legacy.task_status,
+        provider: legacy.provider,
+        mode: legacy.mode,
+        model: legacy.model,
+        migration_source: null,
+        forked_from_task_id: legacy.forked_from_task_id,
+        created_at: legacy.created_at,
+        updated_at: legacy.updated_at,
+        unread_at: legacy.unread_at,
+        last_unread_at: Math.max(legacy.last_unread_at, legacy.unread_at ?? 0),
+        pinned: legacy.pinned,
+        archived: legacy.archived,
+        deleted: legacy.deleted,
+        title_overridden: legacy.title_overridden,
+        searchable_text: legacy.searchable_text,
+        meta_json: JSON.stringify(legacyMeta),
+      };
+    }
+    const mergedMeta = migrateLegacyTaskMetaJson(existing.meta_json, {
+      taskId: sessionId,
+      workspacePath: existing.workspace_path,
+      workspaceIdentity: existing.workspace_identity ?? undefined,
+      title: existing.title || legacy.title,
+      createdAt: Math.min(existing.created_at, legacy.created_at),
+      updatedAt: Math.max(existing.updated_at, legacy.updated_at),
+      mode: existing.mode || legacy.mode,
+      provider: existing.provider ?? legacy.provider ?? undefined,
+      model: existing.model ?? legacy.model ?? undefined,
+      status: existing.task_status
+        ? existing.task_status
+        : legacy.task_status
+          ? legacy.task_status
+          : undefined,
+    });
+    const title = legacy.title_overridden === 1 ? legacy.title : existing.title || legacy.title;
+    const updatedAt = Math.max(existing.updated_at, legacy.updated_at);
+    const unreadAt =
+      existing.unread_at !== null && legacy.unread_at !== null
+        ? Math.max(existing.unread_at, legacy.unread_at)
+        : (existing.unread_at ?? legacy.unread_at);
+    return {
+      workspace_key: existing.workspace_key,
+      task_id: sessionId,
+      title,
+      task_status: existing.task_status ?? legacy.task_status,
+      provider: existing.provider ?? legacy.provider,
+      mode: existing.mode || legacy.mode,
+      model: existing.model ?? legacy.model,
+      migration_source: null,
+      forked_from_task_id: existing.forked_from_task_id ?? legacy.forked_from_task_id,
+      created_at: Math.min(existing.created_at, legacy.created_at),
+      updated_at: updatedAt,
+      unread_at: unreadAt,
+      last_unread_at: Math.max(existing.last_unread_at, legacy.last_unread_at, unreadAt ?? 0),
+      pinned: existing.pinned === 1 || legacy.pinned === 1 ? 1 : 0,
+      archived: existing.archived === 1 || legacy.archived === 1 ? 1 : 0,
+      deleted: legacy.deleted === 1 ? 1 : existing.deleted,
+      title_overridden: existing.title_overridden === 1 || legacy.title_overridden === 1 ? 1 : 0,
+      searchable_text: existing.searchable_text || legacy.searchable_text,
+      meta_json: JSON.stringify({
+        ...mergedMeta,
+        title,
+        updatedAt,
+        unreadAt: unreadAt ?? undefined,
+        migrationSource: undefined,
+      }),
+    };
   }
 
   private cleanupDeletedTaskGroupingReferences(): void {
@@ -1710,7 +2108,7 @@ export class TaskIndexRepo {
         FROM tasks
         WHERE (@workspace_key IS NULL OR workspace_key = @workspace_key)
           AND (@include_deleted = 1 OR deleted = 0)
-          -- 按请求指定的 runtime provider 过滤；迁移来源另存于 migration_source。
+          -- Bugfix: ZCode Agent 列表只接受当前 glm provider；Claude Code 导入也属于非 glm 历史数据。
           AND (@provider IS NULL OR provider = @provider)
           AND (@pinned IS NULL OR pinned = @pinned)
           AND (@archived IS NULL OR archived = @archived)

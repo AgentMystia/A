@@ -1,49 +1,56 @@
 import { CuaHelperError } from "./broker.js";
+import { isCuaLocalDevelopmentRuntime } from "./helper-install-plan.js";
+import { defaultCuaHelperVerifierDependencies } from "./helper-install-verify.js";
+import { createCuaHelperInstaller } from "./helper-install-stage.js";
+import { buildHelperOpenArgs } from "./helper-launch.js";
+import { isPotentialZCodeCuaAgentMcpServer } from "./helper-mcp-server.js";
+import {
+  clearCuaProductHelperAgentEnvUnavailable,
+  createCuaProductMcpServerResolver,
+  createProductCuaHelperHost,
+  hasCuaProductHelperAgentEnvUnavailable,
+  markCuaProductHelperAgentEnvUnavailable,
+  waitForCuaHelperStartup,
+} from "./helper-product.js";
+import {
+  cuaBrokerRefreshMarkerPath,
+  publishCuaBrokerRefreshMarker,
+} from "./helper-refresh-marker.js";
+import { isOfficialCuaPluginEnabledForWorkspace } from "./helper-official-plugin.js";
+import { reapOrphanedHelpers } from "./helper-reap.js";
+import { isScreenCaptureProbeSuccess } from "./helper-screen-probe.js";
+
+export {
+  isCuaLocalDevelopmentRuntime,
+  defaultCuaHelperVerifierDependencies,
+  createCuaHelperInstaller,
+  buildHelperOpenArgs,
+  cuaBrokerRefreshMarkerPath,
+  publishCuaBrokerRefreshMarker,
+  createProductCuaHelperHost,
+  createCuaProductMcpServerResolver,
+  waitForCuaHelperStartup,
+  isPotentialZCodeCuaAgentMcpServer,
+  markCuaProductHelperAgentEnvUnavailable,
+  hasCuaProductHelperAgentEnvUnavailable,
+  clearCuaProductHelperAgentEnvUnavailable,
+  reapOrphanedHelpers,
+  isScreenCaptureProbeSuccess,
+  isOfficialCuaPluginEnabledForWorkspace,
+};
 
 export const HELPER_ADDON_ENV = "ZCODE_CUA_HELPER_ADDON";
 export const WINDOWS_DEV_CONTROL_PROTOCOL = "zcode-cua-windows-dev/v1";
 
 const UNAVAILABLE = "Computer Use is not available in this build.";
 
-function unavailableReject() {
-  return Promise.reject(new CuaHelperError(UNAVAILABLE));
-}
-
-export function buildHelperOpenArgs(_spec, _launcherPid) {
-  return [];
-}
-
-export async function resolveHelperPermissionSubjectIdentity(_appPath) {
-  throw new CuaHelperError(UNAVAILABLE);
-}
-
-export function isCuaLocalDevelopmentRuntime(_env, _compiledLocalDevelopmentRuntime) {
-  return false;
-}
-
-export function createCuaHelperInstaller(_options) {
-  return {
-    ensureInstalled: unavailableReject,
-    verifyInstalled: unavailableReject,
-  };
-}
-
-export const defaultCuaHelperVerifierDependencies = {
-  readExecutableArchs: unavailableReject,
-  verifyCodeSignature: unavailableReject,
-  verifyTeamIdentifier: unavailableReject,
-};
-
-export function cuaBrokerRefreshMarkerPath(_socketPath) {
-  return undefined;
-}
-
-export async function publishCuaBrokerRefreshMarker(_socketPath, _options) {
-  return { path: undefined };
-}
+// 不从 broker/server 再导出权限主体。helper-permission-identity.js 顶层 import 了
+// child_process、fs/promises 和 path。host / scheduler 会加载本文件；再导出那个函数时，
+// esbuild 会在删掉函数体之后仍把这些 import 当成副作用留在两个包里。
+// desktop main 直接从 helper-permission-identity 引入。
 
 export function loadRealNativeAddon(_options) {
-  throw new CuaHelperError(UNAVAILABLE);
+  throw new CuaHelperError("helper_unavailable", UNAVAILABLE);
 }
 
 export function resolvePackagedNativeAddonPath(_options) {
@@ -95,79 +102,6 @@ export class CuaHelperLifecycleManager {
 export class CuaProductHelperWorkspaceRegistry {
   setEnabled(_context, _enabled) {}
 }
-
-export function createProductCuaHelperHost(_options) {
-  return createUnavailableCuaHelperHost();
-}
-
-function createUnavailableCuaHelperHost() {
-  return {
-    get running() {
-      return false;
-    },
-    get socketPath() {
-      return null;
-    },
-    get pluginAuthority() {
-      return null;
-    },
-    get reservedTransport() {
-      return undefined;
-    },
-    start: unavailableReject,
-    stop: async () => {},
-    restart: unavailableReject,
-    restartAfterCurrentStart: unavailableReject,
-    waitForTransport: unavailableReject,
-    checkHealth: unavailableReject,
-    queryScreenCaptureProbe: async () => ({
-      ok: false,
-      reason: UNAVAILABLE,
-    }),
-    queryScreenRecordingPreflight: async () => undefined,
-    queryPermissionStatus: async () => ({}),
-  };
-}
-
-export function isOfficialCuaPluginEnabledForWorkspace(_options) {
-  return false;
-}
-
-export function createCuaProductMcpServerResolver(_host, _options) {
-  return {
-    async resolveMcpServers(servers, _context) {
-      return servers;
-    },
-    async restart() {
-      throw new Error(UNAVAILABLE);
-    },
-    async restartAfterPermissionGrant(_onboardingSessionId) {
-      throw new Error(UNAVAILABLE);
-    },
-  };
-}
-
-export async function waitForCuaHelperStartup(startup, _deadlineMs) {
-  return await startup;
-}
-
-export function isPotentialZCodeCuaAgentMcpServer(_server) {
-  return false;
-}
-
-export function isScreenCaptureProbeSuccess(_probe) {
-  return false;
-}
-
-export function markCuaProductHelperAgentEnvUnavailable(_host) {}
-
-export function hasCuaProductHelperAgentEnvUnavailable(_host) {
-  return false;
-}
-
-export function clearCuaProductHelperAgentEnvUnavailable(_host) {}
-
-export async function reapOrphanedHelpers(_options) {}
 
 export async function requestHelperAccessibilityPermissionViaLaunchServices(_options) {
   return { ok: false, reason: UNAVAILABLE };

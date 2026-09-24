@@ -1,9 +1,13 @@
-import type { ZCodeProvider } from "@zcode/shared";
+import { ZCODE_AGENT_PROVIDER, type ZCodeProvider } from "@zcode/shared";
 import { useCallback } from "react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useTaskNativeSessionLogFile } from "@/hooks/useTaskNativeSessionLogFile.js";
 import { useTaskSessionFilePath } from "@/hooks/useTaskSessionFilePath.js";
+import { useWorkspaceProviderConfigFile } from "@/hooks/useWorkspaceProviderConfigFile.js";
 import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
+import { readLastSelectedEditorId } from "@/lib/editorPreference.js";
+import { sortInstalledEditorsForOpenWith } from "@/lib/openWithEditors.js";
+import { resolveProviderConfigOpenPath } from "@/lib/providerConfigFileQuery.js";
 import { logger } from "@/logger.js";
 
 interface TaskPathState {
@@ -15,9 +19,11 @@ interface TaskPathState {
 interface TaskListItemContextActionsResult {
   taskSessionFile: TaskPathState;
   taskNativeSessionLogFile: TaskPathState;
+  providerConfigFile: TaskPathState;
   fileManagerLabel: string;
   handleCopyText: (label: string, value: string | null) => Promise<void>;
   handleOpenTaskPathInFileManager: () => Promise<void>;
+  handleOpenProviderConfig: () => Promise<void>;
 }
 
 export function useTaskListItemContextActions({
@@ -28,6 +34,7 @@ export function useTaskListItemContextActions({
   provider,
   intl,
   loadTaskPaths = true,
+  loadProviderConfig = true,
 }: {
   workspacePath: string;
   remoteSessionId?: string;
@@ -38,8 +45,10 @@ export function useTaskListItemContextActions({
     formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
   };
   loadTaskPaths?: boolean;
+  loadProviderConfig?: boolean;
 }): TaskListItemContextActionsResult {
   const platform = usePlatform();
+  const providerId = provider ?? ZCODE_AGENT_PROVIDER;
   const workspaceOpenTarget = useWorkspaceOpenInEditorTarget({
     workspacePath,
     workspaceIdentity,
@@ -55,6 +64,16 @@ export function useTaskListItemContextActions({
     provider ?? null,
     workspaceIdentity,
     { enabled: loadTaskPaths },
+  );
+  const providerConfigFile = useWorkspaceProviderConfigFile(
+    workspacePath,
+    providerId,
+    remoteSessionId,
+    workspaceIdentity,
+    {
+      serviceScope: remoteSessionId ? "base" : "workspace",
+      enabled: loadProviderConfig,
+    },
   );
   const handleCopyText = useCallback(async (label: string, value: string | null) => {
     if (!value) {
@@ -136,12 +155,50 @@ export function useTaskListItemContextActions({
     workspacePath,
   ]);
 
+  const handleOpenProviderConfig = useCallback(async () => {
+    if (!providerConfigFile.path) {
+      return;
+    }
+    const openTargetPath = resolveProviderConfigOpenPath(
+      providerConfigFile.path,
+      providerConfigFile.exists,
+    );
+    try {
+      const preferredEditorId = readLastSelectedEditorId();
+      const editors = sortInstalledEditorsForOpenWith(await platform.getInstalledEditors());
+      const editor = editors.find((item) => item.id === preferredEditorId) ?? editors[0] ?? null;
+      if (editor && (await platform.openInEditor(editor.id, openTargetPath)).success) {
+        return;
+      }
+      const result = await platform.openInFileManager(openTargetPath);
+      if (!result.success) {
+        logger.warn("[TaskListItem] 打开 provider 配置失败", {
+          taskId,
+          provider: providerId,
+          path: providerConfigFile.path,
+          openTargetPath,
+          error: result.error ?? "unknown-error",
+        });
+      }
+    } catch (error) {
+      logger.warn("[TaskListItem] 打开 provider 配置失败", {
+        taskId,
+        provider: providerId,
+        path: providerConfigFile.path,
+        openTargetPath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [platform, providerConfigFile.exists, providerConfigFile.path, providerId, taskId]);
+
   return {
     taskSessionFile,
     taskNativeSessionLogFile,
+    providerConfigFile,
     fileManagerLabel: getFileManagerLabel(intl),
     handleCopyText,
     handleOpenTaskPathInFileManager,
+    handleOpenProviderConfig,
   };
 }
 

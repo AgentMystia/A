@@ -4,7 +4,7 @@ import {
   DesktopCommandIds,
   type AppSettings,
   type IPlatformService,
-  type RemoteTarget,
+  type RemoteConnectionWizardKind,
   type UserInfo,
   type ZCodeTaskClientMode,
 } from "@zcode/shared";
@@ -32,7 +32,7 @@ import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
 import { persistV4ComposerDraft, V4_DRAFT_SCOPE_ROOT } from "@/v4/composer/composerDraftStore.js";
 
 interface OpenRemoteConnectionPreference {
-  preferredKind?: RemoteTarget["kind"];
+  preferredKind?: RemoteConnectionWizardKind;
   preferredWslDistro?: string;
 }
 

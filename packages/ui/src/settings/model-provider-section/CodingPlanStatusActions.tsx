@@ -1,8 +1,13 @@
 import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
 import { ArrowLeftIcon, Loader2Icon, RocketIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodingPlanLoginOptions } from "./codingPlanPricingCards.js";
+import {
+  CodingPlanBillingDiscountBadge,
+  CodingPlanBillingDiscountInfo,
+} from "./CodingPlanBillingDiscount.js";
 
 export function CodingPlanStatusActions({
   providerName,
@@ -61,21 +66,28 @@ export function CodingPlanUpgradeAction({
   loginLoading,
   upgradePlansVisible,
   actionLabelId = "settings.modelProvider.codingPlan.upgrade",
+  billingDiscountActive,
+  billingDiscountConfig,
   onUpgradePlansVisibleChange,
 }: {
   loginLoading?: boolean;
   upgradePlansVisible: boolean;
   actionLabelId?: string;
+  billingDiscountActive?: boolean;
+  billingDiscountConfig?: unknown;
   onUpgradePlansVisibleChange: (visible: boolean) => void;
 }) {
   const { intl } = useZCodeIntl();
-
-  // 开源版不享受额度活动权益，升级入口只展示操作，不附带优惠徽标或规则说明。
-  return (
+  const showDiscount = billingDiscountActive === true && !upgradePlansVisible;
+  const button = (
     <CodingPlanEntryButton
       bypassGate={upgradePlansVisible}
       type="button"
       size="lg"
+      className={cn(
+        showDiscount &&
+          "button-gradient dark:bg-[#484A58] pr-[5px] text-white hover:bg-transparent hover:opacity-90 dark:hover:bg-[#484A58] rounded-full",
+      )}
       onClick={() => {
         // 购买/升级入口必须先打开面板，OAuth 失效恢复由面板在用户选择
         // plan/周期后处理，避免点击 Upgrade 直接跳登录导致用户看不到购买流程。
@@ -95,6 +107,20 @@ export function CodingPlanUpgradeAction({
       {intl.formatMessage({
         id: upgradePlansVisible ? "settings.modelProvider.codingPlan.cancelUpgrade" : actionLabelId,
       })}
+      {showDiscount ? (
+        <CodingPlanBillingDiscountBadge
+          config={billingDiscountConfig}
+          iconVisible={false}
+          variant="surface"
+        />
+      ) : null}
     </CodingPlanEntryButton>
+  );
+  if (!showDiscount) return button;
+  return (
+    <div className="inline-flex shrink-0 items-center gap-1">
+      {button}
+      <CodingPlanBillingDiscountInfo config={billingDiscountConfig} />
+    </div>
   );
 }

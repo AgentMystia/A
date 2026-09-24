@@ -1,4 +1,9 @@
 import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
+import {
+  CodingPlanBillingDiscountBadge,
+  CodingPlanBillingDiscountInfo,
+  useCodingPlanBillingDiscount,
+} from "@/settings/model-provider-section/CodingPlanBillingDiscount.js";
 import { Loader2Icon, RocketIcon } from "lucide-react";
 import type { UsageEntitlementSnapshot, UsageQuotaLimit } from "@zcode/shared";
 import { cn } from "@/components/lib/utils.js";
@@ -119,6 +124,8 @@ export function ChatStartPlanBalancePanel({
   locale: string;
   separated?: boolean;
 }) {
+  const billingDiscount = useCodingPlanBillingDiscount();
+  const showDiscount = billingDiscount.active === true;
   const limits = getVisibleStartPlanLimits(config.snapshot);
 
   if (!config.loading && limits.length === 0) {
@@ -139,19 +146,36 @@ export function ChatStartPlanBalancePanel({
           ) : null}
         </div>
         {config.onUpgradeClick ? (
-          <CodingPlanEntryButton
-            type="button"
-            size="xs"
-            className="h-6 shrink-0 gap-1 px-2 text-ui-sm"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              config.onUpgradeClick?.();
-            }}
-          >
-            <RocketIcon className="size-3" />
-            {intl.formatMessage({ id: "chat.quota.action.upgrade" })}
-          </CodingPlanEntryButton>
+          <div className="inline-flex shrink-0 items-center gap-1">
+            <CodingPlanEntryButton
+              type="button"
+              size="xs"
+              className={cn(
+                "h-6 shrink-0 gap-1 px-2 text-ui-sm",
+                showDiscount &&
+                  "button-gradient rounded-full pr-[5px] text-white hover:bg-transparent hover:opacity-90 dark:bg-[#484A58] dark:hover:bg-[#484A58]",
+              )}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                config.onUpgradeClick?.();
+              }}
+            >
+              <RocketIcon className="size-3" />
+              {intl.formatMessage({ id: "chat.quota.action.upgrade" })}
+              {showDiscount ? (
+                <CodingPlanBillingDiscountBadge
+                  config={billingDiscount.config}
+                  iconVisible={false}
+                  size="compact"
+                  variant="surface"
+                />
+              ) : null}
+            </CodingPlanEntryButton>
+            {showDiscount ? (
+              <CodingPlanBillingDiscountInfo config={billingDiscount.config} />
+            ) : null}
+          </div>
         ) : null}
       </div>
       <div className={cn("grid gap-2", getContextQuotaMeterGridClass(limits.length))}>

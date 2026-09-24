@@ -8,6 +8,7 @@ import {
 } from "@zcode/rpc";
 import type { IServiceAccessor } from "@zcode/services";
 import { RemoteServiceAccess } from "./remoteServiceAccess.js";
+import "./publishedRelayBufferDefaults.js";
 
 export interface WebSocketConnectionCloseEvent {
   code: number;

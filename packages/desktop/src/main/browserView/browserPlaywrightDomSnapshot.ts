@@ -110,7 +110,7 @@ function renderSnapshotTree(nodes: SnapshotTreeNode[], depth = 0): string {
 }
 
 /** DOM snapshot 的公开结果归一化：删除内部 ref/cursor 并压平无语义容器。 */
-function normalizeBrowserDomSnapshot(snapshot: string): string {
+function normalizeCodexDomSnapshot(snapshot: string): string {
   if (!snapshot.startsWith("- ") && !snapshot.includes("\n- ") && !snapshot.includes("\n  - ")) {
     return snapshot;
   }
@@ -163,7 +163,7 @@ class PlaywrightDomSnapshotSession {
       if (!snapshot) return "";
       const deadline = Date.now() + IAB_IFRAME_TOTAL_BUDGET_MS;
       const expanded = await this.expandIframes(snapshot, { frameId: mainFrameId }, deadline);
-      return normalizeBrowserDomSnapshot(expanded);
+      return normalizeCodexDomSnapshot(expanded);
     } finally {
       await this.detachOwnedSessions();
     }
@@ -420,7 +420,7 @@ class PlaywrightDomSnapshotSession {
   }
 }
 
-export async function captureBrowserDomSnapshot(
+export async function captureCodexDomSnapshot(
   view: ControlledView,
   signal?: AbortSignal,
 ): Promise<string> {

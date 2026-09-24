@@ -43,6 +43,9 @@ import type {
   ZCodeModelContextBudgetStrategy,
   ForceUpdateConfig,
   DynamicWorkflowClientConfig,
+  ManualClaimPlanPreviews,
+  ManualClaimRequest,
+  ManualClaimResult,
 } from "@zcode/shared";
 import type { ModelSelectionView } from "@zcode/provider";
 import { ServiceChannels } from "@zcode/shared";
@@ -60,6 +63,8 @@ export interface ICodingPlanSubscriptionService {
   getStaticProducts(): Promise<CodingPlanStaticProductsConfig>;
   getStaticTeamProducts(): Promise<CodingPlanStaticTeamProductsConfig>;
   getStartPlanPreview(): Promise<StartPlanPreviewConfig | null>;
+  getManualClaimPlanPreviews(): Promise<ManualClaimPlanPreviews>;
+  claimManualPlan(request: ManualClaimRequest): Promise<ManualClaimResult>;
   /** 闲时任务灰度配置：forceRefresh 供入口打开时补拉（绕过 1h 快照缓存）。 */
   getOffPeakClientConfig(options?: { forceRefresh?: boolean }): Promise<OffPeakClientConfig>;
   /**
@@ -71,6 +76,10 @@ export interface ICodingPlanSubscriptionService {
   }): Promise<DynamicWorkflowClientConfig>;
   /** 兼容接口：固定返回 preflight-v1，不读取远端配置或缓存。 */
   getModelContextBudgetStrategy(): Promise<ZCodeModelContextBudgetStrategy>;
+  /** client/configs.codingPlanBillingDiscount。code 非 0 抛错；键缺失为 undefined；键存在则原样返回。 */
+  getBillingDiscount(): Promise<unknown>;
+  /** client/configs.captcha。不检查 code；缺失为 null。 */
+  getCaptchaConfig(): Promise<unknown>;
   getForceUpdateConfig(): Promise<ForceUpdateConfig | null>;
   productInfo(request: CodingPlanProductInfoRequest): Promise<CodingPlanProductInfo>;
   preview(request: CodingPlanPreviewRequest): Promise<CodingPlanPreviewResponse>;

@@ -46,6 +46,7 @@ export function VirtualizedGroupedTaskList({
   activeWorkspacePath,
   activeWorkspaceIdentity,
   activeTaskId,
+  mobileActiveTaskKey,
   getTaskRemoteSessionId,
   getTaskWorkspaceLabel,
   onSelectTask,
@@ -65,6 +66,7 @@ export function VirtualizedGroupedTaskList({
   activeWorkspacePath: string;
   activeWorkspaceIdentity?: string;
   activeTaskId: string | null;
+  mobileActiveTaskKey: string | null;
   getTaskRemoteSessionId: (task: ZCodeTaskMeta) => string | undefined;
   getTaskWorkspaceLabel: (task: ZCodeTaskMeta) => string;
   onSelectTask: (workspacePath: string, taskId: string, workspaceIdentity?: string) => void;
@@ -160,6 +162,7 @@ export function VirtualizedGroupedTaskList({
         activeWorkspacePath={activeWorkspacePath}
         activeWorkspaceIdentity={activeWorkspaceIdentity}
         activeTaskId={activeTaskId}
+        mobileActiveTaskKey={mobileActiveTaskKey}
         onSelectTask={onSelectTask}
         onCloseTask={onCloseTask}
         onOpenFileTree={onOpenFileTree}
@@ -177,6 +180,7 @@ export function VirtualizedGroupedTaskList({
       activeTaskId,
       activeWorkspaceIdentity,
       activeWorkspacePath,
+      mobileActiveTaskKey,
       getTaskRemoteSessionId,
       getTaskWorkspaceLabel,
       groupId,

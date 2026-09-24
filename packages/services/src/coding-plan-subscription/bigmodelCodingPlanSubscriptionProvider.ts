@@ -56,6 +56,7 @@ import type { OffPeakClientConfig } from "./codingPlanSubscription.js";
 import {
   BIGMODEL_PROVIDER_ID,
   BUILTIN_MODEL_PROVIDER_IDS,
+  CODING_PLAN_SECURITY_VERIFICATION_REQUIRED,
   CODING_PLAN_SYSTEM_BUSY,
   buildRuntimeZCodeApiUrl,
   isZaiCodingPlanProviderId,
@@ -69,7 +70,11 @@ import {
   resolveDynamicWorkflowClientConfig,
   DEFAULT_DYNAMIC_WORKFLOW_MODE,
   ZCODE_DYNAMIC_WORKFLOW_MODE_ENV,
+  type ManualClaimPlanPreviews,
+  type ManualClaimRequest,
+  type ManualClaimResult,
 } from "@zcode/shared";
+import { readServerTimeMilliseconds } from "@zcode/shared/manualClaim";
 import type { ICredentialService } from "../credential/credential.js";
 import { readApiJson } from "../providers/api/apiJson.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
@@ -117,6 +122,9 @@ interface ZCodeClientConfigEnvelope {
       dynamicWorkflow?: {
         mode?: unknown;
       } | null;
+      // 发布包原样下发，不在类型层收窄文案或验证码字段。
+      codingPlanBillingDiscount?: unknown;
+      captcha?: unknown;
     } | null;
   } | null;
 }
@@ -214,6 +222,175 @@ export class BigModelCodingPlanSubscriptionProvider {
     return unwrapClientConfigStartPlanPreview(payload);
   }
 
+  async getManualClaimPlanPreviews(): Promise<ManualClaimPlanPreviews> {
+    const token = (await this.credentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim();
+    const url = new URL(buildRuntimeZCodeApiUrl(process.env, "/api/v1/zcode-plan/billing/preview"));
+    url.searchParams.set("app_version", ZCODE_VERSION);
+    url.searchParams.set("platform", resolveClientPlatformKey());
+    const payload = await readApiJson<{
+      code?: number;
+      msg?: string;
+      data?: {
+        server_time?: number;
+        plans?: Array<{
+          plan_id?: string;
+          name?: string;
+          description?: string;
+          priority?: number;
+          entitlements?: Array<{
+            entitlement_id?: string;
+            show_name?: string;
+            meter?: string;
+            unit_type?: string;
+            capabilities?: unknown[];
+            grant_units?: number;
+            period?: string;
+            priority?: number;
+            effective_at?: number;
+          }>;
+        }>;
+      } | null;
+    }>(this.apiClient, url, {
+      method: "GET",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+    });
+    if (payload.code !== undefined && payload.code !== 0) {
+      throw new Error(payload.msg?.trim() || "manual_claim_preview_failed");
+    }
+    if (!payload.data) {
+      throw new Error(payload.msg?.trim() || "manual_claim_preview_missing_data");
+    }
+    const serverTime = readServerTimeMilliseconds(payload.data.server_time);
+    return {
+      ...(serverTime === undefined ? {} : { serverTime }),
+      plans: (payload.data.plans ?? []).flatMap((plan) => {
+        const planId = plan.plan_id?.trim() ?? "";
+        return planId
+          ? [
+              {
+                planId,
+                name: plan.name?.trim() || planId,
+                description: plan.description?.trim() ?? "",
+                priority: Number.isFinite(plan.priority) ? (plan.priority ?? 0) : 0,
+                entitlements: (plan.entitlements ?? []).flatMap((item) => {
+                  const entitlementId = item.entitlement_id?.trim() ?? "";
+                  return entitlementId
+                    ? [
+                        {
+                          entitlementId,
+                          showName: item.show_name?.trim() ?? "",
+                          meter: item.meter?.trim() ?? "",
+                          unitType: item.unit_type?.trim() ?? "",
+                          capabilities: item.capabilities ?? [],
+                          grantUnits: Number.isFinite(item.grant_units)
+                            ? (item.grant_units ?? 0)
+                            : 0,
+                          period: item.period?.trim() ?? "",
+                          priority: Number.isFinite(item.priority) ? (item.priority ?? 0) : 0,
+                          ...(Number.isFinite(item.effective_at)
+                            ? { effectiveAt: item.effective_at }
+                            : {}),
+                        },
+                      ]
+                    : [];
+                }),
+              },
+            ]
+          : [];
+      }),
+    };
+  }
+
+  async claimManualPlan(request: ManualClaimRequest): Promise<ManualClaimResult> {
+    const token = (await this.credentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim();
+    if (!token) {
+      return { success: false, code: 401, message: "" };
+    }
+    const payload = await readApiJson<{
+      code?: number | string;
+      msg?: string;
+      data?: {
+        server_time?: number;
+        message?: string;
+        plan?: {
+          user_plan_id?: string;
+          plan_id?: string;
+          status?: string;
+          starts_at?: number;
+          ends_at?: number;
+          entitlements?: Array<{
+            entitlement_id?: string;
+            show_name?: string;
+            effective_at?: number;
+          }>;
+        };
+      } | null;
+    }>(
+      this.apiClient,
+      new URL(buildRuntimeZCodeApiUrl(process.env, "/api/v1/zcode-plan/billing/claim")),
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "X-Aliyun-Captcha-Verify-Param": request.captchaVerifyParam,
+          ...(request.captchaRegion
+            ? { "X-Aliyun-Captcha-Verify-Region": request.captchaRegion }
+            : {}),
+          "X-ZCode-App-Version": ZCODE_VERSION,
+          "X-Platform": resolveClientPlatformKey(),
+        },
+        body: JSON.stringify({ plan_id: request.planId }),
+        timeoutMs: REQUEST_TIMEOUT_MS,
+      },
+    );
+    const rawCode = payload.code;
+    const code =
+      typeof rawCode === "number"
+        ? rawCode
+        : typeof rawCode === "string" && /^\d+$/u.test(rawCode)
+          ? Number(rawCode)
+          : -1;
+    const serverTime = readServerTimeMilliseconds(payload.data?.server_time);
+    if (code !== 0 || !payload.data?.plan) {
+      const failureEndsAt = payload.data?.plan?.ends_at;
+      return {
+        success: false,
+        code,
+        message: typeof payload.data?.message === "string" ? payload.data.message : "",
+        ...(serverTime === undefined ? {} : { serverTime }),
+        ...(Number.isFinite(failureEndsAt) ? { failureEndsAt } : {}),
+      };
+    }
+    const plan = payload.data.plan;
+    return {
+      success: true,
+      code,
+      message: payload.msg?.trim() ?? "",
+      ...(serverTime === undefined ? {} : { serverTime }),
+      plan: {
+        userPlanId: plan.user_plan_id?.trim() ?? "",
+        planId: plan.plan_id?.trim() || request.planId,
+        status: plan.status?.trim() ?? "",
+        ...(Number.isFinite(plan.starts_at) ? { startsAt: plan.starts_at } : {}),
+        ...(Number.isFinite(plan.ends_at) ? { endsAt: plan.ends_at } : {}),
+        entitlements: (plan.entitlements ?? []).flatMap((item) => {
+          const entitlementId = item.entitlement_id?.trim() ?? "";
+          return entitlementId
+            ? [
+                {
+                  entitlementId,
+                  showName: item.show_name?.trim() ?? "",
+                  ...(Number.isFinite(item.effective_at) ? { effectiveAt: item.effective_at } : {}),
+                },
+              ]
+            : [];
+        }),
+      },
+    };
+  }
+
   /**
    * 闲时任务灰度配置：复用 client/configs 通道零新增请求。
    * forceRefresh 供"打开 Automations 入口补拉"（1h 快照否则灰度翻转最长 1h 不可见）。
@@ -271,6 +448,16 @@ export class BigModelCodingPlanSubscriptionProvider {
   async getModelContextBudgetStrategy(): Promise<ZCodeModelContextBudgetStrategy> {
     // 3.12.2：预算统一为 preflight-v1；保留兼容方法，但不能再为每次建会话等待远端配置。
     return DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY;
+  }
+
+  async getBillingDiscount(): Promise<unknown> {
+    const payload = await this.getClientConfigs();
+    return unwrapClientConfigBillingDiscount(payload);
+  }
+
+  async getCaptchaConfig(): Promise<unknown> {
+    // 发布包不检查 code。HTTP 失败仍由 getClientConfigs 抛出；字段缺失才是 null。
+    return (await this.getClientConfigs()).data?.configs?.captcha ?? null;
   }
 
   async getForceUpdateConfig(): Promise<ForceUpdateConfig | null> {
@@ -1216,6 +1403,18 @@ function unwrapClientConfigStartPlanPreview(
   };
 }
 
+function unwrapClientConfigBillingDiscount(payload: ZCodeClientConfigEnvelope): unknown {
+  if (payload.code !== undefined && payload.code !== 0) {
+    throw new Error(payload.msg?.trim() || "ZCode client config request failed");
+  }
+  const configs = payload.data?.configs;
+  // 键不存在与值为 null 不同：只有缺失才返回 undefined，存在则原样交给 UI。
+  if (!configs || !("codingPlanBillingDiscount" in configs)) {
+    return undefined;
+  }
+  return configs.codingPlanBillingDiscount;
+}
+
 function unwrapClientConfigForceUpdate(
   payload: ZCodeClientConfigEnvelope,
 ): ForceUpdateConfig | null {
@@ -1252,7 +1451,7 @@ function resolveClientPlatformKey(): string {
   return `${process.platform}-${process.arch}`;
 }
 
-function normalizeRemoteErrorMessage(
+export function normalizeRemoteErrorMessage(
   msg: string | undefined,
   providerId: CodingPlanSubscriptionProviderId,
   code?: number,
@@ -1261,8 +1460,16 @@ function normalizeRemoteErrorMessage(
   if (message && isUnrenderableRemoteErrorMessage(message)) {
     return CODING_PLAN_SYSTEM_BUSY;
   }
+  // 发布包把安全验证文案收成稳定错误码，避免把网关提示原样展示到支付页。
+  if (message && isSecurityVerificationMessage(message)) {
+    return CODING_PLAN_SECURITY_VERIFICATION_REQUIRED;
+  }
   const providerName = resolveCodingPlanProviderName(providerId);
   return message || `${providerName} request failed${code ? `: ${code}` : ""}`;
+}
+
+export function isSecurityVerificationMessage(message: string): boolean {
+  return message.includes("请完成安全验证") || /security verification/i.test(message);
 }
 
 async function readCodingPlanApiJson<T>(

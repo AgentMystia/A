@@ -39,6 +39,11 @@ import { PluginUninstallConfirmDialog } from "@/settings/PluginUninstallConfirmD
 import { usePluginUninstall } from "@/settings/usePluginUninstall.js";
 import { claimMarketplaceAutoRefresh } from "@/settings/officialMarketplaceAutoRefresh.js";
 import { consumePluginStoreOpenTarget } from "@/lib/pluginStoreNavigation.js";
+import {
+  acknowledgeMarketingNavigation,
+  marketingNavigationStore,
+} from "@/marketing/marketingNavigation.js";
+import { useStore } from "zustand";
 import { SettingsBreadcrumbReporter } from "@/settings/SettingsHeaderBreadcrumb.js";
 import {
   buildPluginStoreTryMention,
@@ -94,6 +99,10 @@ export function PluginStorePage({
 
   const [view, setView] = useState<PluginStoreView>("store");
   const [detailPluginId, setDetailPluginId] = useState<string | null>(null);
+  const marketingNavigationRequest = useStore(
+    marketingNavigationStore,
+    (state) => state.request,
+  );
   const [segment, setSegment] = useState<PluginStoreSegment>("public");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -108,6 +117,52 @@ export function PluginStorePage({
   useEffect(() => {
     if (initialNavigationTarget?.intent === "add-marketplace") setAddSourceOpen(true);
   }, [initialNavigationTarget]);
+
+  useEffect(() => {
+    const request = marketingNavigationRequest;
+    if (request?.target.page !== "plugin_marketplace") return;
+    if (!workspacePath) {
+      acknowledgeMarketingNavigation(request.id, new Error("marketing_navigation_unavailable"));
+      return;
+    }
+    const currentIdentity = workspaceIdentity?.trim() || "";
+    const loadedIdentity = loadedWorkspaceIdentity?.trim() || "";
+    if (
+      loading ||
+      loadedWorkspacePath !== workspacePath ||
+      loadedIdentity !== currentIdentity ||
+      !marketplaceAvailabilityKnown
+    ) {
+      return;
+    }
+    const pluginId = request.target.plugin_id;
+    const known = new Set(
+      availablePlugins.flatMap((plugin) => [plugin.id, `${plugin.name}@${plugin.marketplace}`]),
+    );
+    if (error || (pluginId && !known.has(pluginId))) {
+      acknowledgeMarketingNavigation(request.id, new Error("marketing_plugin_unavailable"));
+      return;
+    }
+    if (pluginId ? view === "detail" && detailPluginId === pluginId : view === "store") {
+      acknowledgeMarketingNavigation(request.id);
+      return;
+    }
+    setDetailPluginId(pluginId ?? null);
+    setView(pluginId ? "detail" : "store");
+    setQuery("");
+  }, [
+    availablePlugins,
+    detailPluginId,
+    error,
+    loadedWorkspaceIdentity,
+    loadedWorkspacePath,
+    loading,
+    marketingNavigationRequest,
+    marketplaceAvailabilityKnown,
+    view,
+    workspaceIdentity,
+    workspacePath,
+  ]);
 
   const normalizedWorkspaceIdentity = workspaceIdentity?.trim() || null;
 

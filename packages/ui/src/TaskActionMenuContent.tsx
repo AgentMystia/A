@@ -19,6 +19,7 @@ export function TaskActionMenuContent({
   taskSessionFile,
   activeSessionId,
   taskNativeSessionLogFile,
+  providerConfigFile,
   disableTaskActions = false,
   disableTaskTargetActions = false,
   disablePinTaskAction = false,
@@ -38,6 +39,7 @@ export function TaskActionMenuContent({
   onCopyTaskPath,
   onCopyTaskLogPath,
   onCopySessionId,
+  onOpenProviderConfig,
   onViewModelTrajectory,
 }: {
   intl: {
@@ -52,6 +54,7 @@ export function TaskActionMenuContent({
     path: string | null;
     exists: boolean;
   };
+  providerConfigFile: { loading: boolean; path: string | null };
   disableTaskActions?: boolean;
   disableTaskTargetActions?: boolean;
   disablePinTaskAction?: boolean;
@@ -73,6 +76,7 @@ export function TaskActionMenuContent({
   onCopyTaskPath: () => void;
   onCopyTaskLogPath: () => void;
   onCopySessionId?: () => void;
+  onOpenProviderConfig: () => void;
   onViewModelTrajectory?: () => void;
 }) {
   const taskTargetActionsDisabled = disableTaskActions || disableTaskTargetActions;
@@ -182,6 +186,21 @@ export function TaskActionMenuContent({
           {intl.formatMessage({ id: "appHeader.copySessionId" })}
         </Item>
       ) : null}
+      {hideMobileUnsupportedActions ? null : (
+        <Item
+          disabled={disableTaskActions || providerConfigFile.loading || !providerConfigFile.path}
+          title={disableTaskActions ? disabledReason : undefined}
+          onSelect={() => {
+            if (!disableTaskActions) {
+              onOpenProviderConfig();
+            }
+          }}
+        >
+          <span className="truncate">
+            {intl.formatMessage({ id: "appHeader.goToProviderConfig" })}
+          </span>
+        </Item>
+      )}
       {onViewModelTrajectory ? (
         <>
           <Separator />

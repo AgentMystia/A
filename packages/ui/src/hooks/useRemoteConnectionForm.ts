@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DockerContainerInfo,
   RemoteAssetInstallMode,
-  RemoteTarget,
+  RemoteConnectionWizardKind,
   SSHConfigAliasOption,
   WSLDistro,
 } from "@zcode/shared";
@@ -12,23 +12,10 @@ import {
   loadRemoteConnectionDockerOptions,
   resolveDockerContainerSelectionAfterRefresh,
 } from "@/lib/remoteConnectionDockerOptions.js";
+import { listRemoteConnectionWizardKinds } from "@/lib/remoteConnectionWizard.js";
 
-type RemoteKind = RemoteTarget["kind"];
+type RemoteKind = RemoteConnectionWizardKind;
 export type SSHAuthMethod = "password" | "privateKey";
-
-function buildAvailableKinds(options: { isWindowsDesktop: boolean }): RemoteKind[] {
-  const kinds: RemoteKind[] = ["ssh"];
-  // 远程连接入口里 WSL 和 SSH 同属主机类连接。
-  // Windows 下先放 WSL 再放 Docker，避免 WSL 被 Docker 隔开后在选择页显得离 SSH 很远。
-  if (options.isWindowsDesktop) {
-    kinds.push("wsl");
-  }
-  // Docker入口之前完全依赖预探测结果决定是否展示。
-  // 当探测能力暂时不可用、或用户还没切到 Docker 时，入口会直接消失，
-  // 用户甚至不知道这里支持 Docker 连接。改为始终展示入口，切换后再懒加载探测结果。
-  kinds.push("docker");
-  return kinds;
-}
 
 export function useRemoteConnectionForm({
   open,
@@ -57,6 +44,10 @@ export function useRemoteConnectionForm({
   const [wslUser, setWslUser] = useState("");
   const [dockerContainer, setDockerContainer] = useState("");
   const [manualDockerContainer, setManualDockerContainer] = useState("");
+  const [serverUrl, setServerUrl] = useState("");
+  const [serverName, setServerName] = useState("");
+  const [serverToken, setServerToken] = useState("");
+  const [serverWorkspacePath, setServerWorkspacePath] = useState("");
   const [sshConfigAliases, setSshConfigAliases] = useState<SSHConfigAliasOption[]>([]);
   const [sshConfigAliasesLoading, setSshConfigAliasesLoading] = useState(false);
   const [sshConfigAliasesLoaded, setSshConfigAliasesLoaded] = useState(false);
@@ -74,9 +65,14 @@ export function useRemoteConnectionForm({
   const applyingSshAliasRef = useRef(false);
   const dockerOptionsActiveLoadIdRef = useRef(0);
   const dockerOptionsInFlightLoadIdRef = useRef<number | null>(null);
+  const isLocalDevelopmentRuntime = platform.isLocalDevelopmentRuntime === true;
   const availableKinds = useMemo(
-    () => buildAvailableKinds({ isWindowsDesktop }),
-    [isWindowsDesktop],
+    () =>
+      listRemoteConnectionWizardKinds({
+        isWindowsDesktop,
+        isLocalDevelopmentRuntime,
+      }),
+    [isLocalDevelopmentRuntime, isWindowsDesktop],
   );
 
   useEffect(() => {
@@ -338,6 +334,10 @@ export function useRemoteConnectionForm({
     wslUser,
     dockerContainer,
     manualDockerContainer,
+    serverUrl,
+    serverName,
+    serverToken,
+    serverWorkspacePath,
     sshConfigAliases,
     sshConfigAliasesLoading,
     sshConfigAliasesError,
@@ -359,6 +359,10 @@ export function useRemoteConnectionForm({
     setWslUser,
     setDockerContainer,
     setManualDockerContainer,
+    setServerUrl,
+    setServerName,
+    setServerToken,
+    setServerWorkspacePath,
     // Docker 容器列表是运行态数据，之前只在进入 Docker 页时拉一次。
     // 下拉每次打开都通过这个回调按需刷新，避免用户看到已过期的容器列表。
     refreshDockerContainers: () => refreshDockerContainers({ clearContainersOnError: false }),

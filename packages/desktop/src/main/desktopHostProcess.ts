@@ -31,12 +31,17 @@ import {
   serializeLaunchMarks,
   type RemoteTarget,
   type WorkspacePurpose,
+  type ZCodeProvider,
   ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
 } from "@zcode/shared";
 import { getMainLaunchPartialMarks } from "./desktopLaunchMarks.js";
 import { BroadcastHub } from "./broadcastHub.js";
 import type { TaskRealtimeBus } from "./taskRealtimeBus.js";
 import { createHostLogRelay } from "./hostLogRelay.js";
+import {
+  dispatchBotRemoteWorkspaceHostMessage,
+  type BotRemoteWorkspaceHostHandlers,
+} from "./botRemoteWorkspaceHostDispatch.js";
 import {
   registerHostAgentProcess,
   registerHostProcess,
@@ -224,7 +229,7 @@ export function spawnHostProcess(
     }) => Promise<{ ok: boolean; [k: string]: unknown }>;
     /** Host 已完成附件授权后，由 Main 将本地视频 realpath 加入精确协议授权集合。 */
     authorizeLocalMediaPreviewPath?: (path: string) => Promise<string>;
-  },
+  } & Partial<BotRemoteWorkspaceHostHandlers>,
   options?: SpawnHostProcessOptions,
 ): ElectronUtilityProcess {
   const hostId = randomUUID();
@@ -459,7 +464,8 @@ export function spawnHostProcess(
     if (result.data.type === HostResponseTypes.AgentProcessSpawned) {
       registerHostAgentProcess(label, {
         pid: result.data.pid,
-        provider: result.data.provider,
+        // 进程事件 schema 接受历史 provider 名。注册表类型仍是运行时 ZCodeProvider。
+        provider: result.data.provider as ZCodeProvider,
         workspacePath: result.data.workspacePath,
         command: result.data.command,
         args: result.data.args,
@@ -542,6 +548,17 @@ export function spawnHostProcess(
         workspaceIdentity: result.data.workspaceIdentity,
         runningTaskCount: result.data.runningTaskCount,
       });
+      return;
+    }
+
+    if (
+      dispatchBotRemoteWorkspaceHostMessage({
+        message: result.data,
+        win,
+        child,
+        handlers: dependencies,
+      })
+    ) {
       return;
     }
   });

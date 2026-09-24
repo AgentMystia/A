@@ -38,6 +38,8 @@ export interface RootProps {
   initialWorkspaceLoadingFallback?: ReactNode;
   /** Assistant code-comment 卡片灰度；默认关闭，关闭时保留原始 directive。 */
   assistantCodeCommentCardsEnabled?: boolean;
+  /** 桌面远控入口灰度。发布包默认开启；缺省为 true。 */
+  webRemoteControlFeatureEnabled?: boolean;
 }
 
 export interface WorkspaceSettingsLayerProps {

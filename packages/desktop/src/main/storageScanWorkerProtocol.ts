@@ -1,5 +1,11 @@
 import type { StorageRootSpec } from "@zcode/services";
 import type { StorageScanProgress } from "@zcode/services/node";
+import { resolveHelperPermissionSubjectIdentity } from "@zcode/zcode-cua/helper-permission-identity";
+
+// 发布包 main 的 paths chunk 同时被 index 和 storage scan worker 加载。
+// 权限主体读取只给设置页用；这里的引用没有运行时效果，只让 esbuild 把它放进 paths chunk。
+// 不能改从 broker/server 再导出，否则 host 会留下 child_process 副作用。
+void resolveHelperPermissionSubjectIdentity;
 
 export interface StorageScanWorkerData {
   roots: StorageRootSpec[];

@@ -141,6 +141,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   taskListHasMore,
   taskListHasUnread = false,
   taskListLiveWorkflowCount = 0,
+  mobileActiveTaskKey,
   onShowMoreTasks,
   reconnectingRemoteWorkspaceKeys,
   remoteWorkspaceErrorByWorkspaceKey,
@@ -170,6 +171,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   taskListHasUnread?: boolean;
   /** 组内在跑的工作流 run 数；项目收起时在未读点旁画脉冲灯（>1 带数量）。 */
   taskListLiveWorkflowCount?: number;
+  mobileActiveTaskKey: string | null;
   onShowMoreTasks: () => void;
   reconnectingRemoteWorkspaceKeys: string[];
   remoteWorkspaceErrorByWorkspaceKey: Record<string, string>;
@@ -1122,6 +1124,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
             tasks={taskItems}
             pinnedTasks={EMPTY_PINNED_TASKS}
             activeTaskId={isActiveWorkspace ? activeTaskId : null}
+            mobileActiveTaskKey={mobileActiveTaskKey}
             onSelectTask={handleSelectTask}
             showCreateButton={false}
             showFooter={false}

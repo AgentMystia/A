@@ -2,6 +2,13 @@
   "name": "@zcode/client",
   "private": true,
   "type": "module",
+  "sideEffects": [
+    "./src/index.ts",
+    "./src/messageport.ts",
+    "./src/publishedRelayBufferDefaults.ts",
+    "./src/remoteServiceAccess.ts",
+    "./src/rendererLoggingEnv.ts"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./globals": "./src/globals.d.ts"

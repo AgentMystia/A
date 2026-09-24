@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
 import type {
   ZCodeAgentMcpServer,
   ZCodeSessionImportHistory,
@@ -89,36 +89,27 @@ function shouldRepairImportedClaudeSnapshot(
   return hasLegacyFixedMessageIds;
 }
 
-export async function readLegacyImportedClaudeHistory(
+export function readLegacyImportedClaudeHistory(
   target: ImportedClaudeHistoryRepairTarget,
-): Promise<ImportedClaudeHistoryRepairResult | null> {
-  const snapshotPaths = [
+): ImportedClaudeHistoryRepairResult | null {
+  // 发布包先 existsSync 选第一份文件，再 readFileSync。缺失文件不抛 ENOENT，结果也不带 traceId。
+  const path = [
     getLegacyTaskSessionSnapshotPath(target.workspacePath, target.taskId, target.workspaceIdentity),
     getLegacyDeletedTaskSessionSnapshotPath(
       target.workspacePath,
       target.taskId,
       target.workspaceIdentity,
     ),
-  ];
-  let raw: string | undefined;
-  for (const path of snapshotPaths) {
-    try {
-      raw = await readFile(path, "utf-8");
-      break;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
-  }
-  if (raw === undefined) return null;
+  ].find((candidate) => existsSync(candidate));
+  if (!path) return null;
 
-  const parsed = safeParseLegacyTaskSessionFile(JSON.parse(raw) as unknown);
+  const parsed = safeParseLegacyTaskSessionFile(JSON.parse(readFileSync(path, "utf-8")) as unknown);
   if (!parsed.success || parsed.data.meta.migrationSource !== "claudeCode") {
     return null;
   }
   const messages = toImportMessages(parsed.data.messages);
   return messages.length > 0
     ? {
-        traceId: parsed.data.meta.traceId,
         title: parsed.data.meta.title,
         createdAt: parsed.data.meta.createdAt,
         updatedAt: parsed.data.meta.updatedAt,
@@ -164,7 +155,7 @@ async function readNativeImportedClaudeHistory(
 async function resolveImportedClaudeHistoryForRepair(
   target: ImportedClaudeHistoryRepairTarget,
 ): Promise<ImportedClaudeHistoryRepairResult | null> {
-  const legacyHistory = await readLegacyImportedClaudeHistory(target);
+  const legacyHistory = readLegacyImportedClaudeHistory(target);
   if (legacyHistory && countAssistantMessages(legacyHistory.messages) > 0) {
     return legacyHistory;
   }
