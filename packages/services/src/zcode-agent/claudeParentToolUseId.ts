@@ -7,7 +7,7 @@ function stringValue(value: unknown): string | undefined {
 }
 
 /** Claude 导入把父工具 id 放在 `_meta.claudeCode.parentToolUseId`。 */
-export function readRawClaudeParentToolUseId(payload: object): string | null {
+export function rawClaudeParentToolUseId(payload: object): string | null {
   const meta = asRecord((payload as { _meta?: unknown })._meta);
   const claudeCode = asRecord(meta.claudeCode);
   return stringValue(claudeCode.parentToolUseId) ?? null;
@@ -21,6 +21,6 @@ export function parentToolUseIdFromToolPayload(payload: Record<string, unknown>)
   return (
     stringValue(payload.parentToolUseId) ??
     stringValue(payload.parentToolCallId) ??
-    readRawClaudeParentToolUseId(payload)
+    rawClaudeParentToolUseId(payload)
   );
 }

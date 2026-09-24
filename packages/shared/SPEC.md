@@ -211,7 +211,8 @@ createRemoteWorkspaceServiceCollection
 ### 验收
 
 - 微信 iLink 的 token 读取函数名是 `readAccessToken`，请求头函数名是 `buildHeaders`，消息容器是 `readMessagesContainer`，游标是 `readNextBuf`，入站消息是 `buildInboundMessage`。这些是发布包 host 的 keepName。写成 `buildWeixinHeaders` 这类更长的名字会留在 host index。
-- 阿里云验证码头的合并写在 provider runtime headers 的应答处，数组字面量是 `X-Aliyun-Captcha-Verify-Param` 与 `X-Aliyun-Captcha-Verify-Region`。`zcodeAgentService` 不调用 `shouldDeferProviderRuntimeHeadersToRenderer` 或 `mergeCaptchaRuntimeProviderHeaders`。那两个函数留在测试里；一旦被服务引用，host index 会留下这两个 keepName。
+- 阿里云验证码头的合并写在 provider runtime headers 的应答处，数组字面量是 `X-Aliyun-Captcha-Verify-Param` 与 `X-Aliyun-Captcha-Verify-Region`。`zcodeAgentService` 不调用 `shouldDeferProviderRuntimeHeadersToRenderer` 或 `mergeCaptchaRuntimeProviderHeaders`。那两个函数留在测试里；一旦被服务引用，host index 会留下这两个 keepName。`onDynamicWorkspaceProviderRuntimeHeadersCancelled` 直接取取消事件，不另写 `getProviderRuntimeHeadersCancelledEmitter`。发布包 host 没有这个 keepName。
+- Claude 父工具 id 的读取函数名是 `rawClaudeParentToolUseId`。`readRawClaudeParentToolUseId` 会在 host index 多留下 4 个字符。
 - 设备身份 `deviceMid` 与数仓共用 `telemetry-state.json` 和 `withTelemetryStateLock`。`ensureTelemetryDeviceMid`、`ensureDeviceMidInLockedState` 写在 `telemetryCore.ts` 里，紧跟在锁函数后面。`deviceMid.ts` 只把 `ensureTelemetryDeviceMid` 重新导出为 `ensureDeviceMid`，不再自带第二套 `resolveDeviceStateFile` 锁。发布包 main paths 只有 `ensureTelemetryDeviceMid` 这个 keepName，没有 `Device state lock timeout`。
 - `pnpm typecheck` 与 `pnpm lint` 通过。
 - 服务频道字符串仍与发布包一致。

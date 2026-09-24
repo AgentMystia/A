@@ -1587,15 +1587,6 @@ export function createZCodeAgentService(
     return created;
   }
 
-  function getProviderRuntimeHeadersCancelledEmitter(workspace: ZCodeAgentWorkspaceTarget) {
-    const key = resolveWorkspaceKey(workspace);
-    const existing = providerRuntimeHeadersCancelledEmitters.get(key);
-    if (existing) return existing;
-    const created = new Emitter<ZCodeProviderRuntimeHeadersCancelled>();
-    providerRuntimeHeadersCancelledEmitters.set(key, created);
-    return created;
-  }
-
   function getConversationFrameEmitter(workspace: ZCodeAgentWorkspaceTarget) {
     const key = resolveWorkspaceKey(workspace);
     const existing = conversationFrameEmitters.get(key);
@@ -4896,7 +4887,13 @@ export function createZCodeAgentService(
     },
 
     onDynamicWorkspaceProviderRuntimeHeadersCancelled(params: ZCodeAgentWorkspaceTarget) {
-      return getProviderRuntimeHeadersCancelledEmitter(params).event;
+      // 发布包没有 getProviderRuntimeHeadersCancelledEmitter 这个 keepName。
+      const key = resolveWorkspaceKey(params);
+      const existing = providerRuntimeHeadersCancelledEmitters.get(key);
+      if (existing) return existing.event;
+      const created = new Emitter<ZCodeProviderRuntimeHeadersCancelled>();
+      providerRuntimeHeadersCancelledEmitters.set(key, created);
+      return created.event;
     },
 
     onDynamicSessionEvent(params: ZCodeAgentSessionSubscribeParams) {
