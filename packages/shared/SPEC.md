@@ -26,6 +26,7 @@
 - 远程 workspace 只有同时具备 `workspaceIdentity` 和 `remoteSessionId` 才能建 bridge。本地 workspace 不要求这两项。
 - 配对遥测的 workspace 维度函数是 `resolveRuntimeWorkspaceDimensions`：trim 后的 `workspaceIdentity` 或未 trim 的 `remoteSessionId` 为 remote，`remoteKind` 来自身份解析。开启和刷新配对的 `workspaceKind` 由 `resolveWorkspaceKind` 计算，`remoteSessionId` 会先 trim。bridge 结果的 `remoteKind` 只在 `target.kind==="remote"` 时由 `resolveRemoteKind` 给出：优先 `attachment.remoteKind`，否则解析 `workspaceIdentity`；本地 workspace 得到 `undefined`。启动埋点经 `reportRemoteUsageEventSafely` 直接调用 reporter，未注入或抛错都被吞掉。manager 内和 `desktopMainIpcRemote` 内各有一份具名 `reportRemoteUsageEvent`。server URL 相等和遥测键使用 main 的 `normalizeServerRemoteUrlForComparison`，规则与共享 `normalizeServerEndpoint` 相同，但正则不带 unicode 标志。环境键仍只走 `normalizeServerEndpoint`。
 - 窗口关闭、手动停止、刷新配对都会停掉该窗口的 runtime，并关闭它名下的 replayable host attachment。远程 session 连接关闭时，manager 拆掉对应 bridge，并通知手机 `workspace-closed`。
+- `deployZCodeAgentRuntime` 的局部 `provider` 用 `let` 初始化为 `"glm"`，再赋给 `componentId`。发布包是 `let n="glm",…,a=n`。写成 `const` 时两个绑定会被压成一个，main docker 和 host remote 各少 5 字节。其它部署日志继续引用 `ZCODE_AGENT_PROVIDER`：当前 esbuild 会把模板里的 `"glm"` 折成不带引号的 `glm:`，比发布包的 `${"glm"}` 更短。运行时 `ZCodeProvider` 仍只有 `"glm"`。
 
 ## 验收
 
