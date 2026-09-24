@@ -26,7 +26,7 @@ import type { BotInboundTaskRuntime } from "./botsInboundRuntime.js";
 import { parseBotCommand } from "./botsParseCommand.js";
 import {
   formatReplyGranularityLabel,
-  listReplyGranularityOptions,
+  getReplyGranularityOptions,
   parseReplyGranularity,
 } from "./botsReply.js";
 import {
@@ -121,7 +121,7 @@ export async function dispatchInboundMessage(
               }),
               currentId: authorized.bot.replyMode,
               action: "reply.set",
-              options: listReplyGranularityOptions(authorized.locale, authorized.bot.provider),
+              options: getReplyGranularityOptions(authorized.locale, authorized.bot.provider),
             },
             authorized.locale,
           )

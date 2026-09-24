@@ -27,7 +27,7 @@ import { handleBotReconnect } from "./botsInboundReconnect.js";
 import { handleBind as bindBot } from "./botsInboundBind.js";
 import {
   formatReplyGranularityLabel,
-  listReplyGranularityOptions,
+  getReplyGranularityOptions,
   parseReplyGranularity,
 } from "./botsReply.js";
 import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
@@ -369,7 +369,7 @@ export function createInboundHandlers(deps: {
         }),
         currentId,
         action: "reply.set",
-        options: listReplyGranularityOptions(authorized.locale, authorized.bot.provider),
+        options: getReplyGranularityOptions(authorized.locale, authorized.bot.provider),
       };
       return replies(message.actor, selection.title, authorized.locale, selection);
     },

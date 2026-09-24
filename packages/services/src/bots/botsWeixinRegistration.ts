@@ -32,13 +32,15 @@ async function getWeixinRegistrationJson(path: string): Promise<Record<string, u
   const ret = readNumber(payload, "ret");
   const errcode = readNumber(payload, "errcode");
   if ((ret !== null && ret !== 0) || (errcode !== null && errcode !== 0)) {
-    throw new Error(readString(payload, "errmsg") || `ret=${ret ?? ""} errcode=${errcode ?? ""}`.trim());
+    throw new Error(
+      readString(payload, "errmsg") || `ret=${ret ?? ""} errcode=${errcode ?? ""}`.trim(),
+    );
   }
   return payload;
 }
 
 /** 发布包 host `normalizeQrStatus`。 */
-export function normalizeWeixinQrStatus(value: unknown): WeixinRegistrationPoll["status"] | "scanned" {
+export function normalizeQrStatus(value: unknown): WeixinRegistrationPoll["status"] | "scanned" {
   if (typeof value === "number") {
     if (value === 0) {
       return "pending";
@@ -75,7 +77,8 @@ export function normalizeWeixinQrStatus(value: unknown): WeixinRegistrationPoll[
 export async function beginWeixinRegistration(): Promise<WeixinRegistrationBegin> {
   const payload = await getWeixinRegistrationJson("/get_bot_qrcode?bot_type=3");
   const qrCode = readString(payload, "qrcode") || readString(payload, "qr_code");
-  const qrUrl = readString(payload, "qrcode_img_content") || readString(payload, "qrcode_url") || qrCode;
+  const qrUrl =
+    readString(payload, "qrcode_img_content") || readString(payload, "qrcode_url") || qrCode;
   if (!qrCode || !qrUrl) {
     throw new Error("Weixin login did not return a QR code.");
   }
@@ -88,7 +91,9 @@ export async function beginWeixinRegistration(): Promise<WeixinRegistrationBegin
   };
 }
 
-export async function pollWeixinRegistration(request: { qrCode: string }): Promise<WeixinRegistrationPoll> {
+export async function pollWeixinRegistration(request: {
+  qrCode: string;
+}): Promise<WeixinRegistrationPoll> {
   let payload: Record<string, unknown>;
   try {
     payload = await getWeixinRegistrationJson(
@@ -100,7 +105,7 @@ export async function pollWeixinRegistration(request: { qrCode: string }): Promi
     }
     throw error;
   }
-  const status = normalizeWeixinQrStatus(payload.status ?? payload.qrcode_status ?? payload.qr_status);
+  const status = normalizeQrStatus(payload.status ?? payload.qrcode_status ?? payload.qr_status);
   if (status === "success") {
     const botToken = readString(payload, "bot_token") || readString(payload, "token");
     return botToken

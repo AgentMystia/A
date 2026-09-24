@@ -25,6 +25,7 @@ import {
   isSelectionIndexValue,
   normalizeBotDraftOptions,
   resolveOptionByValue,
+  stripModelProviderDescriptionsForTextSelection,
 } from "./botsHostHelpers.js";
 import {
   createTaskServiceResolver,
@@ -144,20 +145,13 @@ export async function createSelectionReply(
   const useStructured = actor.provider !== "weixin";
   const stored = useStructured
     ? marked
-    : { ...stripProviderDescriptions(marked), cancelLabel: marked.cancelLabel };
+    : {
+        ...stripModelProviderDescriptionsForTextSelection(marked),
+        cancelLabel: marked.cancelLabel,
+      };
   runtime.pendingSelections.set(getActorContextKey(actor), stored);
   const text = useStructured ? stored.title : formatNumberedSelection(stored, locale);
   return runtime.replies(actor, text, locale, useStructured ? stored : undefined, extra);
-}
-
-function stripProviderDescriptions(selection: BotSelection): BotSelection {
-  if (selection.action !== "model.provider.set") {
-    return selection;
-  }
-  return {
-    ...selection,
-    options: selection.options.map((option) => ({ ...option, description: undefined })),
-  };
 }
 
 function markCurrentSelection(selection: BotSelection, locale: BotMessageLocale): BotSelection {

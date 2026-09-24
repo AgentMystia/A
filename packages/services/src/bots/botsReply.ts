@@ -41,7 +41,7 @@ function normalizeText(value: string): string {
 }
 
 /** 发布包 host `getReplyGranularityOptions`。 */
-export function listReplyGranularityOptions(
+export function getReplyGranularityOptions(
   locale: BotMessageLocale,
   provider: BotProviderId,
 ): BotSelection["options"] {
@@ -60,7 +60,9 @@ export function formatReplyGranularityLabel(
   replyMode?: BotReplyMode,
 ): string {
   const id = normalizeBotReplyGranularity(provider, replyMode);
-  return listReplyGranularityOptions(locale, provider).find((option) => option.id === id)?.label ?? id;
+  return (
+    getReplyGranularityOptions(locale, provider).find((option) => option.id === id)?.label ?? id
+  );
 }
 
 /** 发布包 host `resolveReplyGranularityByValue`。 */
@@ -69,17 +71,18 @@ export function parseReplyGranularity(
   locale: BotMessageLocale,
   provider: BotProviderId,
 ): BotReplyMode | null {
-  const option = resolveReplyGranularityOption(value, locale, provider);
+  const option = resolveReplyGranularityByValue(value, locale, provider);
   return option ? (option.id as BotReplyMode) : null;
 }
 
-export function resolveReplyGranularityOption(
+/** 发布包 host `resolveReplyGranularityByValue`。 */
+export function resolveReplyGranularityByValue(
   value: string,
   locale: BotMessageLocale,
   provider: BotProviderId,
 ): BotSelection["options"][number] | null {
   const trimmed = value.trim();
-  const options = listReplyGranularityOptions(locale, provider);
+  const options = getReplyGranularityOptions(locale, provider);
   const index = Number.parseInt(trimmed, 10);
   if (Number.isFinite(index) && index > 0) {
     return options[index - 1] ?? null;
