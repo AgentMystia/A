@@ -219,6 +219,7 @@ createRemoteWorkspaceServiceCollection
 - 飞书用户显示名的请求写在 `readFeishuUserDisplayName` 里。`fetchFeishuUserDisplayName` 不会出现在发布包 host。输入中状态的缓存键函数名是 `getFeishuTypingReactionKey`。
 - `getWorkspaceProviderConfigFile` 直接返回 `{ provider, path: workspacePath, exists: false }`。`readWorkspaceProviderConfigFile` 只留给测试，不能被 host 引用。`watchTaskStream` 直接写回复状态对象，不调用 `createPublishedTaskStreamSession`。
 - 草稿和状态读取直接调用 `resolveZCodeTaskServiceForContext` 与 `resolveModelSelectionServiceForContext`。不要把它们再包成 `createTaskServiceResolver`，也不要作为 runtime 上的同名方法。对象箭头会在 host index 为每个属性再留一份 keepName，发布包只有函数声明那一份。
+- runtime、回调和频道运行时传递已有函数引用，例如 `processProviderCallback: callback.processProviderCallback`、`listWorkspaceRefs: inbound.listWorkspaceRefs`。转发箭头会再包一层同名 keepName。飞书摘要用 `summarizeCallbackPayload`，不要再写一份 `JSON.stringify` 箭头。
 - 设备身份 `deviceMid` 与数仓共用 `telemetry-state.json` 和 `withTelemetryStateLock`。`ensureTelemetryDeviceMid`、`ensureDeviceMidInLockedState` 写在 `telemetryCore.ts` 里，紧跟在锁函数后面。`deviceMid.ts` 只把 `ensureTelemetryDeviceMid` 重新导出为 `ensureDeviceMid`，不再自带第二套 `resolveDeviceStateFile` 锁。发布包 main paths 只有 `ensureTelemetryDeviceMid` 这个 keepName，没有 `Device state lock timeout`。
 - `pnpm typecheck` 与 `pnpm lint` 通过。
 - 服务频道字符串仍与发布包一致。

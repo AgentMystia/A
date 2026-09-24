@@ -31,7 +31,11 @@ import type {
 } from "./botsInboundRuntime.js";
 import { createBotsMutationApi } from "./botsMutations.js";
 import { normalizeConfigBots } from "./botsNormalize.js";
-import { enqueueInboundProcessing, sendOutbound } from "./botsOutbound.js";
+import {
+  enqueueInboundProcessing,
+  sendOutbound,
+  summarizeCallbackPayload,
+} from "./botsOutbound.js";
 import { createBotPollingState } from "./botsPollingState.js";
 import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 import { BotsRepo } from "./botsRepo.js";
@@ -148,13 +152,12 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     taskSelectionEntries,
     workspaceSelectionEntries,
     automationWarnAt,
-    persistContext: (context) => inbound.persistContext(context),
-    replies: (actor, text, locale, selection, extra) =>
-      inbound.replies(actor, text, locale, selection, extra),
-    withAuthorizedContext: (message, command) => inbound.withAuthorizedContext(message, command),
-    readMessageLocale: () => inbound.readMessageLocale(),
-    listWorkspaceRefs: (current) => inbound.listWorkspaceRefs(current),
-    isRemoteConnected: (context) => inbound.isRemoteConnected(context),
+    persistContext: inbound.persistContext,
+    replies: inbound.replies,
+    withAuthorizedContext: inbound.withAuthorizedContext,
+    readMessageLocale: inbound.readMessageLocale,
+    listWorkspaceRefs: inbound.listWorkspaceRefs,
+    isRemoteConnected: inbound.isRemoteConnected,
     async saveBot(bot) {
       return mutations.saveBot({ bot });
     },
@@ -175,9 +178,9 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
         })
         .catch(() => undefined);
     },
-    startTyping: (bot, actor, taskId) => typing.startTyping(bot, actor, taskId),
-    stopTyping: (taskId) => typing.stopTyping(taskId),
-    stopInboundTyping: (bot, actor) => typing.stopInboundTyping(bot, actor),
+    startTyping: typing.startTyping,
+    stopTyping: typing.stopTyping,
+    stopInboundTyping: typing.stopInboundTyping,
     providers,
     transientCards,
     liveStatusProgress,
@@ -195,7 +198,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     readLocale: () => inbound.readMessageLocale(),
     handleInboundMessage: (message) => service.handleInboundMessage(message),
     transientCards,
-    stopInboundTyping: (bot, actor) => typing.stopInboundTyping(bot, actor),
+    stopInboundTyping: typing.stopInboundTyping,
   });
   const telegramRuntime = createTelegramChannelRuntime({
     runBackgroundTasks,
@@ -207,8 +210,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     readConfig: () => repo.readConfig(),
     readTelegramOffset: polling.readTelegramOffset,
     writeTelegramOffset: polling.writeTelegramOffset,
-    processProviderCallback: (provider, payload) =>
-      callback.processProviderCallback(provider, payload),
+    processProviderCallback: callback.processProviderCallback,
   });
   const weixinRuntime = createWeixinChannelRuntime({
     runBackgroundTasks,
@@ -219,8 +221,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     readConfig: () => repo.readConfig(),
     readWeixinGetUpdatesBuf: polling.readWeixinGetUpdatesBuf,
     writeWeixinGetUpdatesBuf: polling.writeWeixinGetUpdatesBuf,
-    processProviderCallback: (provider, payload) =>
-      callback.processProviderCallback(provider, payload),
+    processProviderCallback: callback.processProviderCallback,
   });
   const feishuRuntime = createFeishuChannelRuntime({
     runBackgroundTasks,
@@ -229,9 +230,8 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     statusSink,
     ensureBotStorageMigrated,
     readConfig: () => repo.readConfig(),
-    summarizeCallbackPayload: (payload) => JSON.stringify(payload).slice(0, 500),
-    processProviderCallback: (provider, payload) =>
-      callback.processProviderCallback(provider, payload),
+    summarizeCallbackPayload,
+    processProviderCallback: callback.processProviderCallback,
   });
   const refreshRuntimes = (config?: BotsConfig) => {
     clearCandidateCaches(workspaceRefs);
@@ -280,7 +280,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     },
     getConfig: () => repo.readConfig(),
     // 发布包对话框把当前 workspace 传进来。历史列表为空时，缓存实现仍会把它放进结果。
-    listWorkspaceRefs: (current) => workspaceRefs.list(current),
+    listWorkspaceRefs: inbound.listWorkspaceRefs,
     async getUserConfigOptions(request) {
       return listUserConfigOptions(request);
     },

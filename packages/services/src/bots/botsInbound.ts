@@ -314,13 +314,18 @@ export function createInboundHandlers(deps: {
     );
   }
 
+  // 发布包 host 只有一份 listWorkspaceRefs。方法简写不会留下 keepName。
+  function listWorkspaceRefs(current?: BotWorkspaceRef) {
+    return deps.workspaceRefs.list(current);
+  }
+
   return {
     readMessageLocale,
     withAuthorizedContext,
     replies,
     persistContext,
     isRemoteConnected,
-    listWorkspaceRefs: (current) => deps.workspaceRefs.list(current),
+    listWorkspaceRefs,
     setCreateStatusReply(fn) {
       createStatusReplyImpl = fn;
     },
