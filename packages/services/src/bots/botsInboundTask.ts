@@ -182,32 +182,34 @@ export async function handleTaskSet(
   return createStatusReply(runtime, message.actor, next, authorized.locale);
 }
 
-export async function handleStopCommand(
-  runtime: BotInboundTaskRuntime,
-  message: BotInboundMessage,
-): Promise<BotOutboundMessage[]> {
-  const authorized = await runtime.withAuthorizedContext(message, "stop");
-  if (!authorized.ok) {
-    return authorized.reply;
-  }
-  if (!authorized.context.activeTaskId) {
-    return runtime.replies(message.actor, copy(authorized.locale, "noActiveTask"));
-  }
-  try {
-    await (
-      await resolveZCodeTaskServiceForContext(runtime, authorized.context)
-    ).stopGeneration({
-      taskId: authorized.context.activeTaskId,
-    });
-  } catch (error) {
-    return runtime.replies(
-      message.actor,
-      copy(authorized.locale, "taskFailed", {
-        message: error instanceof Error ? error.message : String(error),
-      }),
-    );
-  }
-  runtime.runningTasks.delete(authorized.context.activeTaskId);
-  runtime.stopTyping(authorized.context.activeTaskId);
-  return createStatusReply(runtime, message.actor, authorized.context, authorized.locale);
-}
+export const handleStopCommand = (() => {
+  return async (
+    runtime: BotInboundTaskRuntime,
+    message: BotInboundMessage,
+  ): Promise<BotOutboundMessage[]> => {
+    const authorized = await runtime.withAuthorizedContext(message, "stop");
+    if (!authorized.ok) {
+      return authorized.reply;
+    }
+    if (!authorized.context.activeTaskId) {
+      return runtime.replies(message.actor, copy(authorized.locale, "noActiveTask"));
+    }
+    try {
+      await (
+        await resolveZCodeTaskServiceForContext(runtime, authorized.context)
+      ).stopGeneration({
+        taskId: authorized.context.activeTaskId,
+      });
+    } catch (error) {
+      return runtime.replies(
+        message.actor,
+        copy(authorized.locale, "taskFailed", {
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+    runtime.runningTasks.delete(authorized.context.activeTaskId);
+    runtime.stopTyping(authorized.context.activeTaskId);
+    return createStatusReply(runtime, message.actor, authorized.context, authorized.locale);
+  };
+})();

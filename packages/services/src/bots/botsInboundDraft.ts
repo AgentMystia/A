@@ -171,17 +171,19 @@ function markCurrentSelection(selection: BotSelection, locale: BotMessageLocale)
   };
 }
 
-function formatNumberedSelection(selection: BotSelection, locale: BotMessageLocale): string {
-  const lines = selection.options.map((option, index) => {
-    const description = option.description ? ` ${option.description}` : "";
-    return `${index + 1}. ${option.label}${description}`;
-  });
-  if (selection.showCancel === false) {
-    return `${selection.title}\n${lines.join("\n")}\n\n${copy(locale, "selectionTextHintNoCancel")}`;
-  }
-  const cancel = selection.cancelLabel ?? copy(locale, "selectionCancelOption");
-  return `${selection.title}\n0. ${cancel}\n${lines.join("\n")}\n\n${copy(locale, "selectionTextHint")}`;
-}
+const formatNumberedSelection = (() => {
+  return (selection: BotSelection, locale: BotMessageLocale): string => {
+    const lines = selection.options.map((option, index) => {
+      const description = option.description ? ` ${option.description}` : "";
+      return `${index + 1}. ${option.label}${description}`;
+    });
+    if (selection.showCancel === false) {
+      return `${selection.title}\n${lines.join("\n")}\n\n${copy(locale, "selectionTextHintNoCancel")}`;
+    }
+    const cancel = selection.cancelLabel ?? copy(locale, "selectionCancelOption");
+    return `${selection.title}\n0. ${cancel}\n${lines.join("\n")}\n\n${copy(locale, "selectionTextHint")}`;
+  };
+})();
 
 export async function ensureDraftOptions(
   runtime: BotInboundTaskRuntime,

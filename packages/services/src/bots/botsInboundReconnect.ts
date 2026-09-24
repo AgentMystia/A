@@ -100,77 +100,79 @@ export async function reconnectRemoteWorkspaceForBot(
   });
 }
 
-export async function handleBotReconnect(input: {
-  message: BotInboundMessage;
-  authorized: AuthorizedContext;
-  remoteWorkspaceService?: IBotRemoteWorkspaceService;
-  repo: BotsRepo;
-  createStatusReply(
-    actor: BotInboundMessage["actor"],
-    context: BotRuntimeState,
-    locale: BotMessageLocale,
-  ): Promise<BotOutboundMessage[]>;
-  replies(
-    actor: BotInboundMessage["actor"],
-    text: string,
-    locale?: BotMessageLocale,
-  ): BotOutboundMessage[];
-  reconnectInFlight: Map<string, Promise<BotOutboundMessage[]>>;
-  reconnectCooldown: Map<string, number>;
-  reconnectDelivery: Map<string, number>;
-}): Promise<BotOutboundMessage[]> {
-  if (!input.authorized.ok) {
-    return input.authorized.reply;
-  }
-  const { context, locale } = input.authorized;
-  if (!context.workspaceIdentity) {
-    return input.replies(input.message.actor, copy(locale, "remoteReconnectLocal"));
-  }
-  if (!input.remoteWorkspaceService) {
-    return input.replies(
-      input.message.actor,
-      copy(locale, "remoteReconnectUnavailable", { workspacePath: context.workspacePath }),
-    );
-  }
-  const now = Date.now();
-  pruneRecentRemoteReconnectDeliveryDedupe(input.reconnectDelivery, now);
-  const deliveryKey = buildRemoteReconnectDeliveryKey(input.message);
-  if (deliveryKey && input.reconnectDelivery.has(deliveryKey)) {
-    return [];
-  }
-  if (deliveryKey) {
-    input.reconnectDelivery.set(deliveryKey, now);
-  }
-  const key = buildRemoteReconnectCommandKey(input.message.actor, context);
-  const inflight = input.reconnectInFlight.get(key);
-  if (inflight) {
-    await inflight.catch(() => []);
-    return [];
-  }
-  const cooldown = input.reconnectCooldown.get(key);
-  if (cooldown !== undefined && now - cooldown < RECONNECT_COOLDOWN_MS) {
-    return [];
-  }
-  if (await isRemoteWorkspaceConnected(input, context)) {
-    return input.createStatusReply(input.message.actor, context, locale);
-  }
-  const run = performRemoteReconnect({
-    message: input.message,
-    context,
-    locale,
-    remoteWorkspaceService: input.remoteWorkspaceService,
-    repo: input.repo,
-    createStatusReply: input.createStatusReply,
-    replies: input.replies,
-  });
-  input.reconnectInFlight.set(key, run);
-  try {
-    const repliesOut = await run;
-    input.reconnectCooldown.set(key, Date.now());
-    return repliesOut;
-  } finally {
-    input.reconnectInFlight.delete(key);
-  }
-}
+export const handleBotReconnect = (() => {
+  return async (input: {
+    message: BotInboundMessage;
+    authorized: AuthorizedContext;
+    remoteWorkspaceService?: IBotRemoteWorkspaceService;
+    repo: BotsRepo;
+    createStatusReply(
+      actor: BotInboundMessage["actor"],
+      context: BotRuntimeState,
+      locale: BotMessageLocale,
+    ): Promise<BotOutboundMessage[]>;
+    replies(
+      actor: BotInboundMessage["actor"],
+      text: string,
+      locale?: BotMessageLocale,
+    ): BotOutboundMessage[];
+    reconnectInFlight: Map<string, Promise<BotOutboundMessage[]>>;
+    reconnectCooldown: Map<string, number>;
+    reconnectDelivery: Map<string, number>;
+  }): Promise<BotOutboundMessage[]> => {
+    if (!input.authorized.ok) {
+      return input.authorized.reply;
+    }
+    const { context, locale } = input.authorized;
+    if (!context.workspaceIdentity) {
+      return input.replies(input.message.actor, copy(locale, "remoteReconnectLocal"));
+    }
+    if (!input.remoteWorkspaceService) {
+      return input.replies(
+        input.message.actor,
+        copy(locale, "remoteReconnectUnavailable", { workspacePath: context.workspacePath }),
+      );
+    }
+    const now = Date.now();
+    pruneRecentRemoteReconnectDeliveryDedupe(input.reconnectDelivery, now);
+    const deliveryKey = buildRemoteReconnectDeliveryKey(input.message);
+    if (deliveryKey && input.reconnectDelivery.has(deliveryKey)) {
+      return [];
+    }
+    if (deliveryKey) {
+      input.reconnectDelivery.set(deliveryKey, now);
+    }
+    const key = buildRemoteReconnectCommandKey(input.message.actor, context);
+    const inflight = input.reconnectInFlight.get(key);
+    if (inflight) {
+      await inflight.catch(() => []);
+      return [];
+    }
+    const cooldown = input.reconnectCooldown.get(key);
+    if (cooldown !== undefined && now - cooldown < RECONNECT_COOLDOWN_MS) {
+      return [];
+    }
+    if (await isRemoteWorkspaceConnected(input, context)) {
+      return input.createStatusReply(input.message.actor, context, locale);
+    }
+    const run = performRemoteReconnect({
+      message: input.message,
+      context,
+      locale,
+      remoteWorkspaceService: input.remoteWorkspaceService,
+      repo: input.repo,
+      createStatusReply: input.createStatusReply,
+      replies: input.replies,
+    });
+    input.reconnectInFlight.set(key, run);
+    try {
+      const repliesOut = await run;
+      input.reconnectCooldown.set(key, Date.now());
+      return repliesOut;
+    } finally {
+      input.reconnectInFlight.delete(key);
+    }
+  };
+})();
 
 export { buildRemoteReconnectCommandKey, getActorContextKey };

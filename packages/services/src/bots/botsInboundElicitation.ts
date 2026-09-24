@@ -48,15 +48,17 @@ import { broadcastTaskListChange } from "./botsBroadcast.js";
 import { createOutbound } from "./botsOutbound.js";
 import { upsertTransientInteractionCard } from "./botsTransientCards.js";
 
-async function broadcastElicitationResolved(
-  runtime: BotInboundTaskRuntime,
-  context: BotRuntimeState,
-  pending: PendingElicitation,
-): Promise<void> {
-  await broadcastTaskListChange(runtime, context, pending.taskId, "elicitation_resolved", {
-    requestId: pending.requestId,
-  });
-}
+const broadcastElicitationResolved = (() => {
+  return async (
+    runtime: BotInboundTaskRuntime,
+    context: BotRuntimeState,
+    pending: PendingElicitation,
+  ): Promise<void> => {
+    await broadcastTaskListChange(runtime, context, pending.taskId, "elicitation_resolved", {
+      requestId: pending.requestId,
+    });
+  };
+})();
 
 /** 发布包 host `clearPendingElicitationForRequest`。 */
 export async function clearPendingElicitationForRequest(
