@@ -96,6 +96,11 @@ export async function deleteFeishuInteractiveMessage(
   }
 }
 
+/** 发布包 host `getFeishuTypingReactionKey`。内联模板不会留下这个 keepName。 */
+function getFeishuTypingReactionKey(bot: BotConfigEntry, messageId: string): string {
+  return `${bot.id}:${messageId}`;
+}
+
 export async function addFeishuTypingReaction(
   bot: BotConfigEntry,
   deps: BotCredentialLoader,
@@ -105,7 +110,7 @@ export async function addFeishuTypingReaction(
   if (!token) {
     return;
   }
-  const key = `${bot.id}:${messageId}`;
+  const key = getFeishuTypingReactionKey(bot, messageId);
   if (typingReactions.has(key)) {
     return;
   }
@@ -137,7 +142,7 @@ export async function deleteFeishuTypingReaction(
   deps: BotCredentialLoader,
   messageId: string,
 ): Promise<void> {
-  const key = `${bot.id}:${messageId}`;
+  const key = getFeishuTypingReactionKey(bot, messageId);
   const reactionId = typingReactions.get(key);
   if (!reactionId) {
     return;
@@ -289,30 +294,7 @@ export function resolveFeishuUserDisplayName(payload: Record<string, unknown>): 
   return nickname || null;
 }
 
-async function fetchFeishuUserDisplayName(
-  bot: BotConfigEntry,
-  token: string,
-  userId: string,
-): Promise<string | null> {
-  const userIdType = resolveFeishuUserIdType(userId);
-  const result = await fetchBotProviderJson<Record<string, unknown>>(
-    `${getFeishuBaseUrl(bot)}/open-apis/contact/v3/users/${encodeURIComponent(userId)}?user_id_type=${userIdType}`,
-    { headers: { authorization: `Bearer ${token}` } },
-  );
-  if (!result.ok) {
-    throw new Error(`Feishu get user info failed user=${userId}: HTTP ${result.status}`);
-  }
-  const payload = result.payload ?? {};
-  if (payload.code !== 0) {
-    throw new Error(
-      (typeof payload.msg === "string" && payload.msg) ||
-        `Feishu get user info failed user=${userId}.`,
-    );
-  }
-  return resolveFeishuUserDisplayName(payload);
-}
-
-/** 发布包 host `readFeishuUserDisplayName`：成功和空名字都缓存，失败不缓存。 */
+/** 发布包 host `readFeishuUserDisplayName`：成功和空名字都缓存，失败不缓存。请求写在函数体内，单独的 fetchFeishuUserDisplayName 会多一个 keepName。 */
 export async function readFeishuUserDisplayName(
   bot: BotConfigEntry,
   deps: BotCredentialLoader,
@@ -327,7 +309,22 @@ export async function readFeishuUserDisplayName(
   }
   const token = await readTenantAccessToken(bot, deps);
   if (!token) return null;
-  const name = await fetchFeishuUserDisplayName(bot, token, userId);
+  const userIdType = resolveFeishuUserIdType(userId);
+  const result = await fetchBotProviderJson<Record<string, unknown>>(
+    `${getFeishuBaseUrl(bot)}/open-apis/contact/v3/users/${encodeURIComponent(userId)}?user_id_type=${userIdType}`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  if (!result.ok) {
+    throw new Error(`Feishu get user info failed user=${userId}: HTTP ${result.status}`);
+  }
+  const payload = result.payload ?? {};
+  if (payload.code !== 0) {
+    throw new Error(
+      (typeof payload.msg === "string" ? payload.msg : "") ||
+        `Feishu get user info failed user=${userId}.`,
+    );
+  }
+  const name = resolveFeishuUserDisplayName(payload);
   feishuUserDisplayNames.set(cacheKey, {
     name,
     expiresAt: Date.now() + FEISHU_USER_DISPLAY_NAME_TTL_MS,
