@@ -18,7 +18,6 @@ import {
   isRawTransportCandidate,
   measureAcknowledgedRelayBatchBytes,
   rawIdentityMatches,
-  relayIdentity,
   type AcknowledgedRelayFault,
 } from "./acknowledgedRelaySupport.js";
 export interface AcknowledgedRelayProtocolOptions {
@@ -78,7 +77,14 @@ export class AcknowledgedRelayProtocol {
   };
 
   constructor(options: AcknowledgedRelayProtocolOptions) {
-    this.identity = relayIdentity(options);
+    // 发布包把身份对象写在构造函数里。单独的 relayIdentity 会留下 keepName，relay chunk 多出约 48 字节。
+    this.identity = {
+      bridgeSessionId: options.bridgeSessionId,
+      ...(options.bridgeGeneration === undefined
+        ? {}
+        : { bridgeGeneration: options.bridgeGeneration }),
+      ...(options.recoveryId === undefined ? {} : { recoveryId: options.recoveryId }),
+    };
     this.sendFrame = options.sendFrame;
     this.measureFrameBytes =
       options.measureFrameBytes ?? measureWebRemoteControlRpcRelayEnvelopeBytes;
@@ -170,8 +176,8 @@ export class AcknowledgedRelayProtocol {
       return;
     }
     const messageSeq = this.nextMessageSeq;
-    const last = frames.at(-1);
-    if (!last || last.zcode_type !== "rpc-frame") return;
+    // 发布包直接取最后一帧。提前返回会在 main relay chunk 多出 `zcode_type!=="rpc-frame"` 判断。
+    const last = frames.at(-1)!;
     this.outboundBatches.append({
       messageSeq,
       frames,

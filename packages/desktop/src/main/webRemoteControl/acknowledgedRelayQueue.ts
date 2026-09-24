@@ -31,6 +31,27 @@ export class AcknowledgedRelayBatchQueue<
     return this.storage[this.nextUnsentIndex];
   }
 
+  // 发布包保留这些 getter。其它方法不读它们，压缩后仍留在类上。
+  get activeCount(): number {
+    return this.storage.length - this.headIndex;
+  }
+
+  get retainedStorageSlots(): number {
+    return this.storage.length;
+  }
+
+  get retainedBatchReferenceCount(): number {
+    let count = 0;
+    for (const batch of this.storage) if (batch) count += 1;
+    return count;
+  }
+
+  get retainedPayloadBytes(): number {
+    let bytes = 0;
+    for (const batch of this.storage) if (batch) bytes += batch.outerBytes;
+    return bytes;
+  }
+
   append(batch: T): void {
     this.storage.push(batch);
   }

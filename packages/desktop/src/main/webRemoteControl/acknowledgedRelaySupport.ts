@@ -90,18 +90,6 @@ export class AcknowledgedRelayDeadline {
   }
 }
 
-export function relayIdentity(input: {
-  bridgeSessionId: string;
-  bridgeGeneration?: number;
-  recoveryId?: string;
-}): WebRemoteControlRpcIdentity {
-  return {
-    bridgeSessionId: input.bridgeSessionId,
-    ...(input.bridgeGeneration === undefined ? {} : { bridgeGeneration: input.bridgeGeneration }),
-    ...(input.recoveryId === undefined ? {} : { recoveryId: input.recoveryId }),
-  };
-}
-
 export function rawIdentityMatches(identity: WebRemoteControlRpcIdentity, value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
   const record = value as WebRemoteControlRpcIdentity;
