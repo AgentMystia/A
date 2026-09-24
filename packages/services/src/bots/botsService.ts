@@ -155,7 +155,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     replies: inbound.replies,
     withAuthorizedContext: inbound.withAuthorizedContext,
     readMessageLocale: inbound.readMessageLocale,
-    listWorkspaceRefs: inbound.listWorkspaceRefs,
+    listWorkspaceRefs: workspaceRefs.list,
     async saveBot(bot) {
       return mutations.saveBot({ bot });
     },
@@ -279,7 +279,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     },
     getConfig: () => repo.readConfig(),
     // 发布包对话框把当前 workspace 传进来。历史列表为空时，缓存实现仍会把它放进结果。
-    listWorkspaceRefs: inbound.listWorkspaceRefs,
+    listWorkspaceRefs: workspaceRefs.list,
     async getUserConfigOptions(request) {
       return listUserConfigOptions(request);
     },

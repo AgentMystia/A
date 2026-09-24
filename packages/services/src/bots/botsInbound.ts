@@ -6,7 +6,6 @@ import {
   type BotProviderOutbound,
   type BotRuntimeState,
   type BotsConfig,
-  type BotWorkspaceRef,
   isFeishuBotProvider,
   normalizeBotReplyGranularity,
 } from "@zcode/shared";
@@ -87,7 +86,6 @@ export function createInboundHandlers(deps: {
     selection?: BotSelection,
     extra?: Partial<BotProviderOutbound>,
   ): BotOutboundMessage[];
-  listWorkspaceRefs(current?: BotWorkspaceRef): Promise<BotWorkspaceRef[]>;
   setCreateStatusReply(
     fn: (
       actor: BotActor,
@@ -301,16 +299,10 @@ export function createInboundHandlers(deps: {
     );
   }
 
-  // 发布包 host 只有一份 listWorkspaceRefs。方法简写不会留下 keepName。
-  function listWorkspaceRefs(current?: BotWorkspaceRef) {
-    return deps.workspaceRefs.list(current);
-  }
-
   return {
     readMessageLocale,
     withAuthorizedContext,
     replies,
-    listWorkspaceRefs,
     setCreateStatusReply(fn) {
       createStatusReplyImpl = fn;
     },
