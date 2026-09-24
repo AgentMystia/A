@@ -393,12 +393,12 @@ export async function listDraftConfigOptions(
   ];
 }
 
-export function completeBotModelSelection(
-  view: NonNullable<Awaited<ReturnType<typeof readModelSelectionView>>>,
-  selection: ModelSelection,
-): ModelSelection | undefined {
-  return completeNewModelSelection(view, selection);
-}
+export const completeBotModelSelection = (() => {
+  return (
+    view: NonNullable<Awaited<ReturnType<typeof readModelSelectionView>>>,
+    selection: ModelSelection,
+  ): ModelSelection | undefined => completeNewModelSelection(view, selection);
+})();
 
 export {
   formatBotModelSelectionValue,

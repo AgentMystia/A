@@ -34,94 +34,98 @@ import { broadcastTaskListChange } from "./botsBroadcast.js";
 import { formatUserFacingBotError, isSessionExpiredError } from "./botsErrors.js";
 import { handlePublishedTaskStreamEvent } from "./botsTaskStreamEvents.js";
 
-export function createTypingController(providers: Record<string, BotProvider | null>): [
-  {
-    startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
-    stopTyping(taskId: string): void;
-    dispose(): void;
-  },
-  (bot: BotConfigEntry, actor: BotActor) => Promise<void>,
-] {
-  const live = new Map<
-    string,
-    { bot: BotConfigEntry; target: Parameters<NonNullable<BotProvider["startTyping"]>>[1] }
-  >();
-  const intervals = new Map<string, ReturnType<typeof setInterval>>();
-  // 发布包 keepNames 落在具名函数上。对象方法不会留下 startTyping / stopTyping。
-  function startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string) {
-    const provider = providers[bot.provider];
-    const userId = actor.chatId ?? actor.providerUserId;
-    if (!provider || !userId || live.has(taskId) || intervals.has(taskId)) {
-      return;
-    }
-    const target = {
-      providerUserId: userId,
-      providerMessageId: actor.providerMessageId,
-      providerContextToken: actor.providerContextToken,
-    };
-    if (provider.startTyping) {
-      live.set(taskId, { bot, target });
-      provider.startTyping(bot, target).catch(() => undefined);
-      return;
-    }
-    if (provider.sendTyping) {
-      provider.sendTyping(bot, target).catch(() => undefined);
-      intervals.set(
-        taskId,
-        setInterval(() => {
-          provider.sendTyping?.(bot, target).catch(() => undefined);
-        }, BOT_TYPING_INTERVAL_MS),
-      );
-    }
-  }
-  function stopTyping(taskId: string) {
-    const liveHandle = live.get(taskId);
-    if (liveHandle) {
-      live.delete(taskId);
-      providers[liveHandle.bot.provider]
-        ?.stopTyping?.(liveHandle.bot, liveHandle.target)
-        .catch(() => undefined);
-    }
-    const interval = intervals.get(taskId);
-    if (interval) {
-      clearInterval(interval);
-      intervals.delete(taskId);
-    }
-  }
-  async function stopInboundTyping(bot: BotConfigEntry, actor: BotActor) {
-    const provider = providers[bot.provider];
-    const userId = actor.chatId ?? actor.providerUserId;
-    if (!provider?.stopTyping || !userId || !actor.providerMessageId) {
-      return;
-    }
-    const stillLive = Array.from(live.values()).some(
-      (entry) =>
-        entry.bot.id === bot.id && entry.target.providerMessageId === actor.providerMessageId,
-    );
-    if (stillLive) {
-      return;
-    }
-    const target = {
-      providerUserId: userId,
-      providerMessageId: actor.providerMessageId,
-      providerContextToken: actor.providerContextToken,
-    };
-    await provider.stopTyping(bot, target).catch(() => undefined);
-  }
-  // 发布包 host 只有 stopInboundTyping 的 keepName。放进返回对象会多出属性名。
-  return [
+export const createTypingController = (() => {
+  return (
+    providers: Record<string, BotProvider | null>,
+  ): [
     {
-      startTyping,
-      stopTyping,
-      dispose() {
-        for (const taskId of [...live.keys(), ...intervals.keys()]) {
-          stopTyping(taskId);
-        }
-      },
+      startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
+      stopTyping(taskId: string): void;
+      dispose(): void;
     },
-    stopInboundTyping,
-  ];
-}
+    (bot: BotConfigEntry, actor: BotActor) => Promise<void>,
+  ] => {
+    const live = new Map<
+      string,
+      { bot: BotConfigEntry; target: Parameters<NonNullable<BotProvider["startTyping"]>>[1] }
+    >();
+    const intervals = new Map<string, ReturnType<typeof setInterval>>();
+    // 发布包 keepNames 落在具名函数上。对象方法不会留下 startTyping / stopTyping。
+    function startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string) {
+      const provider = providers[bot.provider];
+      const userId = actor.chatId ?? actor.providerUserId;
+      if (!provider || !userId || live.has(taskId) || intervals.has(taskId)) {
+        return;
+      }
+      const target = {
+        providerUserId: userId,
+        providerMessageId: actor.providerMessageId,
+        providerContextToken: actor.providerContextToken,
+      };
+      if (provider.startTyping) {
+        live.set(taskId, { bot, target });
+        provider.startTyping(bot, target).catch(() => undefined);
+        return;
+      }
+      if (provider.sendTyping) {
+        provider.sendTyping(bot, target).catch(() => undefined);
+        intervals.set(
+          taskId,
+          setInterval(() => {
+            provider.sendTyping?.(bot, target).catch(() => undefined);
+          }, BOT_TYPING_INTERVAL_MS),
+        );
+      }
+    }
+    function stopTyping(taskId: string) {
+      const liveHandle = live.get(taskId);
+      if (liveHandle) {
+        live.delete(taskId);
+        providers[liveHandle.bot.provider]
+          ?.stopTyping?.(liveHandle.bot, liveHandle.target)
+          .catch(() => undefined);
+      }
+      const interval = intervals.get(taskId);
+      if (interval) {
+        clearInterval(interval);
+        intervals.delete(taskId);
+      }
+    }
+    async function stopInboundTyping(bot: BotConfigEntry, actor: BotActor) {
+      const provider = providers[bot.provider];
+      const userId = actor.chatId ?? actor.providerUserId;
+      if (!provider?.stopTyping || !userId || !actor.providerMessageId) {
+        return;
+      }
+      const stillLive = Array.from(live.values()).some(
+        (entry) =>
+          entry.bot.id === bot.id && entry.target.providerMessageId === actor.providerMessageId,
+      );
+      if (stillLive) {
+        return;
+      }
+      const target = {
+        providerUserId: userId,
+        providerMessageId: actor.providerMessageId,
+        providerContextToken: actor.providerContextToken,
+      };
+      await provider.stopTyping(bot, target).catch(() => undefined);
+    }
+    // 发布包 host 只有 stopInboundTyping 的 keepName。放进返回对象会多出属性名。
+    return [
+      {
+        startTyping,
+        stopTyping,
+        dispose() {
+          for (const taskId of [...live.keys(), ...intervals.keys()]) {
+            stopTyping(taskId);
+          }
+        },
+      },
+      stopInboundTyping,
+    ];
+  };
+})();
 
 /** 发布包 host `applyDraftConfigOptions`：草稿强制 yolo。 */
 export async function applyDraftConfigOptions(

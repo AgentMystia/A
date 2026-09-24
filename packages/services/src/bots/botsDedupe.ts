@@ -52,17 +52,19 @@ export function markInboundDelivery(
   return true;
 }
 
-export function createInboundDeliveryDedupe(): {
-  mark(message: BotInboundMessage): boolean;
-  release(message: BotInboundMessage): void;
-} {
-  const seen = new Map<string, number>();
-  return {
-    mark(message) {
-      return markInboundDelivery(seen, message);
-    },
-    release(message) {
-      releaseInboundDelivery(seen, message);
-    },
+export const createInboundDeliveryDedupe = (() => {
+  return (): {
+    mark(message: BotInboundMessage): boolean;
+    release(message: BotInboundMessage): void;
+  } => {
+    const seen = new Map<string, number>();
+    return {
+      mark(message) {
+        return markInboundDelivery(seen, message);
+      },
+      release(message) {
+        releaseInboundDelivery(seen, message);
+      },
+    };
   };
-}
+})();
