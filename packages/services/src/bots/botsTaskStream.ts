@@ -32,7 +32,6 @@ import type { BotProvider } from "./botsTypes.js";
 import { broadcastTaskListChange } from "./botsBroadcast.js";
 import { formatUserFacingBotError, isSessionExpiredError } from "./botsErrors.js";
 import { handlePublishedTaskStreamEvent } from "./botsTaskStreamEvents.js";
-import { createPublishedTaskStreamSession } from "./botsStreamingCardSync.js";
 
 export function createTypingController(providers: Record<string, BotProvider | null>): {
   startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
@@ -200,7 +199,26 @@ export async function watchTaskStream(
     return;
   }
   const taskService = await resolveZCodeTaskServiceForContext(runtime, context);
-  const session = createPublishedTaskStreamSession();
+  // 发布包 host 没有 createPublishedTaskStreamSession。状态对象直接写在 watchTaskStream 里。
+  const session = {
+    parts: [],
+    assistantBuffer: "",
+    sentReply: false,
+    seenToolIds: new Set<string>(),
+    toolCalls: new Map(),
+    repliedToolIds: new Set<string>(),
+    card: {
+      handle: null,
+      cardIndex: 0,
+      blocks: [],
+      status: "running" as const,
+      lastSyncAt: 0,
+      failureCount: 0,
+      retryNotBefore: 0,
+      circuitOpen: false,
+      chain: Promise.resolve(),
+    },
+  };
   // 发布包 deliveryKind 为 bot-channel-continuous，当前接口映射到 continuous。
   const subscribe = taskService.onDynamicTaskEvent
     ? taskService.onDynamicTaskEvent({
