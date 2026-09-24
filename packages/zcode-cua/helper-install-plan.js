@@ -15,15 +15,14 @@ export const EXPECTED_CUA_HELPER_TEAM_ID = "8A5X4JJ39T";
 const DEV_MODE_ENV = "ZCODE_CUA_DEV_MODE";
 const INTRANET_DEPS_PORT = 12345;
 
-function readCompiledLocalDevelopmentRuntime() {
-  return typeof __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__ === "undefined"
-    ? process.env.NODE_ENV !== "production"
-    : __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__;
-}
+// 发布包把这两份值收成模块级 var。函数声明会留下 keepName；const 会把 build id 内联两次。
+var compiledLocalDevelopmentRuntime =
+  typeof __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__ !== "undefined"
+    ? __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__
+    : process.env.NODE_ENV !== "production";
 
-function embeddedCuaHelperBuildId() {
-  return typeof __ZCODE_CUA_HELPER_BUILD_ID__ === "undefined" ? "" : __ZCODE_CUA_HELPER_BUILD_ID__;
-}
+var embeddedCuaHelperBuildId =
+  typeof __ZCODE_CUA_HELPER_BUILD_ID__ === "undefined" ? "" : __ZCODE_CUA_HELPER_BUILD_ID__;
 
 export function isCuaDevModeRequested(env = process.env) {
   const flag = env[DEV_MODE_ENV]?.trim().toLowerCase();
@@ -37,7 +36,7 @@ export function isExplicitLocalDevOptIn(value) {
 
 export function isCuaLocalDevelopmentRuntime(
   env = process.env,
-  compiled = readCompiledLocalDevelopmentRuntime(),
+  compiled = compiledLocalDevelopmentRuntime,
 ) {
   return Boolean(compiled) && env.ZCODE_RUNTIME_ENV?.trim().toLowerCase() !== "production";
 }
@@ -160,7 +159,7 @@ export function resolveCuaHelperRuntimeVersion(options = {}) {
 
 export function resolveExpectedCuaHelperBuildId(
   env = process.env,
-  embedded = embeddedCuaHelperBuildId(),
+  embedded = embeddedCuaHelperBuildId,
 ) {
   const fromEnv = isCuaLocalDevelopmentRuntime(env)
     ? env.ZCODE_CUA_HELPER_BUILD_ID?.trim()
@@ -224,7 +223,7 @@ export function resolveCuaHelperInstallPlan(options = {}) {
   const platformKey = `${platform}-${arch}`;
   const expectedBuildId = resolveExpectedCuaHelperBuildId(
     env,
-    options.embeddedBuildId ?? embeddedCuaHelperBuildId(),
+    options.embeddedBuildId ?? embeddedCuaHelperBuildId,
   );
   if (!localDevelopment && !expectedBuildId) {
     throw new CuaHelperError(
