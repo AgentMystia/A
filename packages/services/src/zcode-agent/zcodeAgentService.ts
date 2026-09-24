@@ -123,10 +123,6 @@ import {
   mergeAutomationMutationToolDenylist,
   mergeOffPeakMutationToolDenylist,
 } from "#src/zcode-agent/automationToolPolicy.js";
-import {
-  mergeCaptchaRuntimeProviderHeaders,
-  shouldDeferProviderRuntimeHeadersToRenderer,
-} from "./providerRuntimeHeadersDelivery.js";
 import { ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE } from "./zcodeAgent.js";
 import type {
   ZCodeProtocolRequestId,
@@ -2306,11 +2302,11 @@ export function createZCodeAgentService(
           const accountAccess = parsed.data.accountAccess;
           // 发布包只对非 Start Plan 自动应答。Start Plan 验证码必须留给 Renderer；
           // 缺 access 或缺账号服务也不再快速失败，否则订阅建立前请求会被丢掉。
+          // 发布包把判断写在调用处。抽成函数会在 host index 留下 keepName。
           if (
-            !shouldDeferProviderRuntimeHeadersToRenderer(
-              accountRequestAuthService !== undefined,
-              accountAccess,
-            )
+            accountRequestAuthService !== undefined &&
+            accountAccess !== undefined &&
+            accountAccess.mode !== "start-plan"
           ) {
             void respondAccountRequestAuthWithoutInteraction({
               key: pendingKey,
@@ -4835,10 +4831,23 @@ export function createZCodeAgentService(
       }
       if (pendingProviderRuntimeHeaders.get(key) !== pending) return;
       pendingProviderRuntimeHeaders.delete(key);
-      const requestAuth = mergeCaptchaRuntimeProviderHeaders(
-        material,
-        params.response.runtimeProviderHeaders,
-      );
+      // 发布包在应答处内联合并这两枚验证码头，不经过单独函数。
+      const captchaHeaders = { ...material?.headers };
+      for (const [name, value] of Object.entries(params.response.runtimeProviderHeaders ?? {})) {
+        const canonical = (
+          ["X-Aliyun-Captcha-Verify-Param", "X-Aliyun-Captcha-Verify-Region"] as const
+        ).find((candidate) => candidate.toLowerCase() === name.trim().toLowerCase());
+        const trimmed = value.trim();
+        if (canonical && trimmed) captchaHeaders[canonical] = trimmed;
+      }
+      const captchaApiKey = material?.apiKey;
+      const requestAuth =
+        !captchaApiKey && Object.keys(captchaHeaders).length === 0
+          ? undefined
+          : {
+              ...(captchaApiKey ? { apiKey: captchaApiKey } : {}),
+              ...(Object.keys(captchaHeaders).length > 0 ? { headers: captchaHeaders } : {}),
+            };
       await pending.client.respond(
         pending.protocolRequestId,
         requestAuth

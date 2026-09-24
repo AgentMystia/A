@@ -9,6 +9,7 @@ const CAPTCHA_RUNTIME_HEADER_NAMES = [
 /**
  * 发布包只在账号服务存在、且 access 不是 Start Plan 时自动应答。
  * Start Plan 验证码、缺 access、缺服务都把请求留给 Renderer。
+ * zcodeAgentService 在调用处内联同一判断，不要从那里再引用本函数。
  */
 export function shouldDeferProviderRuntimeHeadersToRenderer(
   hasAccountRequestAuthService: boolean,
