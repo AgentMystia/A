@@ -1,4 +1,4 @@
-// 发布包先初始化 helperHealth，再留下 net import，然后在类之前再初始化一次。
+// 发布包在 net import 后面还有一次初始化。这条回边补上少掉的字节，但 esbuild 仍把调用放在 import 前面。
 import "./broker-helper-health.js";
 import { createConnection } from "node:net";
 
