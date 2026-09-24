@@ -1,4 +1,5 @@
 import type { BotActor, BotOutboundMessage, BotRuntimeState } from "@zcode/shared";
+import { isRemoteWorkspaceConnected } from "./botsContext.js";
 import {
   formatBotModelSelectionValue,
   formatStatusModelLabel,
@@ -40,7 +41,7 @@ export async function buildStatusText(
     (item) => item.id === context.workspaceId,
   );
   const workspaceLabel = workspace?.label ?? context.workspacePath;
-  if (!(await runtime.isRemoteConnected(context))) {
+  if (!(await isRemoteWorkspaceConnected(runtime, context))) {
     const draft = context.draftOptions;
     return [
       formatStatusLine(locale, "statusWorkspace", workspaceLabel),

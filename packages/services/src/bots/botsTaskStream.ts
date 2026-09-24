@@ -13,6 +13,7 @@ import {
   BOT_FORCED_MODE,
   BOT_TYPING_INTERVAL_MS,
 } from "./botsConstants.js";
+import { isRemoteWorkspaceConnected } from "./botsContext.js";
 import { copy } from "./botsInboundText.js";
 import { findBot } from "./botsNormalize.js";
 import {
@@ -157,7 +158,7 @@ export async function isContextActiveTaskRunning(
   if (!context.activeTaskId || !runtime.runningTasks.has(context.activeTaskId)) {
     return false;
   }
-  if (context.workspaceIdentity && !(await runtime.isRemoteConnected(context))) {
+  if (context.workspaceIdentity && !(await isRemoteWorkspaceConnected(runtime, context))) {
     return false;
   }
   const snapshot = await (

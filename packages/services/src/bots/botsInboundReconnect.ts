@@ -5,7 +5,9 @@ import type { BotMessageLocale } from "./botsCopy.js";
 import type { AuthorizedContext } from "./botsInbound.js";
 import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 import { getWorkspaceKey } from "./botsNormalize.js";
+import { isRemoteWorkspaceConnected, writeContext } from "./botsContext.js";
 import { buildInitializedDraftOptions } from "./botsDraft.js";
+import type { BotsRepo } from "./botsRepo.js";
 
 function buildRemoteReconnectCommandKey(
   actor: BotInboundMessage["actor"],
@@ -45,10 +47,7 @@ export async function performRemoteReconnect(input: {
   context: BotRuntimeState;
   locale: BotMessageLocale;
   remoteWorkspaceService?: IBotRemoteWorkspaceService;
-  isRemoteConnected(
-    context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
-  ): Promise<boolean>;
-  persistContext(context: BotRuntimeState): Promise<BotRuntimeState>;
+  repo: BotsRepo;
   createStatusReply(
     actor: BotInboundMessage["actor"],
     context: BotRuntimeState,
@@ -77,9 +76,9 @@ export async function performRemoteReconnect(input: {
   }
   if (input.context.mode === "draft" || !input.context.activeTaskId) {
     const draft = await buildInitializedDraftOptions(input.context, (item) =>
-      input.isRemoteConnected(item),
+      isRemoteWorkspaceConnected(input, item),
     );
-    await input.persistContext({ ...input.context, draftOptions: draft });
+    await writeContext(input, { ...input.context, draftOptions: draft });
   }
   return input.createStatusReply(input.message.actor, input.context, input.locale);
 }
@@ -105,10 +104,7 @@ export async function handleBotReconnect(input: {
   message: BotInboundMessage;
   authorized: AuthorizedContext;
   remoteWorkspaceService?: IBotRemoteWorkspaceService;
-  isRemoteConnected(
-    context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
-  ): Promise<boolean>;
-  persistContext(context: BotRuntimeState): Promise<BotRuntimeState>;
+  repo: BotsRepo;
   createStatusReply(
     actor: BotInboundMessage["actor"],
     context: BotRuntimeState,
@@ -155,7 +151,7 @@ export async function handleBotReconnect(input: {
   if (cooldown !== undefined && now - cooldown < RECONNECT_COOLDOWN_MS) {
     return [];
   }
-  if (await input.isRemoteConnected(context)) {
+  if (await isRemoteWorkspaceConnected(input, context)) {
     return input.createStatusReply(input.message.actor, context, locale);
   }
   const run = performRemoteReconnect({
@@ -163,8 +159,7 @@ export async function handleBotReconnect(input: {
     context,
     locale,
     remoteWorkspaceService: input.remoteWorkspaceService,
-    isRemoteConnected: input.isRemoteConnected,
-    persistContext: input.persistContext,
+    repo: input.repo,
     createStatusReply: input.createStatusReply,
     replies: input.replies,
   });

@@ -7,6 +7,7 @@ import type {
   ZCodeElicitationRequest,
 } from "@zcode/shared";
 import { isFeishuBotProvider, normalizeBotReplyGranularity } from "@zcode/shared";
+import { writeContext } from "./botsContext.js";
 import {
   BOT_ELICITATION_BROADCAST_TIMEOUT_MS,
   BOT_ELICITATION_CUSTOM,
@@ -67,7 +68,7 @@ export async function clearPendingElicitationForRequest(
     return;
   }
   clearPendingElicitationSelection(runtime, context.pendingElicitation);
-  await runtime.persistContext({ ...context, pendingElicitation: undefined });
+  await writeContext(runtime, { ...context, pendingElicitation: undefined });
 }
 
 /** 发布包 host `submitPendingElicitation`。 */
@@ -96,12 +97,12 @@ export async function submitPendingElicitation(
     action,
     content,
   });
-  await runtime.persistContext({
+  await writeContext(runtime, {
     ...authorized.context,
     pendingElicitation: { ...pending, handledAt: Date.now() },
   });
   clearPendingElicitationSelection(runtime, pending);
-  await runtime.persistContext({ ...authorized.context, pendingElicitation: undefined });
+  await writeContext(runtime, { ...authorized.context, pendingElicitation: undefined });
   await broadcastElicitationResolved(runtime, authorized.context, pending);
   if (!submitted) {
     return runtime.replies(actor, copy(authorized.locale, "elicitationHandled"));
@@ -140,7 +141,7 @@ async function advancePendingElicitation(
     currentQuestionIndex: pending.currentQuestionIndex + 1,
     answers,
   };
-  await runtime.persistContext({ ...authorized.context, pendingElicitation: next });
+  await writeContext(runtime, { ...authorized.context, pendingElicitation: next });
   return createElicitationReply(runtime, actor, next, authorized.locale);
 }
 
@@ -224,7 +225,7 @@ export async function handlePendingElicitationValue(
   }
   if (resolved === BOT_ELICITATION_CUSTOM) {
     const next = toggleElicitationCustomAnswerExpanded(pending);
-    await runtime.persistContext({ ...authorized.context, pendingElicitation: next });
+    await writeContext(runtime, { ...authorized.context, pendingElicitation: next });
     return createElicitationReply(runtime, actor, next, authorized.locale);
   }
   const key = getElicitationAnswerKey(pending.currentQuestionIndex);
@@ -234,7 +235,7 @@ export async function handlePendingElicitationValue(
       ? current.filter((item) => item !== resolved)
       : [...current, resolved];
     const next = { ...pending, answers: { ...pending.answers, [key]: nextValues } };
-    await runtime.persistContext({ ...authorized.context, pendingElicitation: next });
+    await writeContext(runtime, { ...authorized.context, pendingElicitation: next });
     return createElicitationReply(runtime, actor, next, authorized.locale);
   }
   return advancePendingElicitation(runtime, authorized, actor, pending, {
@@ -382,7 +383,7 @@ export async function handleElicitationRequest(
     clearPendingElicitationSelection(runtime, context.pendingElicitation);
   }
   Object.assign(context, { pendingElicitation: pending });
-  await runtime.persistContext({ ...context, pendingElicitation: pending });
+  await writeContext(runtime, { ...context, pendingElicitation: pending });
   await broadcastPendingElicitationProgress(runtime, context, pending);
   const replies = await createElicitationReply(runtime, actor, pending, locale);
   for (const reply of replies) {

@@ -1,4 +1,5 @@
 import type { BotInboundMessage, BotOutboundMessage, ZCodeProvider } from "@zcode/shared";
+import { isRemoteWorkspaceConnected, writeContext } from "./botsContext.js";
 import { copy } from "./botsInboundText.js";
 import { createBotTraceId, deriveSessionTitle } from "./botsHostHelpers.js";
 import {
@@ -79,7 +80,7 @@ export async function handleMessage(
     const draft =
       authorized.context.draftOptions ??
       (await buildInitializedDraftOptions(authorized.context, (item) =>
-        runtime.isRemoteConnected(item),
+        isRemoteWorkspaceConnected(runtime, item),
       ));
     const view = await readModelSelectionView(runtime, authorized.context, draft.modelSelection);
     const selection = draft.modelSelection ? view?.effectiveSelection : view?.preferredSelection;
@@ -124,7 +125,7 @@ export async function handleMessage(
         .catch(() => undefined);
       throw error;
     }
-    const next = await runtime.persistContext({
+    const next = await writeContext(runtime, {
       ...authorized.context,
       mode: "task",
       activeTaskId: created.taskId,

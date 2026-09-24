@@ -7,6 +7,7 @@ import type {
   BotWorkspaceRef,
   ZCodeTaskMeta,
 } from "@zcode/shared";
+import { isRemoteWorkspaceConnected, writeContext } from "./botsContext.js";
 import { BOT_FORCED_MODE } from "./botsConstants.js";
 import { copy, getActorContextKey } from "./botsInboundText.js";
 import {
@@ -54,7 +55,7 @@ export async function writeDraftContext(
     pendingElicitation: undefined,
   };
   clearPendingSelectionsForBot(runtime, context.botId);
-  return runtime.persistContext(next);
+  return writeContext(runtime, next);
 }
 
 export function clearPendingSelectionsForBot(runtime: BotInboundTaskRuntime, botId: string): void {
@@ -189,14 +190,14 @@ export async function ensureDraftOptions(
   if (context.draftOptions) {
     const normalized = normalizeBotDraftOptions(context.draftOptions);
     if (normalized.provider !== context.draftOptions.provider) {
-      await runtime.persistContext({ ...context, draftOptions: normalized });
+      await writeContext(runtime, { ...context, draftOptions: normalized });
     }
     return normalized;
   }
   const draft = await buildInitializedDraftOptions(context, (item) =>
-    runtime.isRemoteConnected(item),
+    isRemoteWorkspaceConnected(runtime, item),
   );
-  await runtime.persistContext({ ...context, draftOptions: draft });
+  await writeContext(runtime, { ...context, draftOptions: draft });
   return draft;
 }
 
@@ -205,7 +206,7 @@ export async function writeDraftOptions(
   context: BotRuntimeState,
   draft: BotDraftOptions,
 ): Promise<BotRuntimeState> {
-  return runtime.persistContext({
+  return writeContext(runtime, {
     ...context,
     mode: "draft",
     activeTaskId: null,
@@ -231,11 +232,15 @@ export async function buildActiveTaskDraftOptions(
   context: BotRuntimeState,
 ): Promise<BotDraftOptions> {
   if (!context.activeTaskId) {
-    return buildInitializedDraftOptions(context, (item) => runtime.isRemoteConnected(item));
+    return buildInitializedDraftOptions(context, (item) =>
+      isRemoteWorkspaceConnected(runtime, item),
+    );
   }
   const meta = await readContextActiveTaskMeta(runtime, context);
   if (!meta?.provider) {
-    return buildInitializedDraftOptions(context, (item) => runtime.isRemoteConnected(item));
+    return buildInitializedDraftOptions(context, (item) =>
+      isRemoteWorkspaceConnected(runtime, item),
+    );
   }
   const options = await listActiveTaskConfigOptions(runtime, context, context.activeTaskId).catch(
     () => [],

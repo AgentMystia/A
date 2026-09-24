@@ -7,6 +7,7 @@ import type {
   ZCodeConfigOption,
   ZCodeTaskMeta,
 } from "@zcode/shared";
+import { isRemoteWorkspaceConnected } from "./botsContext.js";
 import { copy } from "./botsInboundText.js";
 import {
   readContextActiveTaskMeta,
@@ -74,7 +75,9 @@ export async function buildInitializedDraft(
   runtime: BotInboundTaskRuntime,
   workspace: { workspacePath: string; workspaceIdentity?: string },
 ) {
-  return buildInitializedDraftOptions(workspace, (item) => runtime.isRemoteConnected(item));
+  return buildInitializedDraftOptions(workspace, (item) =>
+    isRemoteWorkspaceConnected(runtime, item),
+  );
 }
 
 /** 发布包 host `/new`：清到草稿后回 status。 */

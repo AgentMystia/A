@@ -152,12 +152,10 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     taskSelectionEntries,
     workspaceSelectionEntries,
     automationWarnAt,
-    persistContext: inbound.persistContext,
     replies: inbound.replies,
     withAuthorizedContext: inbound.withAuthorizedContext,
     readMessageLocale: inbound.readMessageLocale,
     listWorkspaceRefs: inbound.listWorkspaceRefs,
-    isRemoteConnected: inbound.isRemoteConnected,
     async saveBot(bot) {
       return mutations.saveBot({ bot });
     },

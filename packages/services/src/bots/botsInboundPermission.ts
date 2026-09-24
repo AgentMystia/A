@@ -1,6 +1,10 @@
 import type { BotInboundMessage, BotOutboundMessage, ZCodePermissionResponse } from "@zcode/shared";
+import { writeContext } from "./botsContext.js";
 import { copy } from "./botsInboundText.js";
-import { resolveZCodeTaskServiceForContext, type BotInboundTaskRuntime } from "./botsInboundRuntime.js";
+import {
+  resolveZCodeTaskServiceForContext,
+  type BotInboundTaskRuntime,
+} from "./botsInboundRuntime.js";
 
 export async function handlePermissionRespond(
   runtime: BotInboundTaskRuntime,
@@ -15,7 +19,9 @@ export async function handlePermissionRespond(
     return runtime.replies(message.actor, copy(authorized.locale, "noActiveTask"));
   }
   const index = Number.parseInt(value, 10) - 1;
-  const option = Number.isFinite(index) ? authorized.context.pendingPermissionOptions?.[index] : undefined;
+  const option = Number.isFinite(index)
+    ? authorized.context.pendingPermissionOptions?.[index]
+    : undefined;
   if (!option) {
     return runtime.replies(message.actor, copy(authorized.locale, "permissionExpired"));
   }
@@ -34,7 +40,7 @@ export async function handlePermissionRespond(
     return runtime.replies(message.actor, copy(authorized.locale, "permissionHandled"));
   }
   const handledAt = Date.now();
-  await runtime.persistContext({
+  await writeContext(runtime, {
     ...authorized.context,
     pendingPermissionOptions: authorized.context.pendingPermissionOptions?.map((item) =>
       item.requestId === option.requestId ? { ...item, handledAt } : item,
@@ -102,7 +108,10 @@ export async function handlePermissionDeny(
     taskId: authorized.context.activeTaskId,
     requestId,
     optionId: "deny",
-    response: (option?.response ?? { decision: "deny", reason: "Denied by bot command" }) as ZCodePermissionResponse,
+    response: (option?.response ?? {
+      decision: "deny",
+      reason: "Denied by bot command",
+    }) as ZCodePermissionResponse,
   });
   if (!submitted) {
     return runtime.replies(message.actor, copy(authorized.locale, "permissionHandled"));

@@ -19,6 +19,7 @@ import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 import type { BotsRepo } from "./botsRepo.js";
 import type { TransientInteractionCardEntry } from "./botsTransientCards.js";
 import type { BotSelection, BotSelectionOption, BotProvider } from "./botsTypes.js";
+import { isRemoteWorkspaceConnected } from "./botsContext.js";
 import { createWorkspaceRef, getWorkspaceKey } from "./botsNormalize.js";
 
 export interface BotContextTaskEntry {
@@ -40,7 +41,6 @@ export interface BotInboundTaskRuntime {
   taskSelectionEntries: Map<string, Map<string, BotContextTaskEntry>>;
   workspaceSelectionEntries: Map<string, Map<string, { workspace: BotWorkspaceRef }>>;
   automationWarnAt: Map<string, number>;
-  persistContext(context: BotRuntimeState): Promise<BotRuntimeState>;
   replies(
     actor: BotActor,
     text: string,
@@ -51,9 +51,6 @@ export interface BotInboundTaskRuntime {
   withAuthorizedContext(message: BotInboundMessage, command: string): Promise<AuthorizedContext>;
   readMessageLocale(): Promise<BotMessageLocale>;
   listWorkspaceRefs(current?: BotWorkspaceRef): Promise<BotWorkspaceRef[]>;
-  isRemoteConnected(
-    context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
-  ): Promise<boolean>;
   saveBot(bot: BotConfigEntry): Promise<BotConfigEntry>;
   sendOutbound(bot: BotConfigEntry, outbound: BotProviderOutbound): Promise<void>;
   sendAckTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
@@ -140,7 +137,7 @@ export async function blockDisconnectedRemoteWorkspace(
   if (
     !input.context.workspaceIdentity ||
     !requiresRemoteWorkspaceRuntime(input.requestedCommand) ||
-    (await runtime.isRemoteConnected(input.context))
+    (await isRemoteWorkspaceConnected(runtime, input.context))
   ) {
     return null;
   }

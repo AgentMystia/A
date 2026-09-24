@@ -1,4 +1,5 @@
 import type { BotInboundMessage, BotOutboundMessage, BotRuntimeState } from "@zcode/shared";
+import { writeContext } from "./botsContext.js";
 import { copy, getActorContextKey } from "./botsInboundText.js";
 import { resolveOptionByValue } from "./botsHostHelpers.js";
 import { createSelectionReply, resolvePendingTaskSelectionEntry } from "./botsInboundDraft.js";
@@ -169,7 +170,7 @@ export async function handleTaskSet(
   ) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
   }
-  const next = await runtime.persistContext({
+  const next = await writeContext(runtime, {
     ...authorized.context,
     workspacePath: entry.workspacePath,
     workspaceIdentity: entry.workspaceIdentity,

@@ -7,6 +7,7 @@ import {
   type ZCodeStreamEvent,
 } from "@zcode/shared";
 import type { IZCodeTaskService } from "../session/zcodeTaskService.js";
+import { writeContext } from "./botsContext.js";
 import { broadcastTaskListChange, broadcastTaskStreamEvent } from "./botsBroadcast.js";
 import { createCompletedElicitationOutbound } from "./botsElicitationBuild.js";
 import { clearPendingElicitationSelection } from "./botsElicitationParse.js";
@@ -202,7 +203,7 @@ export async function handlePublishedTaskStreamEvent(
   runtime.stopTyping(event.taskId);
   if (context.pendingElicitation?.taskId === event.taskId) {
     clearPendingElicitationSelection(runtime, context.pendingElicitation);
-    await runtime.persistContext({ ...context, pendingElicitation: undefined });
+    await writeContext(runtime, { ...context, pendingElicitation: undefined });
   }
   const card = runtime.transientCards.get(getActorContextKey(actor));
   if (card?.taskId === event.taskId) {

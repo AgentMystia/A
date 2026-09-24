@@ -1,33 +1,37 @@
 import type { BotRuntimeState, BotsState } from "@zcode/shared";
 import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 
-/** 发布包 host `writeContext`：bot-state 的唯一写入。 */
+type BotStateRepo = {
+  readState(): Promise<BotsState>;
+  writeState(state: BotsState): Promise<unknown>;
+};
+
+/** 发布包 host `writeContext`：bot-state 的唯一写入。依赖从 owner 读取，避免 runtime 上再挂 persistContext。 */
 export async function writeContext(
-  repo: {
-    readState(): Promise<BotsState>;
-    writeState(state: BotsState): Promise<unknown>;
-  },
+  owner: { repo: BotStateRepo },
   context: BotRuntimeState,
 ): Promise<BotRuntimeState> {
-  const state = await repo.readState();
+  const state = await owner.repo.readState();
   const next = { ...context, updatedAt: Date.now() };
   state.bots[context.botId] = next;
-  await repo.writeState(state);
+  await owner.repo.writeState(state);
   return next;
 }
 
-/** 发布包 host `isRemoteWorkspaceConnected`。 */
+/** 发布包 host `isRemoteWorkspaceConnected`。依赖从 owner 读取，避免 runtime 上再挂 isRemoteConnected。 */
 export async function isRemoteWorkspaceConnected(
-  remoteWorkspaceService: Pick<IBotRemoteWorkspaceService, "isConnected"> | undefined,
+  owner: {
+    remoteWorkspaceService?: Pick<IBotRemoteWorkspaceService, "isConnected">;
+  },
   context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
 ): Promise<boolean> {
   if (!context.workspaceIdentity) {
     return true;
   }
-  if (!remoteWorkspaceService) {
+  if (!owner.remoteWorkspaceService) {
     return false;
   }
-  return remoteWorkspaceService
+  return owner.remoteWorkspaceService
     .isConnected({
       workspacePath: context.workspacePath,
       workspaceIdentity: context.workspaceIdentity,

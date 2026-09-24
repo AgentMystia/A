@@ -5,6 +5,7 @@ import type {
   ZCodePermissionRequest,
 } from "@zcode/shared";
 import { broadcastTaskListChange } from "./botsBroadcast.js";
+import { writeContext } from "./botsContext.js";
 import { createSelectionReply } from "./botsInboundDraft.js";
 import { shouldUseTransientInteractionCard } from "./botsInboundElicitation.js";
 import type { BotInboundTaskRuntime } from "./botsInboundRuntime.js";
@@ -46,7 +47,7 @@ export async function handleStreamPermissionRequest(
     response: option.response,
   }));
   context.pendingPermissionOptions = pending;
-  await runtime.persistContext({ ...context, pendingPermissionOptions: pending });
+  await writeContext(runtime, { ...context, pendingPermissionOptions: pending });
   const [message] = await createSelectionReply(
     runtime,
     actor,

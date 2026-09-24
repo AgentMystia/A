@@ -87,10 +87,6 @@ export function createInboundHandlers(deps: {
     selection?: BotSelection,
     extra?: Partial<BotProviderOutbound>,
   ): BotOutboundMessage[];
-  persistContext(context: BotRuntimeState): Promise<BotRuntimeState>;
-  isRemoteConnected(
-    context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
-  ): Promise<boolean>;
   listWorkspaceRefs(current?: BotWorkspaceRef): Promise<BotWorkspaceRef[]>;
   setCreateStatusReply(
     fn: (
@@ -115,10 +111,6 @@ export function createInboundHandlers(deps: {
     return toOutboundMessages(actor, [
       createOutbound(actor, text, selection, locale ? { locale, ...extra } : (extra ?? {})),
     ]);
-  }
-
-  async function persistContext(context: BotRuntimeState): Promise<BotRuntimeState> {
-    return writeContext(deps.repo, context);
   }
 
   let createStatusReplyImpl: (
@@ -156,7 +148,7 @@ export function createInboundHandlers(deps: {
       ) {
         return existing;
       }
-      return persistContext(next);
+      return writeContext(deps, next);
     }
     const allowed = firstAllowedWorkspace(workspaces, bot);
     if (!allowed) {
@@ -169,15 +161,11 @@ export function createInboundHandlers(deps: {
       workspaceId: allowed.id,
       mode: "draft",
       activeTaskId: null,
-      draftOptions: await buildInitializedDraftOptions(allowed, isRemoteConnected),
+      draftOptions: await buildInitializedDraftOptions(allowed, (item) =>
+        isRemoteWorkspaceConnected(deps, item),
+      ),
       updatedAt: Date.now(),
     };
-  }
-
-  async function isRemoteConnected(
-    context: Pick<BotRuntimeState, "workspacePath" | "workspaceIdentity">,
-  ): Promise<boolean> {
-    return isRemoteWorkspaceConnected(deps.remoteWorkspaceService, context);
   }
 
   async function withAuthorizedContext(
@@ -229,7 +217,7 @@ export function createInboundHandlers(deps: {
     if (
       context.workspaceIdentity &&
       requiresRemoteWorkspaceRuntime(command) &&
-      !(await isRemoteConnected(context))
+      !(await isRemoteWorkspaceConnected(deps, context))
     ) {
       return {
         ok: false,
@@ -269,8 +257,7 @@ export function createInboundHandlers(deps: {
       message,
       authorized: await withAuthorizedContext(message, "workspace"),
       remoteWorkspaceService: deps.remoteWorkspaceService,
-      isRemoteConnected,
-      persistContext,
+      repo: deps.repo,
       createStatusReply: createStatusReplyImpl,
       replies,
       reconnectInFlight: deps.reconnectInFlight,
@@ -304,7 +291,7 @@ export function createInboundHandlers(deps: {
     if (authorized.context.weixinActivatedAt) {
       return null;
     }
-    await persistContext({ ...authorized.context, weixinActivatedAt: Date.now() });
+    await writeContext(deps, { ...authorized.context, weixinActivatedAt: Date.now() });
     return replies(
       message.actor,
       [
@@ -323,8 +310,6 @@ export function createInboundHandlers(deps: {
     readMessageLocale,
     withAuthorizedContext,
     replies,
-    persistContext,
-    isRemoteConnected,
     listWorkspaceRefs,
     setCreateStatusReply(fn) {
       createStatusReplyImpl = fn;
