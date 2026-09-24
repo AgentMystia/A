@@ -29,11 +29,34 @@ import {
   getReplyGranularityOptions,
   parseReplyGranularity,
 } from "./botsReply.js";
-import {
-  buildBotElicitationContent,
-  readStructuredElicitationResponse,
-} from "./botsElicitationParse.js";
+import { buildBotElicitationContent } from "./botsElicitationParse.js";
 import type { createInboundHandlers } from "./botsInbound.js";
+
+// 发布包 host 没有 readStructuredElicitationResponse。函数声明会留下 keepName，箭头常量不会。
+const readStructuredElicitation = (
+  value: unknown,
+): {
+  requestId: string;
+  action: "accept" | "decline" | "cancel";
+  content?: Record<string, unknown>;
+} | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const requestId = typeof record.requestId === "string" ? record.requestId : "";
+  const action = record.action;
+  if (!requestId || (action !== "accept" && action !== "decline" && action !== "cancel")) {
+    return null;
+  }
+  return {
+    requestId,
+    action,
+    ...(record.content && typeof record.content === "object" && !Array.isArray(record.content)
+      ? { content: record.content as Record<string, unknown> }
+      : {}),
+  };
+};
 
 export async function dispatchInboundMessage(
   runtime: BotInboundTaskRuntime,
@@ -41,7 +64,7 @@ export async function dispatchInboundMessage(
   message: BotInboundMessage,
 ): Promise<BotOutboundMessage[]> {
   if (message.elicitationResponse) {
-    const parsed = readStructuredElicitationResponse(message.elicitationResponse);
+    const parsed = readStructuredElicitation(message.elicitationResponse);
     return parsed
       ? handleStructuredElicitationResponse(runtime, message, parsed)
       : runtime.replies(

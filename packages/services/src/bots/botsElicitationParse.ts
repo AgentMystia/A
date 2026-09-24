@@ -22,7 +22,9 @@ export function readElicitationAnswerValues(pending: PendingElicitation, index: 
 
 export function getPendingElicitationSelectionToken(pending: PendingElicitation): string {
   return createHash("sha256")
-    .update([pending.taskId, pending.runId, pending.requestId, pending.currentQuestionIndex].join("::"))
+    .update(
+      [pending.taskId, pending.runId, pending.requestId, pending.currentQuestionIndex].join("::"),
+    )
     .digest("hex")
     .slice(0, 12);
 }
@@ -44,7 +46,9 @@ export function parseElicitationFormValues(value: string): string[] | null {
     return null;
   }
   try {
-    const parsed: unknown = JSON.parse(decodeURIComponent(value.slice(BOT_ELICITATION_FORM_PREFIX.length)));
+    const parsed: unknown = JSON.parse(
+      decodeURIComponent(value.slice(BOT_ELICITATION_FORM_PREFIX.length)),
+    );
     return (Array.isArray(parsed) ? parsed : [parsed])
       .map((item) => (typeof item === "string" ? item.trim() : ""))
       .filter(Boolean);
@@ -71,7 +75,9 @@ export function mergeElicitationFormValues(
   return merged;
 }
 
-export function toggleElicitationCustomAnswerExpanded(pending: PendingElicitation): PendingElicitation {
+export function toggleElicitationCustomAnswerExpanded(
+  pending: PendingElicitation,
+): PendingElicitation {
   const expanded = new Set(pending.expandedCustomAnswerQuestionIndexes ?? []);
   if (expanded.has(pending.currentQuestionIndex)) {
     expanded.delete(pending.currentQuestionIndex);
@@ -114,7 +120,10 @@ export function resolveElicitationQuestionValue(
     : trimmed;
 }
 
-export function isPendingElicitationOwnedByActor(pending: PendingElicitation, actor: BotActor): boolean {
+export function isPendingElicitationOwnedByActor(
+  pending: PendingElicitation,
+  actor: BotActor,
+): boolean {
   return !pending.actorKey || pending.actorKey === getActorContextKey(actor);
 }
 
@@ -161,29 +170,6 @@ export function createPendingElicitationSchema(pending: PendingElicitation): unk
   return pending.renderContext?.kind === "plan_approval"
     ? { interaction: "plan_approval", plan: pending.renderContext.plan }
     : undefined;
-}
-
-export function readStructuredElicitationResponse(value: unknown): {
-  requestId: string;
-  action: "accept" | "decline" | "cancel";
-  content?: Record<string, unknown>;
-} | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-  const record = value as Record<string, unknown>;
-  const requestId = typeof record.requestId === "string" ? record.requestId : "";
-  const action = record.action;
-  if (!requestId || (action !== "accept" && action !== "decline" && action !== "cancel")) {
-    return null;
-  }
-  return {
-    requestId,
-    action,
-    ...(record.content && typeof record.content === "object" && !Array.isArray(record.content)
-      ? { content: record.content as Record<string, unknown> }
-      : {}),
-  };
 }
 
 export type { BotSelection };
