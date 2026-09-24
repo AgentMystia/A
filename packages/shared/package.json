@@ -2,6 +2,7 @@
   "name": "@zcode/shared",
   "private": true,
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
     "./runtime-env": "./src/runtimeEnv.ts",
