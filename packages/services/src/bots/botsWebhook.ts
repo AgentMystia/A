@@ -14,7 +14,9 @@ function formatSelectionCommand(selection: BotSelection, optionId: string): stri
     return optionId;
   }
   if (selection.action === "elicitation.respond") {
-    return selection.token ? `/elicitation ${selection.token} ${optionId}` : `/elicitation ${optionId}`;
+    return selection.token
+      ? `/elicitation ${selection.token} ${optionId}`
+      : `/elicitation ${optionId}`;
   }
   if (selection.action === "model.provider.set") {
     return `/model provider ${optionId}`;
@@ -26,7 +28,7 @@ function formatSelectionCommand(selection: BotSelection, optionId: string): stri
 }
 
 /** 发布包 host `buildSelectionText`：把 inline selection 展开成可回复文本。 */
-export function buildWebhookSelectionText(outbound: BotProviderOutbound): string {
+export function buildSelectionText(outbound: BotProviderOutbound): string {
   const selection = outbound.selection as BotSelection | undefined;
   if (!selection) {
     return outbound.text;
@@ -71,7 +73,9 @@ export function parseWebhookAttachment(
 
 export function parseWebhookAttachments(payload: Record<string, unknown>): unknown[] {
   return Array.isArray(payload.attachments)
-    ? payload.attachments.map((item, index) => parseWebhookAttachment(item, index)).filter((item) => item !== null)
+    ? payload.attachments
+        .map((item, index) => parseWebhookAttachment(item, index))
+        .filter((item) => item !== null)
     : [];
 }
 
@@ -79,7 +83,8 @@ export function parseWebhookElicitationResponse(payload: Record<string, unknown>
   if (payload.type !== "zcode.bot.elicitation_response") {
     return undefined;
   }
-  const requestId = typeof payload.requestId === "string" && payload.requestId.trim() ? payload.requestId : "";
+  const requestId =
+    typeof payload.requestId === "string" && payload.requestId.trim() ? payload.requestId : "";
   const action = payload.action;
   if (!requestId || (action !== "accept" && action !== "decline" && action !== "cancel")) {
     return undefined;
@@ -104,7 +109,8 @@ export function createWebhookBotProvider(deps: BotCredentialLoader): BotProvider
       if (!bot.webhookSecretRef) {
         return {
           ok: false,
-          message: "Webhook secret is missing. Configure a secret before exposing the callback endpoint.",
+          message:
+            "Webhook secret is missing. Configure a secret before exposing the callback endpoint.",
         };
       }
       if (bot.webhookUrl) {
@@ -148,7 +154,7 @@ export function createWebhookBotProvider(deps: BotCredentialLoader): BotProvider
           botId: bot.id,
           provider: "webhook",
           userId: outbound.providerUserId,
-          text: buildWebhookSelectionText(outbound),
+          text: buildSelectionText(outbound),
           selection: outbound.selection,
           elicitation: outbound.elicitation,
           sentAt: Date.now(),

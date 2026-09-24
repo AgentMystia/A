@@ -4,6 +4,7 @@ import type {
   BotOutboundMessage,
   BotProviderOutbound,
 } from "@zcode/shared";
+import { getActorContextKey } from "./botsInboundText.js";
 import type { BotProvider } from "./botsTypes.js";
 
 /** 发布包 host `createOutbound`。 */
@@ -24,7 +25,10 @@ export function createOutbound(
   };
 }
 
-export function toOutboundMessages(actor: BotActor, replies: BotProviderOutbound[]): BotOutboundMessage[] {
+export function toOutboundMessages(
+  actor: BotActor,
+  replies: BotProviderOutbound[],
+): BotOutboundMessage[] {
   return replies.map((reply) => ({
     actor,
     text: reply.text,
@@ -52,31 +56,33 @@ export function summarizeCallbackPayload(payload: unknown): string {
   }
 }
 
+// 发布包把队列放在模块级。工厂会留下 createInboundQueue，内部箭头也留不下 releaseQueue。
+const inboundQueues = new Map<string, Promise<unknown>>();
+
 /** 发布包 host `enqueueInboundProcessing`：同一 actor 串行。 */
-export function createInboundQueue(): {
-  enqueue<T>(actor: BotActor, run: () => Promise<T>): Promise<T>;
-} {
-  const queues = new Map<string, Promise<unknown>>();
-  const actorKey = (actor: BotActor) =>
-    [actor.botId, actor.provider, actor.chatId?.trim() || actor.providerUserId].join("::");
-  return {
-    async enqueue(actor, run) {
-      const key = actorKey(actor);
-      const previous = queues.get(key) ?? Promise.resolve();
-      let release: () => void = () => undefined;
-      const gate = previous.catch(() => undefined).then(() => new Promise<void>((resolve) => {
-        release = resolve;
-      }));
-      queues.set(key, gate);
-      await previous.catch(() => undefined);
-      try {
-        return await run();
-      } finally {
-        release();
-        if (queues.get(key) === gate) {
-          queues.delete(key);
-        }
-      }
-    },
-  };
+export async function enqueueInboundProcessing<T>(
+  actor: BotActor,
+  run: () => Promise<T>,
+): Promise<T> {
+  const key = getActorContextKey(actor);
+  const previous = inboundQueues.get(key) ?? Promise.resolve();
+  let releaseQueue: () => void = () => {};
+  const gate = previous
+    .catch(() => undefined)
+    .then(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseQueue = resolve;
+        }),
+    );
+  inboundQueues.set(key, gate);
+  await previous.catch(() => undefined);
+  try {
+    return await run();
+  } finally {
+    releaseQueue();
+    if (inboundQueues.get(key) === gate) {
+      inboundQueues.delete(key);
+    }
+  }
 }

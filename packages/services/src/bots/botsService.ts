@@ -35,7 +35,7 @@ import {
 } from "./botsInboundRuntime.js";
 import { createBotsMutationApi } from "./botsMutations.js";
 import { normalizeConfigBots } from "./botsNormalize.js";
-import { createInboundQueue, sendOutbound } from "./botsOutbound.js";
+import { enqueueInboundProcessing, sendOutbound } from "./botsOutbound.js";
 import { createBotPollingState } from "./botsPollingState.js";
 import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 import { BotsRepo } from "./botsRepo.js";
@@ -77,7 +77,6 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
   const taskSelectionEntries = new Map<string, Map<string, BotContextTaskEntry>>();
   const workspaceSelectionEntries = new Map<string, Map<string, { workspace: BotWorkspaceRef }>>();
   const automationWarnAt = new Map<string, number>();
-  const inboundQueue = createInboundQueue();
   const polling = createBotPollingState(repo, () => workspaceRefs.list());
   let migrated: Promise<void> | null = null;
   let disposing: Promise<void> | null = null;
@@ -322,7 +321,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
       await watchAutomationRun(runtime, watch);
     },
     handleInboundMessage(message: BotInboundMessage) {
-      return inboundQueue.enqueue(message.actor, () =>
+      return enqueueInboundProcessing(message.actor, () =>
         dispatchInboundMessage(runtime, inbound, message),
       );
     },
