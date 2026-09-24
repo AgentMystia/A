@@ -282,7 +282,7 @@ export function readWeixinContextToken(message: Record<string, unknown>): string
 }
 
 /** 发布包 host `buildInboundMessage`：message_type=2 视为非用户消息。 */
-export function buildWeixinInboundMessage(
+export function buildInboundMessage(
   botId: string,
   message: unknown,
 ): BotInboundMessage | null {

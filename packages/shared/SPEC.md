@@ -210,6 +210,7 @@ createRemoteWorkspaceServiceCollection
 
 ### 验收
 
+- 微信 iLink 的 token 读取函数名是 `readAccessToken`，请求头函数名是 `buildHeaders`，消息容器是 `readMessagesContainer`，游标是 `readNextBuf`，入站消息是 `buildInboundMessage`。这些是发布包 host 的 keepName。写成 `buildWeixinHeaders` 这类更长的名字会留在 host index。
 - 设备身份 `deviceMid` 与数仓共用 `telemetry-state.json` 和 `withTelemetryStateLock`。`ensureTelemetryDeviceMid`、`ensureDeviceMidInLockedState` 写在 `telemetryCore.ts` 里，紧跟在锁函数后面。`deviceMid.ts` 只把 `ensureTelemetryDeviceMid` 重新导出为 `ensureDeviceMid`，不再自带第二套 `resolveDeviceStateFile` 锁。发布包 main paths 只有 `ensureTelemetryDeviceMid` 这个 keepName，没有 `Device state lock timeout`。
 - `pnpm typecheck` 与 `pnpm lint` 通过。
 - 服务频道字符串仍与发布包一致。

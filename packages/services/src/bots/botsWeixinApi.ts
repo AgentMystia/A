@@ -23,7 +23,15 @@ function buildRandomWechatUin(): string {
   return Buffer.from(String(randomInt(0, 4_294_967_296)), "utf8").toString("base64");
 }
 
-function buildWeixinHeaders(token: string): Record<string, string> {
+// 发布包 host 的 keepName 是 readAccessToken / buildHeaders，不是带 Weixin 前缀的名字。
+async function readAccessToken(
+  bot: BotConfigEntry,
+  deps: BotCredentialLoader,
+): Promise<string | null> {
+  return bot.credentialRef ? deps.loadCredential(bot.credentialRef) : null;
+}
+
+function buildHeaders(token: string): Record<string, string> {
   return {
     "content-type": "application/json",
     AuthorizationType: "ilink_bot_token",
@@ -45,7 +53,7 @@ export async function requestWeixinJson(
   signal?: AbortSignal,
   timeoutMs = WEIXIN_GET_UPDATES_TIMEOUT_MS,
 ): Promise<unknown> {
-  const token = bot.credentialRef ? await deps.loadCredential(bot.credentialRef) : null;
+  const token = await readAccessToken(bot, deps);
   if (!token?.trim()) {
     throw new Error("Weixin iLink bot token is missing. Scan the Weixin login QR code first.");
   }
@@ -53,7 +61,7 @@ export async function requestWeixinJson(
     `${getWeixinApiBaseUrl()}${WEIXIN_BOT_PATH}${path}`,
     {
       method: "POST",
-      headers: buildWeixinHeaders(token.trim()),
+      headers: buildHeaders(token.trim()),
       body: JSON.stringify(appendBaseInfo(body ?? {})),
       signal,
     },
@@ -75,13 +83,13 @@ export async function requestWeixinJson(
   return result.payload;
 }
 
-export function readWeixinMessagesContainer(value: unknown): Record<string, unknown> {
+export function readMessagesContainer(value: unknown): Record<string, unknown> {
   const data = unwrapData(value);
   return isRecord(data) ? data : {};
 }
 
 export function readWeixinMessages(value: unknown): Record<string, unknown>[] {
-  const container = readWeixinMessagesContainer(value);
+  const container = readMessagesContainer(value);
   const list = container.msgs ?? container.messages ?? container.updates ?? container.items ?? container.list;
   if (Array.isArray(list)) {
     return list.filter(isRecord);
@@ -89,8 +97,8 @@ export function readWeixinMessages(value: unknown): Record<string, unknown>[] {
   return isRecord(list) ? [list] : [];
 }
 
-export function readWeixinNextBuf(value: unknown): string | undefined {
-  const container = readWeixinMessagesContainer(value);
+export function readNextBuf(value: unknown): string | undefined {
+  const container = readMessagesContainer(value);
   return (
     readString(container, "get_updates_buf") ||
     readString(container, "buf") ||

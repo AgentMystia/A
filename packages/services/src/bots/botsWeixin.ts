@@ -5,11 +5,11 @@ import type { BotCredentialLoader, BotProvider } from "./botsTypes.js";
 import {
   buildWeixinClientId,
   readWeixinMessages,
-  readWeixinNextBuf,
+  readNextBuf,
   requestWeixinJson,
 } from "./botsWeixinApi.js";
 import { decryptWeixinCdnMedia } from "./botsWeixinCrypto.js";
-import { buildWeixinInboundMessage } from "./botsWeixinParse.js";
+import { buildInboundMessage } from "./botsWeixinParse.js";
 
 export function buildWeixinText(outbound: BotProviderOutbound): string {
   return outbound.text.replace(/\r\n|\r|\n/gu, "\r\n");
@@ -77,7 +77,7 @@ export function createWeixinBotProvider(deps: BotCredentialLoader): BotProvider 
       const botId = readString(payload, "botId");
       return botId
         ? readWeixinMessages(payload)
-            .map((message) => buildWeixinInboundMessage(botId, message))
+            .map((message) => buildInboundMessage(botId, message))
             .filter((item): item is BotInboundMessage => item !== null)
         : [];
     },
@@ -102,8 +102,8 @@ export async function getWeixinUpdates(input: {
   return {
     rawMessageCount: raw.length,
     messages: raw
-      .map((message) => buildWeixinInboundMessage(input.bot.id, message))
+      .map((message) => buildInboundMessage(input.bot.id, message))
       .filter((item): item is BotInboundMessage => item !== null),
-    buf: readWeixinNextBuf(payload) ?? input.buf,
+    buf: readNextBuf(payload) ?? input.buf,
   };
 }
