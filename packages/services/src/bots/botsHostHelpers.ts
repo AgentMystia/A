@@ -95,11 +95,13 @@ export function resolveProviderModeIdFromConfigOptions(input: {
 export type BotTaskProvider = (typeof ZCODE_TASK_PROVIDERS)[number];
 
 /** 发布包 host `ho`：草稿 provider 只允许 botDraftOptions 枚举，缺省 glm。 */
-export function toBotTaskProvider(provider: string | undefined): BotTaskProvider {
-  return ZCODE_TASK_PROVIDERS.includes(provider as BotTaskProvider)
-    ? (provider as BotTaskProvider)
-    : DEFAULT_DRAFT_PROVIDER;
-}
+export const toBotTaskProvider = (() => {
+  return (provider: string | undefined): BotTaskProvider => {
+    return ZCODE_TASK_PROVIDERS.includes(provider as BotTaskProvider)
+      ? (provider as BotTaskProvider)
+      : DEFAULT_DRAFT_PROVIDER;
+  };
+})();
 
 /** 发布包 host index 第二份 `normalizeBotDraftOptions`：provider 固定收成 glm。 */
 export function normalizeBotDraftOptions(options: BotDraftOptions): BotDraftOptions {
@@ -153,9 +155,11 @@ export function resolveCustomModelRuntimeModelId(
 }
 
 /** 发布包 host `createTraceId` / `an(taskId)`。 */
-export function createBotTraceId(taskId: string): TraceId {
-  return generateTraceId(taskId);
-}
+export const createBotTraceId = (() => {
+  return (taskId: string): TraceId => {
+    return generateTraceId(taskId);
+  };
+})();
 
 /** 发布包 host `taskStatus`。 */
 export function taskStatus(task: { status?: string | null }): string {

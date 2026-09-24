@@ -145,42 +145,44 @@ export async function handleTaskList(
   );
 }
 
-export async function handleTaskSet(
-  runtime: BotInboundTaskRuntime,
-  message: BotInboundMessage,
-  value: string,
-): Promise<BotOutboundMessage[]> {
-  const authorized = await runtime.withAuthorizedContext(message, "task");
-  if (!authorized.ok) {
-    return authorized.reply;
-  }
-  const entry = await resolveTaskSelectionEntry(
-    runtime,
-    message,
-    authorized.context,
-    authorized.user,
-    value,
-  );
-  if (!entry) {
-    return runtime.replies(message.actor, copy(authorized.locale, "taskMissing"));
-  }
-  if (
-    authorized.context.activeTaskId !== entry.task.taskId &&
-    (await isContextActiveTaskRunning(runtime, authorized.context))
-  ) {
-    return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
-  }
-  const next = await writeContext(runtime, {
-    ...authorized.context,
-    workspacePath: entry.workspacePath,
-    workspaceIdentity: entry.workspaceIdentity,
-    workspaceId: getWorkspaceKey(entry.workspacePath, entry.workspaceIdentity),
-    mode: "task",
-    activeTaskId: entry.task.taskId,
-  });
-  runtime.taskSelectionEntries.delete(getActorContextKey(message.actor));
-  return createStatusReply(runtime, message.actor, next, authorized.locale);
-}
+export const handleTaskSet = (() => {
+  return async (
+    runtime: BotInboundTaskRuntime,
+    message: BotInboundMessage,
+    value: string,
+  ): Promise<BotOutboundMessage[]> => {
+    const authorized = await runtime.withAuthorizedContext(message, "task");
+    if (!authorized.ok) {
+      return authorized.reply;
+    }
+    const entry = await resolveTaskSelectionEntry(
+      runtime,
+      message,
+      authorized.context,
+      authorized.user,
+      value,
+    );
+    if (!entry) {
+      return runtime.replies(message.actor, copy(authorized.locale, "taskMissing"));
+    }
+    if (
+      authorized.context.activeTaskId !== entry.task.taskId &&
+      (await isContextActiveTaskRunning(runtime, authorized.context))
+    ) {
+      return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
+    }
+    const next = await writeContext(runtime, {
+      ...authorized.context,
+      workspacePath: entry.workspacePath,
+      workspaceIdentity: entry.workspaceIdentity,
+      workspaceId: getWorkspaceKey(entry.workspacePath, entry.workspaceIdentity),
+      mode: "task",
+      activeTaskId: entry.task.taskId,
+    });
+    runtime.taskSelectionEntries.delete(getActorContextKey(message.actor));
+    return createStatusReply(runtime, message.actor, next, authorized.locale);
+  };
+})();
 
 export const handleStopCommand = (() => {
   return async (

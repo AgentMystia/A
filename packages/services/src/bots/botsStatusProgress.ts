@@ -247,17 +247,19 @@ export function readLatestAssistantTurnChangeSummary(
 }
 
 /** 发布包 host `buildStatusText` 的进展行：map 优先，否则 snapshot。 */
-export function readStatusProgressText(
-  progress: Map<string, LiveStatusProgress>,
-  activeTaskId: string | null | undefined,
-  meta: { status?: string | null } | null,
-  snapshot: StatusSnapshot | null | undefined,
-): string | null {
-  if (!activeTaskId || (meta && taskStatus(meta) !== "running")) {
-    return null;
-  }
-  return progress.get(activeTaskId)?.text ?? readLatestTaskProgress(snapshot);
-}
+export const readStatusProgressText = (() => {
+  return (
+    progress: Map<string, LiveStatusProgress>,
+    activeTaskId: string | null | undefined,
+    meta: { status?: string | null } | null,
+    snapshot: StatusSnapshot | null | undefined,
+  ): string | null => {
+    if (!activeTaskId || (meta && taskStatus(meta) !== "running")) {
+      return null;
+    }
+    return progress.get(activeTaskId)?.text ?? readLatestTaskProgress(snapshot);
+  };
+})();
 
 function findLast<T>(items: readonly T[], predicate: (item: T) => boolean): T | undefined {
   for (let index = items.length - 1; index >= 0; index -= 1) {

@@ -168,41 +168,43 @@ export async function deleteFeishuTypingReaction(
   typingReactions.delete(key);
 }
 
-export async function downloadFeishuAttachment(
-  bot: BotConfigEntry,
-  deps: BotCredentialLoader,
-  attachment: { providerFileId?: string; kind?: string },
-  context?: { providerMessageId?: string },
-): Promise<{ attachment: unknown; data: Uint8Array } | null> {
-  const token = await readTenantAccessToken(bot, deps);
-  if (!token || !attachment.providerFileId || !context?.providerMessageId) {
-    return null;
-  }
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), FEISHU_ATTACHMENT_TIMEOUT_MS);
-  try {
-    const kind =
-      attachment.kind === "image"
-        ? "image"
-        : attachment.kind === "video"
-          ? "media"
-          : attachment.kind;
-    const response = await fetch(
-      `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages/${encodeURIComponent(context.providerMessageId)}/resources/${encodeURIComponent(attachment.providerFileId)}?type=${kind}`,
-      { headers: { authorization: `Bearer ${token}` }, signal: abort.signal },
-    );
-    if (!response.ok) {
-      throw new Error(`Feishu attachment download failed: HTTP ${response.status}`);
+export const downloadFeishuAttachment = (() => {
+  return async (
+    bot: BotConfigEntry,
+    deps: BotCredentialLoader,
+    attachment: { providerFileId?: string; kind?: string },
+    context?: { providerMessageId?: string },
+  ): Promise<{ attachment: unknown; data: Uint8Array } | null> => {
+    const token = await readTenantAccessToken(bot, deps);
+    if (!token || !attachment.providerFileId || !context?.providerMessageId) {
+      return null;
     }
-    return { attachment, data: new Uint8Array(await response.arrayBuffer()) };
-  } catch (error) {
-    throw isRecord(error) && error.name === "AbortError"
-      ? new Error("Feishu attachment download timed out.")
-      : error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), FEISHU_ATTACHMENT_TIMEOUT_MS);
+    try {
+      const kind =
+        attachment.kind === "image"
+          ? "image"
+          : attachment.kind === "video"
+            ? "media"
+            : attachment.kind;
+      const response = await fetch(
+        `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages/${encodeURIComponent(context.providerMessageId)}/resources/${encodeURIComponent(attachment.providerFileId)}?type=${kind}`,
+        { headers: { authorization: `Bearer ${token}` }, signal: abort.signal },
+      );
+      if (!response.ok) {
+        throw new Error(`Feishu attachment download failed: HTTP ${response.status}`);
+      }
+      return { attachment, data: new Uint8Array(await response.arrayBuffer()) };
+    } catch (error) {
+      throw isRecord(error) && error.name === "AbortError"
+        ? new Error("Feishu attachment download timed out.")
+        : error;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+})();
 
 /** 发布包 host `resolveFeishuAppDisplayName`。 */
 export function resolveFeishuAppDisplayName(payload: Record<string, unknown>): string | null {

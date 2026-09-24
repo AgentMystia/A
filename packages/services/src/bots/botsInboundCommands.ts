@@ -81,21 +81,23 @@ export async function buildInitializedDraft(
 }
 
 /** 发布包 host `/new`：清到草稿后回 status。 */
-export async function handleNewCommand(
-  runtime: BotInboundTaskRuntime,
-  message: BotInboundMessage,
-): Promise<BotOutboundMessage[]> {
-  const authorized = await runtime.withAuthorizedContext(message, "new");
-  if (!authorized.ok) {
-    return authorized.reply;
-  }
-  if (await isContextActiveTaskRunning(runtime, authorized.context)) {
-    return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
-  }
-  const next = await writeDraftContext(
-    runtime,
-    authorized.context,
-    await buildActiveTaskDraftOptions(runtime, authorized.context),
-  );
-  return createStatusReply(runtime, message.actor, next, authorized.locale);
-}
+export const handleNewCommand = (() => {
+  return async (
+    runtime: BotInboundTaskRuntime,
+    message: BotInboundMessage,
+  ): Promise<BotOutboundMessage[]> => {
+    const authorized = await runtime.withAuthorizedContext(message, "new");
+    if (!authorized.ok) {
+      return authorized.reply;
+    }
+    if (await isContextActiveTaskRunning(runtime, authorized.context)) {
+      return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
+    }
+    const next = await writeDraftContext(
+      runtime,
+      authorized.context,
+      await buildActiveTaskDraftOptions(runtime, authorized.context),
+    );
+    return createStatusReply(runtime, message.actor, next, authorized.locale);
+  };
+})();

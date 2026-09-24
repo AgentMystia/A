@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { BotActor, BotConfigEntry, BotInboundMessage, ZCodePromptAttachment } from "@zcode/shared";
+import type {
+  BotActor,
+  BotConfigEntry,
+  BotInboundMessage,
+  ZCodePromptAttachment,
+} from "@zcode/shared";
 import { getAppConfigDir } from "../paths.js";
 import {
   BOT_ATTACHMENT_DOWNLOAD_TIMEOUT_MS,
@@ -158,48 +163,49 @@ export async function cacheResolvedAttachment(input: {
   };
 }
 
-function readInboundAttachment(value: unknown): BotInboundAttachment | null {
-  if (!isRecord(value) || typeof value.filename !== "string" || !value.filename.trim()) {
-    return null;
-  }
-  return {
-    ...(typeof value.id === "string" ? { id: value.id } : {}),
-    ...(typeof value.kind === "string" ? { kind: value.kind } : {}),
-    filename: value.filename,
-    mimeType: typeof value.mimeType === "string" ? value.mimeType : "application/octet-stream",
-    ...(typeof value.sizeBytes === "number" ? { sizeBytes: value.sizeBytes } : {}),
-    ...(typeof value.dataBase64 === "string" ? { dataBase64: value.dataBase64 } : {}),
-    ...(typeof value.localPath === "string" ? { localPath: value.localPath } : {}),
-    ...(typeof value.downloadUrl === "string" ? { downloadUrl: value.downloadUrl } : {}),
-    ...(typeof value.providerFileId === "string" ? { providerFileId: value.providerFileId } : {}),
+const readInboundAttachment = (() => {
+  return (value: unknown): BotInboundAttachment | null => {
+    if (!isRecord(value) || typeof value.filename !== "string" || !value.filename.trim()) {
+      return null;
+    }
+    return {
+      ...(typeof value.id === "string" ? { id: value.id } : {}),
+      ...(typeof value.kind === "string" ? { kind: value.kind } : {}),
+      filename: value.filename,
+      mimeType: typeof value.mimeType === "string" ? value.mimeType : "application/octet-stream",
+      ...(typeof value.sizeBytes === "number" ? { sizeBytes: value.sizeBytes } : {}),
+      ...(typeof value.dataBase64 === "string" ? { dataBase64: value.dataBase64 } : {}),
+      ...(typeof value.localPath === "string" ? { localPath: value.localPath } : {}),
+      ...(typeof value.downloadUrl === "string" ? { downloadUrl: value.downloadUrl } : {}),
+      ...(typeof value.providerFileId === "string" ? { providerFileId: value.providerFileId } : {}),
+    };
   };
-}
+})();
 
-function toPromptAttachment(
-  attachment: BotInboundAttachment,
-  dataBase64: string,
-): ZCodePromptAttachment | null {
-  if (attachment.kind === "image") {
-    return {
-      kind: "image",
-      filename: attachment.filename,
-      mimeType: attachment.mimeType,
-      dataBase64,
-      ...(attachment.localPath ? { localPath: attachment.localPath } : {}),
-      ...(typeof attachment.sizeBytes === "number" ? { sizeBytes: attachment.sizeBytes } : {}),
-    };
-  }
-  if (attachment.kind === "audio") {
-    return {
-      kind: "audio",
-      filename: attachment.filename,
-      mimeType: attachment.mimeType,
-      dataBase64,
-      ...(attachment.localPath ? { localPath: attachment.localPath } : {}),
-    };
-  }
-  return null;
-}
+const toPromptAttachment = (() => {
+  return (attachment: BotInboundAttachment, dataBase64: string): ZCodePromptAttachment | null => {
+    if (attachment.kind === "image") {
+      return {
+        kind: "image",
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
+        dataBase64,
+        ...(attachment.localPath ? { localPath: attachment.localPath } : {}),
+        ...(typeof attachment.sizeBytes === "number" ? { sizeBytes: attachment.sizeBytes } : {}),
+      };
+    }
+    if (attachment.kind === "audio") {
+      return {
+        kind: "audio",
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
+        dataBase64,
+        ...(attachment.localPath ? { localPath: attachment.localPath } : {}),
+      };
+    }
+    return null;
+  };
+})();
 
 /** 发布包 host `prepareBotMessageContent`。 */
 export async function prepareBotMessageContent(
@@ -219,7 +225,9 @@ export async function prepareBotMessageContent(
   for (const attachment of incoming) {
     const resolved = await resolveAttachmentBytes(bot, attachment, message.actor, providers);
     if (!resolved) {
-      notes.push(`附件：${attachment.filename} (${attachment.mimeType}, ${formatAttachmentSize(attachment.sizeBytes)})，未能下载。`);
+      notes.push(
+        `附件：${attachment.filename} (${attachment.mimeType}, ${formatAttachmentSize(attachment.sizeBytes)})，未能下载。`,
+      );
       continue;
     }
     if (resolved.data.byteLength > BOT_ATTACHMENT_MAX_BYTES) {
@@ -245,7 +253,10 @@ export async function prepareBotMessageContent(
     );
   }
   return {
-    content: [message.text.trim() || (incoming.length > 0 ? copy(locale, "attachmentOnlyPrompt") : ""), ...notes]
+    content: [
+      message.text.trim() || (incoming.length > 0 ? copy(locale, "attachmentOnlyPrompt") : ""),
+      ...notes,
+    ]
       .filter(Boolean)
       .join("\n\n"),
     zcodeAttachments,

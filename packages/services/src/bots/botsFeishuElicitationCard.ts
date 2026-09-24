@@ -38,55 +38,63 @@ interface FeishuElicitationCardMessage {
   elicitation?: FeishuElicitationCardState;
 }
 
-function readCardElicitation(value: unknown): FeishuElicitationCardState | null {
-  if (!isRecord(value) || !Array.isArray(value.questions)) {
-    return null;
-  }
-  const questions = value.questions.filter(isElicitationQuestion);
-  if (questions.length !== value.questions.length) {
-    return null;
-  }
-  const currentQuestionIndex =
-    typeof value.currentQuestionIndex === "number" ? value.currentQuestionIndex : 0;
-  return {
-    questions,
-    currentQuestionIndex,
-    ...(isRecord(value.answers) ? { answers: readAnswerMap(value.answers) } : {}),
-    ...(typeof value.status === "string" ? { status: value.status } : {}),
-    ...(Array.isArray(value.expandedCustomAnswerQuestionIndexes)
-      ? {
-          expandedCustomAnswerQuestionIndexes: value.expandedCustomAnswerQuestionIndexes.filter(
-            (item): item is number => typeof item === "number",
-          ),
-        }
-      : {}),
-    ...(value.schema !== undefined ? { schema: value.schema } : {}),
-  };
-}
-
-function isElicitationQuestion(value: unknown): value is FeishuElicitationQuestion {
-  if (!isRecord(value) || typeof value.question !== "string" || !Array.isArray(value.options)) {
-    return false;
-  }
-  return value.options.every(
-    (option) =>
-      isRecord(option) && typeof option.value === "string" && typeof option.label === "string",
-  );
-}
-
-function readAnswerMap(value: Record<string, unknown>): Record<string, string[]> {
-  const answers: Record<string, string[]> = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (Array.isArray(item) && item.every((entry) => typeof entry === "string")) {
-      answers[key] = item;
+const readCardElicitation = (() => {
+  return (value: unknown): FeishuElicitationCardState | null => {
+    if (!isRecord(value) || !Array.isArray(value.questions)) {
+      return null;
     }
-  }
-  return answers;
-}
+    const questions = value.questions.filter(isElicitationQuestion);
+    if (questions.length !== value.questions.length) {
+      return null;
+    }
+    const currentQuestionIndex =
+      typeof value.currentQuestionIndex === "number" ? value.currentQuestionIndex : 0;
+    return {
+      questions,
+      currentQuestionIndex,
+      ...(isRecord(value.answers) ? { answers: readAnswerMap(value.answers) } : {}),
+      ...(typeof value.status === "string" ? { status: value.status } : {}),
+      ...(Array.isArray(value.expandedCustomAnswerQuestionIndexes)
+        ? {
+            expandedCustomAnswerQuestionIndexes: value.expandedCustomAnswerQuestionIndexes.filter(
+              (item): item is number => typeof item === "number",
+            ),
+          }
+        : {}),
+      ...(value.schema !== undefined ? { schema: value.schema } : {}),
+    };
+  };
+})();
 
-function readCardAnswerValues(message: FeishuElicitationCardMessage, index: number): string[] {
-  return message.elicitation?.answers?.[String(index)] ?? [];
-}
+const isElicitationQuestion = (() => {
+  return (value: unknown): value is FeishuElicitationQuestion => {
+    if (!isRecord(value) || typeof value.question !== "string" || !Array.isArray(value.options)) {
+      return false;
+    }
+    return value.options.every(
+      (option) =>
+        isRecord(option) && typeof option.value === "string" && typeof option.label === "string",
+    );
+  };
+})();
+
+const readAnswerMap = (() => {
+  return (value: Record<string, unknown>): Record<string, string[]> => {
+    const answers: Record<string, string[]> = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (Array.isArray(item) && item.every((entry) => typeof entry === "string")) {
+        answers[key] = item;
+      }
+    }
+    return answers;
+  };
+})();
+
+const readCardAnswerValues = (() => {
+  return (message: FeishuElicitationCardMessage, index: number): string[] => {
+    return message.elicitation?.answers?.[String(index)] ?? [];
+  };
+})();
 
 /** 发布包 host `formatFeishuPlainText`。 */
 export function formatFeishuPlainText(content: string): Record<string, unknown> {
