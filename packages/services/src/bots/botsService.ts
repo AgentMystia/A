@@ -29,10 +29,6 @@ import type {
   BotInboundTaskRuntime,
   LiveStatusProgress,
 } from "./botsInboundRuntime.js";
-import {
-  resolveModelSelectionServiceForContext,
-  resolveZCodeTaskServiceForContext,
-} from "./botsInboundRuntime.js";
 import { createBotsMutationApi } from "./botsMutations.js";
 import { normalizeConfigBots } from "./botsNormalize.js";
 import { enqueueInboundProcessing, sendOutbound } from "./botsOutbound.js";
@@ -186,10 +182,6 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     transientCards,
     liveStatusProgress,
     streamingCardAborts,
-    resolveZCodeTaskServiceForContext: (context) =>
-      resolveZCodeTaskServiceForContext(runtime, context),
-    resolveModelSelectionServiceForContext: (context) =>
-      resolveModelSelectionServiceForContext(runtime, context),
   };
   inbound.setCreateStatusReply((actor, context, locale) =>
     createStatusReply(runtime, actor, context, locale),

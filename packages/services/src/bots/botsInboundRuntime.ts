@@ -19,7 +19,6 @@ import type { IBotRemoteWorkspaceService } from "./botsRemoteWorkspace.js";
 import type { BotsRepo } from "./botsRepo.js";
 import type { TransientInteractionCardEntry } from "./botsTransientCards.js";
 import type { BotSelection, BotSelectionOption, BotProvider } from "./botsTypes.js";
-import type { BotTaskServiceResolver } from "./botsDraft.js";
 import { createWorkspaceRef, getWorkspaceKey } from "./botsNormalize.js";
 
 export interface BotContextTaskEntry {
@@ -28,7 +27,7 @@ export interface BotContextTaskEntry {
   workspaceIdentity?: string;
 }
 
-export interface BotInboundTaskRuntime extends BotTaskServiceResolver {
+export interface BotInboundTaskRuntime {
   repo: BotsRepo;
   remoteWorkspaceService?: IBotRemoteWorkspaceService;
   broadcastService?: Pick<IBroadcastService, "send">;
@@ -115,15 +114,6 @@ export async function resolveModelSelectionServiceForContext(
   throw new Error(
     `当前远端项目 ${context.workspacePath} runtime 不可用，请发送 **/\u91cd\u8fde** 后重试。`,
   );
-}
-
-export function createTaskServiceResolver(runtime: BotInboundTaskRuntime): BotTaskServiceResolver {
-  return {
-    resolveZCodeTaskServiceForContext: (context) =>
-      resolveZCodeTaskServiceForContext(runtime, context),
-    resolveModelSelectionServiceForContext: (context) =>
-      resolveModelSelectionServiceForContext(runtime, context),
-  };
 }
 
 /** 发布包 host `requiresRemoteWorkspaceRuntime`。 */

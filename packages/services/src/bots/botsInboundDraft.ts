@@ -28,7 +28,6 @@ import {
   stripModelProviderDescriptionsForTextSelection,
 } from "./botsHostHelpers.js";
 import {
-  createTaskServiceResolver,
   resolveZCodeTaskServiceForContext,
   type BotContextTaskEntry,
   type BotInboundTaskRuntime,
@@ -219,11 +218,7 @@ export async function resolveDraftOptionsForDisplay(
   context: BotRuntimeState,
 ): Promise<BotDraftOptions> {
   const draft = await ensureDraftOptions(runtime, context);
-  const view = await readModelSelectionView(
-    createTaskServiceResolver(runtime),
-    context,
-    draft.modelSelection,
-  );
+  const view = await readModelSelectionView(runtime, context, draft.modelSelection);
   return {
     ...draft,
     modelSelection:
@@ -238,12 +233,11 @@ export async function buildActiveTaskDraftOptions(
   if (!context.activeTaskId) {
     return buildInitializedDraftOptions(context, (item) => runtime.isRemoteConnected(item));
   }
-  const resolver = createTaskServiceResolver(runtime);
   const meta = await readContextActiveTaskMeta(runtime, context);
   if (!meta?.provider) {
     return buildInitializedDraftOptions(context, (item) => runtime.isRemoteConnected(item));
   }
-  const options = await listActiveTaskConfigOptions(resolver, context, context.activeTaskId).catch(
+  const options = await listActiveTaskConfigOptions(runtime, context, context.activeTaskId).catch(
     () => [],
   );
   const provider = toBotTaskProvider(meta.provider);

@@ -9,7 +9,6 @@ import {
 } from "./botsDraft.js";
 import { handlePendingElicitationText as handleElicitationText } from "./botsInboundElicitation.js";
 import {
-  createTaskServiceResolver,
   resolveZCodeTaskServiceForContext,
   type BotInboundTaskRuntime,
 } from "./botsInboundRuntime.js";
@@ -82,11 +81,7 @@ export async function handleMessage(
       (await buildInitializedDraftOptions(authorized.context, (item) =>
         runtime.isRemoteConnected(item),
       ));
-    const view = await readModelSelectionView(
-      createTaskServiceResolver(runtime),
-      authorized.context,
-      draft.modelSelection,
-    );
+    const view = await readModelSelectionView(runtime, authorized.context, draft.modelSelection);
     const selection = draft.modelSelection ? view?.effectiveSelection : view?.preferredSelection;
     if (!selection || !view || (draft.modelSelection && view.selectionIssue)) {
       throw new Error("Bot 无法从目标 Host 解析 Submission 模型");
@@ -189,9 +184,7 @@ export async function handleMessage(
   const current = await taskService.getTaskModelSelection({
     taskId: authorized.context.activeTaskId,
   });
-  const view = current
-    ? await readModelSelectionView(createTaskServiceResolver(runtime), authorized.context, current)
-    : null;
+  const view = current ? await readModelSelectionView(runtime, authorized.context, current) : null;
   const effective = view?.effectiveSelection;
   if (!effective || view?.selectionIssue) {
     throw new Error(copy(authorized.locale, "sessionModelUnavailable"));

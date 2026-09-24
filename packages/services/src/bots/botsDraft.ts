@@ -19,19 +19,21 @@ import {
 import type { BotMessageLocale } from "./botsCopy.js";
 import { copy } from "./botsInboundText.js";
 import type { IModelSelectionService } from "../model-provider/providerFacadeServices.js";
-import type { IZCodeTaskService } from "../session/zcodeTaskService.js";
 import type { BotSelectionOption } from "./botsTypes.js";
+import {
+  resolveModelSelectionServiceForContext,
+  resolveZCodeTaskServiceForContext,
+  type BotInboundTaskRuntime,
+} from "./botsInboundRuntime.js";
+
+type DraftServiceRuntime = Pick<
+  BotInboundTaskRuntime,
+  "zcodeTaskService" | "remoteWorkspaceService" | "modelSelectionService"
+>;
 
 export interface BotDraftWorkspace {
   workspacePath: string;
   workspaceIdentity?: string;
-}
-
-export interface BotTaskServiceResolver {
-  resolveZCodeTaskServiceForContext(context: BotDraftWorkspace): Promise<IZCodeTaskService>;
-  resolveModelSelectionServiceForContext(
-    context: BotDraftWorkspace,
-  ): Promise<IModelSelectionService | null>;
 }
 
 const MODE_DISPLAY: Record<string, Record<string, Record<string, string>>> = {
@@ -209,11 +211,11 @@ export async function listProviderConfigOptionsForActiveTask(
 export { getConfigCommandMissingMessageId };
 
 export async function readModelSelectionView(
-  resolver: BotTaskServiceResolver,
+  runtime: DraftServiceRuntime,
   context: BotDraftWorkspace,
   selection?: ModelSelection,
 ): Promise<Awaited<ReturnType<IModelSelectionService["getView"]>> | null> {
-  const service = await resolver.resolveModelSelectionServiceForContext(context).catch(() => null);
+  const service = await resolveModelSelectionServiceForContext(runtime, context).catch(() => null);
   if (!service) {
     return null;
   }
@@ -239,10 +241,10 @@ export function createModelSelectionProviderOption(provider: {
 }
 
 export async function listModelSelectionProviderOptions(
-  resolver: BotTaskServiceResolver,
+  runtime: DraftServiceRuntime,
   context: BotDraftWorkspace,
 ): Promise<Array<{ id: string; label: string; models: BotSelectionOption[] }>> {
-  const view = await readModelSelectionView(resolver, context);
+  const view = await readModelSelectionView(runtime, context);
   return view
     ? view.providers
         .map(createModelSelectionProviderOption)
@@ -251,19 +253,19 @@ export async function listModelSelectionProviderOptions(
 }
 
 export async function listModelProviderOptionsForActiveTask(
-  resolver: BotTaskServiceResolver,
+  runtime: DraftServiceRuntime,
   context: BotDraftWorkspace,
 ): Promise<Array<{ id: string; label: string; models: BotSelectionOption[] }>> {
-  return listModelSelectionProviderOptions(resolver, context);
+  return listModelSelectionProviderOptions(runtime, context);
 }
 
 export async function listModelOptionsForProviderFromActiveTask(
-  resolver: BotTaskServiceResolver,
+  runtime: DraftServiceRuntime,
   context: BotDraftWorkspace,
   providerId: string,
 ): Promise<BotSelectionOption[]> {
   return (
-    (await listModelProviderOptionsForActiveTask(resolver, context)).find(
+    (await listModelProviderOptionsForActiveTask(runtime, context)).find(
       (item) => item.id === providerId,
     )?.models ?? []
   );
@@ -286,16 +288,16 @@ export function readModelProviderSelectionModels(option: unknown): BotSelectionO
 }
 
 export async function listAllModelOptionsForActiveTask(
-  resolver: BotTaskServiceResolver,
+  runtime: DraftServiceRuntime,
   context: BotDraftWorkspace,
 ): Promise<BotSelectionOption[]> {
-  return (await listModelProviderOptionsForActiveTask(resolver, context)).flatMap(
+  return (await listModelProviderOptionsForActiveTask(runtime, context)).flatMap(
     (item) => item.models,
   );
 }
 
 export async function formatStatusModelLabel(
-  resolver: BotTaskServiceResolver,
+  runtime: DraftServiceRuntime,
   value: string | undefined,
   context: BotDraftWorkspace,
 ): Promise<string> {
@@ -303,7 +305,7 @@ export async function formatStatusModelLabel(
     return "-";
   }
   const custom = parseBotModelOptionValue(value);
-  const providers = await listModelSelectionProviderOptions(resolver, context);
+  const providers = await listModelSelectionProviderOptions(runtime, context);
   if (custom?.providerId) {
     const label = providers.find((item) => item.id === custom.providerId)?.label;
     return label && custom.modelId ? `${label}/${custom.modelId}` : (label ?? value);
@@ -312,7 +314,7 @@ export async function formatStatusModelLabel(
 }
 
 export async function readCurrentModelProviderId(
-  resolver: BotTaskServiceResolver,
+  runtime: DraftServiceRuntime,
   task: Pick<ZCodeTaskMeta, "model">,
   options: ZCodeConfigOption[],
   provider: string | undefined,
@@ -326,7 +328,7 @@ export async function readCurrentModelProviderId(
   if (custom?.providerId && model.startsWith("custom:")) {
     return custom.providerId;
   }
-  const providers = await listModelProviderOptionsForActiveTask(resolver, context);
+  const providers = await listModelProviderOptionsForActiveTask(runtime, context);
   return (
     providers.find((item) => item.models.some((candidate) => candidate.id === model))?.id ??
     (provider ? getNativeModelProviderId(provider) : undefined)
@@ -347,24 +349,24 @@ export async function buildInitializedDraftOptions(
 }
 
 export async function listActiveTaskConfigOptions(
-  resolver: BotTaskServiceResolver,
+  runtime: DraftServiceRuntime,
   context: BotDraftWorkspace,
   taskId: string,
 ): Promise<ZCodeConfigOption[]> {
-  return (await resolver.resolveZCodeTaskServiceForContext(context)).getTaskConfigOptions({
+  return (await resolveZCodeTaskServiceForContext(runtime, context)).getTaskConfigOptions({
     taskId,
   });
 }
 
 export async function listDraftConfigOptions(
-  resolver: BotTaskServiceResolver,
+  runtime: DraftServiceRuntime,
   context: BotDraftWorkspace,
   draft: BotDraftOptions,
   view?: Awaited<ReturnType<typeof readModelSelectionView>>,
 ): Promise<ZCodeConfigOption[]> {
   const modelView =
     view === undefined
-      ? await readModelSelectionView(resolver, context, draft.modelSelection)
+      ? await readModelSelectionView(runtime, context, draft.modelSelection)
       : view;
   const selection = draft.modelSelection
     ? modelView?.effectiveSelection

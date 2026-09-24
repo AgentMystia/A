@@ -128,14 +128,7 @@ export async function applyDraftConfigOptions(
   if (!draft) {
     return;
   }
-  const options = await listActiveTaskConfigOptions(
-    {
-      resolveZCodeTaskServiceForContext: (item) => resolveZCodeTaskServiceForContext(runtime, item),
-      resolveModelSelectionServiceForContext: async () => null,
-    },
-    context,
-    taskId,
-  );
+  const options = await listActiveTaskConfigOptions(runtime, context, taskId);
   const mode = findSelectConfigOption(options, "mode");
   const supported = resolveSupportedDraftMode(
     options,

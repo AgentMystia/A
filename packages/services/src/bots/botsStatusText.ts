@@ -9,7 +9,6 @@ import {
 import { formatStatusTaskLine, taskStatus } from "./botsHostHelpers.js";
 import { ensureDraftOptions } from "./botsInboundDraft.js";
 import {
-  createTaskServiceResolver,
   resolveZCodeTaskServiceForContext,
   type BotInboundTaskRuntime,
 } from "./botsInboundRuntime.js";
@@ -98,20 +97,10 @@ export async function buildStatusText(
     !meta && (context.mode === "draft" || !context.activeTaskId)
       ? await ensureDraftOptions(runtime, context)
       : null;
-  const view = draft
-    ? await readModelSelectionView(
-        createTaskServiceResolver(runtime),
-        context,
-        draft.modelSelection,
-      )
-    : null;
+  const view = draft ? await readModelSelectionView(runtime, context, draft.modelSelection) : null;
   const selection = draft?.modelSelection ? view?.effectiveSelection : view?.preferredSelection;
   const options = context.activeTaskId
-    ? await listActiveTaskConfigOptions(
-        createTaskServiceResolver(runtime),
-        context,
-        context.activeTaskId,
-      ).catch(() => [])
+    ? await listActiveTaskConfigOptions(runtime, context, context.activeTaskId).catch(() => [])
     : [];
   const modelValue =
     readConfigSelectCurrentValue(options, "model") ??
@@ -155,7 +144,5 @@ async function formatStatusModelSafe(
   value: string | undefined,
   context: BotRuntimeState,
 ): Promise<string> {
-  return formatStatusModelLabel(createTaskServiceResolver(runtime), value, context).catch(
-    () => value ?? "-",
-  );
+  return formatStatusModelLabel(runtime, value, context).catch(() => value ?? "-");
 }

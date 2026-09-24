@@ -17,7 +17,6 @@ import {
 } from "./botsInboundDraft.js";
 import { createStatusReply } from "./botsStatusText.js";
 import {
-  createTaskServiceResolver,
   resolveZCodeTaskServiceForContext,
   type BotInboundTaskRuntime,
 } from "./botsInboundRuntime.js";
@@ -35,7 +34,7 @@ export async function handleThoughtLevelList(
   if (await isContextActiveTaskRunning(runtime, authorized.context)) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
   }
-  const resolver = createTaskServiceResolver(runtime);
+  const resolver = runtime;
   if (authorized.context.mode === "draft" || !authorized.context.activeTaskId) {
     const draft = await ensureDraftOptions(runtime, authorized.context);
     const options = await listDraftConfigOptions(resolver, authorized.context, draft);
@@ -104,7 +103,7 @@ export async function handleThoughtLevelSet(
   if (await isContextActiveTaskRunning(runtime, authorized.context)) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
   }
-  const resolver = createTaskServiceResolver(runtime);
+  const resolver = runtime;
   if (authorized.context.mode === "draft" || !authorized.context.activeTaskId) {
     const draft = await ensureDraftOptions(runtime, authorized.context);
     const view = await readModelSelectionView(resolver, authorized.context, draft.modelSelection);

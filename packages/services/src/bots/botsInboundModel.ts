@@ -31,7 +31,6 @@ import {
 } from "./botsInboundDraft.js";
 import { createStatusReply } from "./botsStatusText.js";
 import {
-  createTaskServiceResolver,
   resolveZCodeTaskServiceForContext,
   type BotInboundTaskRuntime,
 } from "./botsInboundRuntime.js";
@@ -49,7 +48,7 @@ export async function handleModelList(
   if (await isContextActiveTaskRunning(runtime, authorized.context)) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
   }
-  const resolver = createTaskServiceResolver(runtime);
+  const resolver = runtime;
   if (authorized.context.mode === "draft" || !authorized.context.activeTaskId) {
     const draft = await resolveDraftOptionsForDisplay(runtime, authorized.context);
     const providers = await listModelProviderOptionsForActiveTask(resolver, authorized.context);
@@ -126,7 +125,7 @@ export async function handleModelProviderSet(
   if (await isContextActiveTaskRunning(runtime, authorized.context)) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
   }
-  const resolver = createTaskServiceResolver(runtime);
+  const resolver = runtime;
   const isDraft = authorized.context.mode === "draft" || !authorized.context.activeTaskId;
   const draft = isDraft ? await resolveDraftOptionsForDisplay(runtime, authorized.context) : null;
   const active = isDraft ? null : await requireActiveTask(runtime, message, authorized);
@@ -180,7 +179,7 @@ export async function handleModelSet(
   if (await isContextActiveTaskRunning(runtime, authorized.context)) {
     return runtime.replies(message.actor, copy(authorized.locale, "taskRunning"));
   }
-  const resolver = createTaskServiceResolver(runtime);
+  const resolver = runtime;
   if (authorized.context.mode === "draft" || !authorized.context.activeTaskId) {
     const draft = await ensureDraftOptions(runtime, authorized.context);
     const option =
