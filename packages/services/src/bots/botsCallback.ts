@@ -51,12 +51,7 @@ export function createProviderCallbackProcessor(
     transientCards: Map<string, TransientInteractionCardEntry>;
   },
   stopInbound: (bot: BotConfigEntry, actor: BotActor) => Promise<void>,
-): {
-  processProviderCallback(
-    provider: BotProviderId,
-    payload: unknown,
-  ): Promise<BotProviderCallbackResult>;
-} {
+): (provider: BotProviderId, payload: unknown) => Promise<BotProviderCallbackResult> {
   const dedupe = createInboundDeliveryDedupe();
   // 发布包 keepName 落在具名函数上。
   async function processProviderCallback(provider: BotProviderId, payload: unknown) {
@@ -202,7 +197,8 @@ export function createProviderCallbackProcessor(
     }
     return { ok: !failed, replies, ...(failed ? { status: 503 } : {}) };
   }
-  return { processProviderCallback };
+  // 发布包把 processProviderCallback 本身交出去。包一层同名属性会再留下这个名字。
+  return processProviderCallback;
 }
 
 export function readBotsLocale(value: unknown): BotMessageLocale {

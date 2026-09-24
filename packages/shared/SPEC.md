@@ -222,6 +222,7 @@ createRemoteWorkspaceServiceCollection
 - runtime、回调和频道运行时传递已有函数引用，例如 `processProviderCallback: callback.processProviderCallback`、`listWorkspaceRefs: inbound.listWorkspaceRefs`。转发箭头会再包一层同名 keepName。飞书摘要用 `summarizeCallbackPayload`，不要再写一份 `JSON.stringify` 箭头。
 - bot 状态写入只走 `writeContext`，远端是否连接只走 `isRemoteWorkspaceConnected`。两者都从带 `repo` 或 `remoteWorkspaceService` 的 owner 上读依赖。runtime 上不要再挂 `persistContext` 或 `isRemoteConnected`，发布包 host index 没有这两个名字。
 - `stopInboundTyping` 只作为 `createTypingController` 里的函数声明。控制器用元组把这个函数交出去，runtime、回调 deps 和 `deliverProviderCallbackReplies` 的参数对象都不要再写这个属性名。发布包 host index 只有 keepName 那一次。
+- `createProviderCallbackProcessor` 直接返回 `processProviderCallback`。频道运行时写成 `processProviderCallback: callback`，不要再写 `callback.processProviderCallback`。发布包 host index 是 keepName、三处属性键和三处调用，共 7 次。
 - 设备身份 `deviceMid` 与数仓共用 `telemetry-state.json` 和 `withTelemetryStateLock`。`ensureTelemetryDeviceMid`、`ensureDeviceMidInLockedState` 写在 `telemetryCore.ts` 里，紧跟在锁函数后面。`deviceMid.ts` 只把 `ensureTelemetryDeviceMid` 重新导出为 `ensureDeviceMid`，不再自带第二套 `resolveDeviceStateFile` 锁。发布包 main paths 只有 `ensureTelemetryDeviceMid` 这个 keepName，没有 `Device state lock timeout`。
 - `pnpm typecheck` 与 `pnpm lint` 通过。
 - 服务频道字符串仍与发布包一致。

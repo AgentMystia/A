@@ -209,7 +209,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     readConfig: () => repo.readConfig(),
     readTelegramOffset: polling.readTelegramOffset,
     writeTelegramOffset: polling.writeTelegramOffset,
-    processProviderCallback: callback.processProviderCallback,
+    processProviderCallback: callback,
   });
   const weixinRuntime = createWeixinChannelRuntime({
     runBackgroundTasks,
@@ -220,7 +220,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     readConfig: () => repo.readConfig(),
     readWeixinGetUpdatesBuf: polling.readWeixinGetUpdatesBuf,
     writeWeixinGetUpdatesBuf: polling.writeWeixinGetUpdatesBuf,
-    processProviderCallback: callback.processProviderCallback,
+    processProviderCallback: callback,
   });
   const feishuRuntime = createFeishuChannelRuntime({
     runBackgroundTasks,
@@ -230,7 +230,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     ensureBotStorageMigrated,
     readConfig: () => repo.readConfig(),
     summarizeCallbackPayload,
-    processProviderCallback: callback.processProviderCallback,
+    processProviderCallback: callback,
   });
   const refreshRuntimes = (config?: BotsConfig) => {
     clearCandidateCaches(workspaceRefs);
@@ -317,10 +317,10 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
       );
     },
     async handleProviderCallback(provider, payload) {
-      return (await callback.processProviderCallback(provider, payload)).replies;
+      return (await callback(provider, payload)).replies;
     },
     async handleProviderCallbackResponse(provider, payload): Promise<BotProviderCallbackResult> {
-      return callback.processProviderCallback(provider, payload);
+      return callback(provider, payload);
     },
     disposeAll() {
       service.disposeAllAndWait().catch((error) => {
