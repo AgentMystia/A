@@ -131,8 +131,11 @@ export * from "./webRemoteControlRpcCodec.js";
 export * from "./webRemoteControlRpcAssembler.js";
 export * from "./webRemoteControlPayload.js";
 export * from "./marketingTouch.js";
-export * from "./cloudContent.js";
-export * from "./outputStyle.js";
+export type {
+  CloudContentBundle,
+  CloudContentPrepareResult,
+} from "./pure/cloudContent.js";
+export type { OutputStyleConfig, OutputStyleInfo } from "./pure/outputStyle.js";
 export * from "./bots.js";
 export { hash8, toAsciiSlug, toOpencodeModelId, toOpencodeProviderKey } from "./opencodeModelId.js";
 export type {

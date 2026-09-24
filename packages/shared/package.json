@@ -2,7 +2,13 @@
   "name": "@zcode/shared",
   "private": true,
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/*.ts",
+    "./src/browser-use/**/*.ts",
+    "./src/node/**/*.ts",
+    "./src/zcode-protocol/**/*.ts",
+    "./src/zcode-protocol-v4/**/*.ts"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./runtime-env": "./src/runtimeEnv.ts",
@@ -25,7 +31,9 @@
     "./workspace-hook-discovery": "./src/workspace-hook-discovery.ts",
     "./workspace-hook-mutation": "./src/workspace-hook-mutation.ts",
     "./workspace-hook-review-monotonicity": "./src/workspace-hook-review-monotonicity.ts",
-    "./workspace-hook-trust-store-file": "./src/workspace-hook-trust-store-file.ts"
+    "./workspace-hook-trust-store-file": "./src/workspace-hook-trust-store-file.ts",
+    "./cloud-content": "./src/pure/cloudContent.ts",
+    "./output-style": "./src/pure/outputStyle.ts"
   },
   "scripts": {
     "lint": "oxlint",

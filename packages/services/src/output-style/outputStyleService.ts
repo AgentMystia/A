@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
 import { access, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { BUILTIN_OUTPUT_STYLES, type OutputStyleConfig, type OutputStyleInfo } from "@zcode/shared";
+import {
+  BUILTIN_OUTPUT_STYLES,
+  type OutputStyleConfig,
+  type OutputStyleInfo,
+} from "@zcode/shared/output-style";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import type { IOutputStyleService } from "./outputStyle.js";
 import {

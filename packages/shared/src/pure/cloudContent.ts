@@ -1,4 +1,4 @@
-import { cloudDialogBundleSchema, type CloudDialogBundle } from "./cloudDialogPayload.js";
+import { cloudDialogBundleSchema, type CloudDialogBundle } from "../cloudDialogPayload.js";
 
 /**
  * 发布包只保留 cloudDialogBundleSchema 这一份 zip zod。

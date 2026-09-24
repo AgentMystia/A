@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { appSettingsPatchSchema, appSettingsSchema } from "../src/validationAppSettings.js";
 import { botsStateSchema } from "../src/bots.js";
-import { cloudContentBundleSchema } from "../src/cloudContent.js";
+import { cloudContentBundleSchema } from "../src/pure/cloudContent.js";
 import {
   cloudDialogBundleSchema,
   cloudDialogButtonThemeSchema,

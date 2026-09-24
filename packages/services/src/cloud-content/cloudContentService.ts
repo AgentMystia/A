@@ -1,13 +1,13 @@
 import { createServer, type Server } from "node:http";
 import { extname } from "node:path";
 import { rm } from "node:fs/promises";
+import { type MarketingAssetRef } from "@zcode/shared";
 import {
   CLOUD_CONTENT_LOOPBACK_CSP,
   CLOUD_CONTENT_LOOPBACK_MIME,
   cloudContentBundleSchema,
   type CloudContentPrepareResult,
-  type MarketingAssetRef,
-} from "@zcode/shared";
+} from "@zcode/shared/cloud-content";
 import type { MarketingAssetRegistry } from "../marketing-touch/marketingAssetRegistry.js";
 import type { ICloudContentService } from "./cloudContent.js";
 import { createContentBundleCache } from "./contentBundleCache.js";

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rm, stat, utimes, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { cloudContentBundleSchema, type CloudContentBundle } from "@zcode/shared";
+import { cloudContentBundleSchema, type CloudContentBundle } from "@zcode/shared/cloud-content";
 import { BUNDLE_MANIFEST_FILE_NAME, validateContentBundlePath } from "./contentBundlePath.js";
 import {
   BUNDLE_CACHE_MAX_BYTES,
