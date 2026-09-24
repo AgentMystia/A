@@ -220,6 +220,7 @@ createRemoteWorkspaceServiceCollection
 
 - `shouldRunCuaScreenCaptureProbe` 只在查询显式带 `includeFunctionalProbes: true` 且 Screen Recording 状态是 `granted` 时返回真。读状态查询不带这个字段，不能因为加载了 broker 就跑截图探针。
 - `AcknowledgedRelayProtocol` 在构造函数里直接写 bridge 身份对象，不经过单独的 `relayIdentity`。单独函数会在 main relay chunk 留下 keepName。入队时直接使用最后一帧的 `seq`，不先判断 `zcode_type === "rpc-frame"`。
+- 内嵌 WebM 录制脚本里，ArrayBuffer 不走 transfer 的注释以 `Bug 原因：` 开头。少这四个字时，main 的 recorder chunk 少 22 字节。
 - `AcknowledgedRelayBatchQueue` 在 `nextUnsent` 之后提供四个只读计数：`activeCount`（`storage.length - headIndex`）、`retainedStorageSlots`（`storage.length`）、`retainedBatchReferenceCount`（非空槽位数）、`retainedPayloadBytes`（非空槽 `outerBytes` 之和）。发布包 main 的 relay chunk 保留这些 getter，即使没有其它函数读取它们。
 - 发布包 host 在 `connectViaProtocol` 所在 chunk 还有一份没有读取的回放水位：`1024 * 1024`、`256 * 1024`、`8 * 1024 * 1024`、`45_000`，超时读 `WEB_REMOTE_CONTROL_RPC_LIMITS.assemblyTimeoutMs`。websocket 引入 `publishedRelayBufferDefaults.ts`。`@zcode/client` 的 `sideEffects` 列出除 `websocket.ts` 以外的源码文件，这样 main 只引入 `RemoteServiceAccess` 时不会把这份水位再复制进 relay chunk。真正的水位仍由 desktop main 的 `ACKNOWLEDGED_RELAY_DEFAULTS` 拥有。
 - `CuaHelperError` 的参数顺序是 `code`、`message`、`options`。安装失败的 `code` 是 `install_failed`，校验失败是 `verification_failed`，缺少本地包是 `helper_missing`，下载失败是 `download_failed`。
