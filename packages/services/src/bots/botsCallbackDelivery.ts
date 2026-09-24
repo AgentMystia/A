@@ -37,19 +37,21 @@ function toProviderOutbound(actor: BotActor, reply: BotOutboundMessage) {
 }
 
 /** 发布包 host callback 在 inbound 成功后的 acknowledge、临时卡片与 stopInboundTyping。 */
-export async function deliverProviderCallbackReplies(input: {
-  providerId: BotProviderId;
-  provider: BotProvider;
-  bot: BotConfigEntry;
-  payload: unknown;
-  message: BotInboundMessage;
-  locale: BotMessageLocale;
-  replies: BotOutboundMessage[];
-  logger: Pick<ServiceLogger, "warn">;
-  providers: Record<string, BotProvider | null>;
-  transientCards: Map<string, TransientInteractionCardEntry>;
-  stopInboundTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
-}): Promise<void> {
+export async function deliverProviderCallbackReplies(
+  input: {
+    providerId: BotProviderId;
+    provider: BotProvider;
+    bot: BotConfigEntry;
+    payload: unknown;
+    message: BotInboundMessage;
+    locale: BotMessageLocale;
+    replies: BotOutboundMessage[];
+    logger: Pick<ServiceLogger, "warn">;
+    providers: Record<string, BotProvider | null>;
+    transientCards: Map<string, TransientInteractionCardEntry>;
+  },
+  stopInbound: (bot: BotConfigEntry, actor: BotActor) => Promise<void>,
+): Promise<void> {
   const actorKey = getActorContextKey(input.message.actor);
   const card = input.transientCards.get(actorKey);
   const first = input.replies[0];
@@ -142,5 +144,5 @@ export async function deliverProviderCallbackReplies(input: {
     }
     await sendOutbound(input.provider, input.bot, outbound);
   }
-  await input.stopInboundTyping(input.bot, input.message.actor);
+  await stopInbound(input.bot, input.message.actor);
 }

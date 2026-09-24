@@ -40,16 +40,18 @@ function readFeishuCallbackToken(payload: unknown): string | undefined {
   return typeof header?.token === "string" ? header.token : undefined;
 }
 
-export function createProviderCallbackProcessor(deps: {
-  logger: ServiceLogger;
-  credentialService: { load(key: string): Promise<string | null> };
-  providers: Record<BotProviderId, BotProvider | null>;
-  readConfig(): Promise<BotsConfig>;
-  readLocale(): Promise<BotMessageLocale>;
-  handleInboundMessage(message: BotInboundMessage): Promise<BotOutboundMessage[]>;
-  transientCards: Map<string, TransientInteractionCardEntry>;
-  stopInboundTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
-}): {
+export function createProviderCallbackProcessor(
+  deps: {
+    logger: ServiceLogger;
+    credentialService: { load(key: string): Promise<string | null> };
+    providers: Record<BotProviderId, BotProvider | null>;
+    readConfig(): Promise<BotsConfig>;
+    readLocale(): Promise<BotMessageLocale>;
+    handleInboundMessage(message: BotInboundMessage): Promise<BotOutboundMessage[]>;
+    transientCards: Map<string, TransientInteractionCardEntry>;
+  },
+  stopInbound: (bot: BotConfigEntry, actor: BotActor) => Promise<void>,
+): {
   processProviderCallback(
     provider: BotProviderId,
     payload: unknown,
@@ -174,23 +176,25 @@ export function createProviderCallbackProcessor(deps: {
             );
           });
         }
-        await deps.stopInboundTyping(bot, message.actor).catch(() => undefined);
+        await stopInbound(bot, message.actor).catch(() => undefined);
         continue;
       }
       try {
-        await deliverProviderCallbackReplies({
-          providerId: provider,
-          provider: impl,
-          bot,
-          payload,
-          message,
-          locale,
-          replies: outbound,
-          logger: deps.logger,
-          providers: deps.providers,
-          transientCards: deps.transientCards,
-          stopInboundTyping: deps.stopInboundTyping,
-        });
+        await deliverProviderCallbackReplies(
+          {
+            providerId: provider,
+            provider: impl,
+            bot,
+            payload,
+            message,
+            locale,
+            replies: outbound,
+            logger: deps.logger,
+            providers: deps.providers,
+            transientCards: deps.transientCards,
+          },
+          stopInbound,
+        );
       } catch (error) {
         dedupe.release(message);
         throw error;

@@ -34,12 +34,14 @@ import { broadcastTaskListChange } from "./botsBroadcast.js";
 import { formatUserFacingBotError, isSessionExpiredError } from "./botsErrors.js";
 import { handlePublishedTaskStreamEvent } from "./botsTaskStreamEvents.js";
 
-export function createTypingController(providers: Record<string, BotProvider | null>): {
-  startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
-  stopTyping(taskId: string): void;
-  stopInboundTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
-  dispose(): void;
-} {
+export function createTypingController(providers: Record<string, BotProvider | null>): [
+  {
+    startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
+    stopTyping(taskId: string): void;
+    dispose(): void;
+  },
+  (bot: BotConfigEntry, actor: BotActor) => Promise<void>,
+] {
   const live = new Map<
     string,
     { bot: BotConfigEntry; target: Parameters<NonNullable<BotProvider["startTyping"]>>[1] }
@@ -106,16 +108,19 @@ export function createTypingController(providers: Record<string, BotProvider | n
     };
     await provider.stopTyping(bot, target).catch(() => undefined);
   }
-  return {
-    startTyping,
-    stopTyping,
-    stopInboundTyping,
-    dispose() {
-      for (const taskId of [...live.keys(), ...intervals.keys()]) {
-        stopTyping(taskId);
-      }
+  // 发布包 host 只有 stopInboundTyping 的 keepName。放进返回对象会多出属性名。
+  return [
+    {
+      startTyping,
+      stopTyping,
+      dispose() {
+        for (const taskId of [...live.keys(), ...intervals.keys()]) {
+          stopTyping(taskId);
+        }
+      },
     },
-  };
+    stopInboundTyping,
+  ];
 }
 
 /** 发布包 host `applyDraftConfigOptions`：草稿强制 yolo。 */

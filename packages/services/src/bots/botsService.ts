@@ -100,7 +100,7 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     setRuntimeStatus,
   };
   const providers = createBotProviderMap({ loadCredential, runtimeStatus, setRuntimeStatus });
-  const typing = createTypingController(providers);
+  const [typing, stopInbound] = createTypingController(providers);
   const transientCards = new Map<string, TransientInteractionCardEntry>();
   const liveStatusProgress = new Map<string, LiveStatusProgress>();
   const streamingCardAborts = new Set<AbortController>();
@@ -178,7 +178,6 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     },
     startTyping: typing.startTyping,
     stopTyping: typing.stopTyping,
-    stopInboundTyping: typing.stopInboundTyping,
     providers,
     transientCards,
     liveStatusProgress,
@@ -188,16 +187,18 @@ export function createBotsService(options: CreateBotsServiceOptions): IBotsServi
     createStatusReply(runtime, actor, context, locale),
   );
   let service!: IBotsService;
-  const callback = createProviderCallbackProcessor({
-    logger,
-    credentialService: options.credentialService,
-    providers,
-    readConfig: () => repo.readConfig(),
-    readLocale: () => inbound.readMessageLocale(),
-    handleInboundMessage: (message) => service.handleInboundMessage(message),
-    transientCards,
-    stopInboundTyping: typing.stopInboundTyping,
-  });
+  const callback = createProviderCallbackProcessor(
+    {
+      logger,
+      credentialService: options.credentialService,
+      providers,
+      readConfig: () => repo.readConfig(),
+      readLocale: () => inbound.readMessageLocale(),
+      handleInboundMessage: (message) => service.handleInboundMessage(message),
+      transientCards,
+    },
+    stopInbound,
+  );
   const telegramRuntime = createTelegramChannelRuntime({
     runBackgroundTasks,
     credentialService: options.credentialService,

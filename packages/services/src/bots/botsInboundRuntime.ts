@@ -56,7 +56,6 @@ export interface BotInboundTaskRuntime {
   sendAckTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
   startTyping(bot: BotConfigEntry, actor: BotActor, taskId: string): void;
   stopTyping(taskId: string): void;
-  stopInboundTyping(bot: BotConfigEntry, actor: BotActor): Promise<void>;
   providers: Record<string, BotProvider | null>;
   transientCards: Map<string, TransientInteractionCardEntry>;
   /** 发布包 host `p`：status 进展的唯一所有者。 */
