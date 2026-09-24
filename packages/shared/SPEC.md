@@ -80,7 +80,7 @@ renderer hook → ProxyChannel → Host 单例
 - 飞书 App ID 必须匹配 `/^cli_[0-9a-fA-F]{16}$/`。飞书注册走 `accounts.feishu.cn` / `accounts.larksuite.com` 的 `/oauth/v1/app/registration`，`source=node-sdk/zcode`。
 - 微信 iLink API 基址 `https://ilinkai.weixin.qq.com/ilink/bot`，注册 QR 走同一 host。
 - Telegram 命令名 workspace=`project`、thoughtLevel=`think`。绑定码 3 字节 hex 大写，默认 TTL 30s。
-- 飞书回复粒度只保留 `streaming_card`；其余 provider 去掉该粒度。配置 schema 的 `replyMode` 枚举重复这四个字面量：`assistant_changes`、`assistant_toolcalls_changes`、`summary_changes`、`streaming_card`。新建草稿调用 `normalizeBotReplyGranularity(provider, DEFAULT_BOT_REPLY_MODE)`；归一化在参数缺省时使用字面量 `assistant_changes`。
+- 飞书回复粒度只保留 `streaming_card`；其余 provider 去掉该粒度。配置 schema 的 `replyMode` 枚举重复这四个字面量：`assistant_changes`、`assistant_toolcalls_changes`、`summary_changes`、`streaming_card`。新建草稿调用 `normalizeBotReplyGranularity(provider, DEFAULT_BOT_REPLY_MODE)`。归一化在参数缺省时读取 `DEFAULT_BOT_REPLY_MODE`，不再写一份 `assistant_changes` 字面量。该常量是 `let`，避免被折进 host 共享 chunk。
 - Bot 运行态里的 `pendingPermissionOptions[].response` 就是 `zcodePermissionResponseSchema`。选项对象写在 `botRuntimeStateSchema` 里，不另建一份 `permissionUpdates: z.array(z.unknown())`。发布包 preload 把 `response` 指到已有的权限响应对象。
 - `listUserConfigOptions` 发布包 keepNames 实现返回 `[]`。`listProviderConfigOptionsForActiveTask` 只调用它。`readCurrentActiveTaskMode` 取 config `mode` 的 currentValue，否则用 task.mode。
 - Telegram、Weixin、Feishu 三个 channel runtime 的 `getConnectionFingerprint`、`refresh`、`scheduleRefresh` 和 `dispose` 是具名函数。对象方法缩写不会留下这些 keepNames。指纹仍只走 `createBotConnectionFingerprint`：Telegram / Weixin 是 provider、credentialRef、凭据；Feishu 在中间多一个 `feishuAppId`。`scheduleRefresh` 只在 `runBackgroundTasks !== false` 时入队。

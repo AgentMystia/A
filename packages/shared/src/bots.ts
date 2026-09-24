@@ -44,7 +44,8 @@ export const BOT_REPLY_MODES = [
 
 export type BotReplyMode = (typeof BOT_REPLY_MODES)[number];
 
-export const DEFAULT_BOT_REPLY_MODE: BotReplyMode = "assistant_changes";
+// 发布包 host 共享 chunk 用绑定而不是第二份字面量。const 会被折进去。
+export let DEFAULT_BOT_REPLY_MODE: BotReplyMode = "assistant_changes";
 
 export const botCommandPolicySchema = z
   .object({
@@ -226,7 +227,7 @@ export function normalizeBotReplyGranularity(
   replyMode?: BotReplyMode,
 ): BotReplyMode {
   const supported = getSupportedBotReplyGranularities(provider);
-  const candidate = replyMode ?? "assistant_changes";
+  const candidate = replyMode ?? DEFAULT_BOT_REPLY_MODE;
   return supported.includes(candidate) ? candidate : supported[0]!;
 }
 
