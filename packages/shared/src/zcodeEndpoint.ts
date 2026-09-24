@@ -175,11 +175,11 @@ export function resolveRuntimeZCodeEndpointOrigin(
   options?: { overrideOrigin?: string | null },
 ): string {
   const channel = resolveRuntimeZCodeEnv(env);
-  // 发布包把 ZCODE 通道键内联成三元，不走 ZAI 的 scoped helper。
-  const scopedBase = readRuntimeEnvValue(
-    env,
-    channel === "production" ? "ZCODE_PRODUCTION_BASE_URL" : "ZCODE_TEST_BASE_URL",
-  );
+  // 发布包是两次 read 调用，三元在调用外面。写进一个参数里会被压成一次调用。
+  const scopedBase =
+    channel === "production"
+      ? readRuntimeEnvValue(env, "ZCODE_PRODUCTION_BASE_URL")
+      : readRuntimeEnvValue(env, "ZCODE_TEST_BASE_URL");
   return resolveZCodeEndpointOrigin({
     env: channel,
     envBaseOrigin:
@@ -203,11 +203,11 @@ export function buildRuntimeZCodeApiUrl(env: RuntimeZCodeEndpointEnv = {}, path:
 
 export function resolveBigModelApiOrigin(env: RuntimeBigModelApiEnv = {}): string {
   const channel = resolveRuntimeZCodeEnv(env);
-  // 发布包把 BigModel 通道键内联成三元，不走 ZAI 的 scoped helper。
-  const scoped = readRuntimeEnvValue(
-    env,
-    channel === "production" ? "BIGMODEL_PRODUCTION_API_BASE_URL" : "BIGMODEL_TEST_API_BASE_URL",
-  );
+  // 发布包是两次 read 调用，三元在调用外面。写进一个参数里会被压成一次调用。
+  const scoped =
+    channel === "production"
+      ? readRuntimeEnvValue(env, "BIGMODEL_PRODUCTION_API_BASE_URL")
+      : readRuntimeEnvValue(env, "BIGMODEL_TEST_API_BASE_URL");
   const fallback =
     channel === "production" ? DEFAULT_BIGMODEL_API_ORIGIN : DEFAULT_BIGMODEL_TEST_API_ORIGIN;
   return normalizeZCodeEndpointOrigin(
