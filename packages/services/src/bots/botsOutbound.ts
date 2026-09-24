@@ -25,18 +25,16 @@ export function createOutbound(
   };
 }
 
-export function toOutboundMessages(
-  actor: BotActor,
-  replies: BotProviderOutbound[],
-): BotOutboundMessage[] {
-  return replies.map((reply) => ({
-    actor,
-    text: reply.text,
-    selection: reply.selection,
-    elicitation: reply.elicitation,
-    locale: reply.locale,
-  }));
-}
+export const toOutboundMessages = (() => {
+  return (actor: BotActor, replies: BotProviderOutbound[]): BotOutboundMessage[] =>
+    replies.map((reply) => ({
+      actor,
+      text: reply.text,
+      selection: reply.selection,
+      elicitation: reply.elicitation,
+      locale: reply.locale,
+    }));
+})();
 
 export async function sendOutbound(
   provider: BotProvider | null | undefined,

@@ -140,10 +140,10 @@ export async function buildStatusText(
     .join("\n");
 }
 
-async function formatStatusModelSafe(
-  runtime: BotInboundTaskRuntime,
-  value: string | undefined,
-  context: BotRuntimeState,
-): Promise<string> {
-  return formatStatusModelLabel(runtime, value, context).catch(() => value ?? "-");
-}
+const formatStatusModelSafe = (() => {
+  return async (
+    runtime: BotInboundTaskRuntime,
+    value: string | undefined,
+    context: BotRuntimeState,
+  ): Promise<string> => formatStatusModelLabel(runtime, value, context).catch(() => value ?? "-");
+})();

@@ -66,14 +66,16 @@ export function formatReplyGranularityLabel(
 }
 
 /** 发布包 host `resolveReplyGranularityByValue`。 */
-export function parseReplyGranularity(
-  value: string,
-  locale: BotMessageLocale,
-  provider: BotProviderId,
-): BotReplyMode | null {
-  const option = resolveReplyGranularityByValue(value, locale, provider);
-  return option ? (option.id as BotReplyMode) : null;
-}
+export const parseReplyGranularity = (() => {
+  return (
+    value: string,
+    locale: BotMessageLocale,
+    provider: BotProviderId,
+  ): BotReplyMode | null => {
+    const option = resolveReplyGranularityByValue(value, locale, provider);
+    return option ? (option.id as BotReplyMode) : null;
+  };
+})();
 
 /** 发布包 host `resolveReplyGranularityByValue`。 */
 export function resolveReplyGranularityByValue(

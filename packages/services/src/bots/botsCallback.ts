@@ -23,22 +23,25 @@ import type { TransientInteractionCardEntry } from "./botsTransientCards.js";
 import type { BotProvider } from "./botsTypes.js";
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 
-function readWebhookSecret(payload: unknown): string | undefined {
-  return isRecord(payload) && typeof payload.webhookSecret === "string"
-    ? payload.webhookSecret
-    : undefined;
-}
+const readWebhookSecret = (() => {
+  return (payload: unknown): string | undefined =>
+    isRecord(payload) && typeof payload.webhookSecret === "string"
+      ? payload.webhookSecret
+      : undefined;
+})();
 
-function readFeishuCallbackToken(payload: unknown): string | undefined {
-  if (!isRecord(payload)) {
-    return undefined;
-  }
-  if (typeof payload.token === "string") {
-    return payload.token;
-  }
-  const header = isRecord(payload.header) ? payload.header : null;
-  return typeof header?.token === "string" ? header.token : undefined;
-}
+const readFeishuCallbackToken = (() => {
+  return (payload: unknown): string | undefined => {
+    if (!isRecord(payload)) {
+      return undefined;
+    }
+    if (typeof payload.token === "string") {
+      return payload.token;
+    }
+    const header = isRecord(payload.header) ? payload.header : null;
+    return typeof header?.token === "string" ? header.token : undefined;
+  };
+})();
 
 // 发布包没有 createProviderCallbackProcessor 这个 keepName。函数声明会留下名字，立即执行的箭头不会。
 export const createProviderCallbackProcessor = (() => {

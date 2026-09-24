@@ -155,13 +155,14 @@ export function readConfigSelectCurrentLabel(
   return current?.label;
 }
 
-export function botTaskStreamKey(context: {
-  workspacePath: string;
-  workspaceIdentity?: string;
-  activeTaskId: string;
-}): string {
-  return `${getWorkspaceKey(context.workspacePath, context.workspaceIdentity)}::${context.activeTaskId}`;
-}
+export const botTaskStreamKey = (() => {
+  return (context: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    activeTaskId: string;
+  }): string =>
+    `${getWorkspaceKey(context.workspacePath, context.workspaceIdentity)}::${context.activeTaskId}`;
+})();
 
 export function createCurrentWorkspaceRef(context: BotRuntimeState): BotWorkspaceRef {
   return createWorkspaceRef(context.workspacePath, context.workspaceIdentity);

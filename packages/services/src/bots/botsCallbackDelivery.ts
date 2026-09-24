@@ -21,20 +21,22 @@ import type { BotProvider } from "./botsTypes.js";
 
 const APPROVE_OR_DENY_TEXT = /^\/(?:approve|deny)(?:\s|$)/u;
 
-function elicitationStatus(value: unknown): string | undefined {
-  return isRecord(value) && typeof value.status === "string" ? value.status : undefined;
-}
+const elicitationStatus = (() => {
+  return (value: unknown): string | undefined =>
+    isRecord(value) && typeof value.status === "string" ? value.status : undefined;
+})();
 
-function isAckHandled(value: unknown): boolean {
-  return isRecord(value) && value.handled === true;
-}
+const isAckHandled = (() => {
+  return (value: unknown): boolean => isRecord(value) && value.handled === true;
+})();
 
-function toProviderOutbound(actor: BotActor, reply: BotOutboundMessage) {
-  return createOutbound(actor, reply.text, reply.selection, {
-    elicitation: reply.elicitation,
-    locale: reply.locale,
-  });
-}
+const toProviderOutbound = (() => {
+  return (actor: BotActor, reply: BotOutboundMessage) =>
+    createOutbound(actor, reply.text, reply.selection, {
+      elicitation: reply.elicitation,
+      locale: reply.locale,
+    });
+})();
 
 /** 发布包 host callback 在 inbound 成功后的 acknowledge、临时卡片与 stopInboundTyping。 */
 export const deliverProviderCallbackReplies = (() => {

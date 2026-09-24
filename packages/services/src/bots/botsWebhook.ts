@@ -96,9 +96,9 @@ export function parseWebhookElicitationResponse(payload: Record<string, unknown>
   };
 }
 
-function secretHeaderName(bot: BotConfigEntry): string {
-  return bot.webhookAuthHeaderName || WEBHOOK_SECRET_HEADER;
-}
+const secretHeaderName = (() => {
+  return (bot: BotConfigEntry): string => bot.webhookAuthHeaderName || WEBHOOK_SECRET_HEADER;
+})();
 
 export function createWebhookBotProvider(deps: BotCredentialLoader): BotProvider {
   return {

@@ -12,12 +12,14 @@ function getWeixinRegistrationBaseUrl(): string {
   return WEIXIN_API_BASE.replace(/\/+$/u, "");
 }
 
-function unwrapRegistrationData(value: unknown): Record<string, unknown> {
-  if (!isRecord(value)) {
-    return {};
-  }
-  return isRecord(value.data) ? { ...value, ...value.data } : value;
-}
+const unwrapRegistrationData = (() => {
+  return (value: unknown): Record<string, unknown> => {
+    if (!isRecord(value)) {
+      return {};
+    }
+    return isRecord(value.data) ? { ...value, ...value.data } : value;
+  };
+})();
 
 async function getWeixinRegistrationJson(path: string): Promise<Record<string, unknown>> {
   const response = await fetch(`${getWeixinRegistrationBaseUrl()}${WEIXIN_BOT_PATH}${path}`, {
